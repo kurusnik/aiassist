@@ -49,6 +49,8 @@ async function sendMessage() {
   if (!text || state.ui.loading) return;
 
   addMessage({ role: 'user', content: text });
+  const assistantMessage = { role: 'assistant', content: '' };
+  addMessage(assistantMessage);
   renderChat();
 
   textarea.value = '';
@@ -64,11 +66,36 @@ async function sendMessage() {
     })
   });
 
-  const data = await response.json();
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
 
-  addMessage({ role: 'assistant', content: data.reply });
-  setLoading(false);
-  renderChat();
+  while (true) {
+    const { done, value } = await reader.read();
+    
+    if (done) break;
+    
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split('\n\n');
+    buffer = lines.pop();
+
+    for (const line of lines) {
+      if (line.startsWith('data: ')) {
+        try {
+          const data = JSON.parse(line.slice(6));
+          if (data.content) {
+            assistantMessage.content += data.content;
+            renderChat();
+          }
+          if (data.done) {
+            setLoading(false);
+          }
+        } catch (error) {
+          console.error('Error parsing SSE data:', error);
+        }
+      }
+    }
+  }
 }
    //новый проект
 async function addProject() {
@@ -78,10 +105,7 @@ async function addProject() {
   const res = await fetch('/projects', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      name,
-      userId: 1
-    })
+    body: JSON.stringify({ name })
   });
 
   const project = await res.json();
@@ -249,8 +273,49 @@ async function loadProjects() {
   }
 }
 
+// ---------- проверка авторизации ----------
+async function checkAuth() {
+  try {
+    const res = await fetch('/auth/check');
+    const data = await res.json();
+    
+    if (!data.authenticated) {
+      window.location.href = '/login.html';
+      return false;
+    }
+    
+    // Показываем имя пользователя
+    const userEl = document.getElementById('username');
+    if (userEl && data.user) {
+      userEl.textContent = data.user.username;
+    }
+    
+    return true;
+  } catch (err) {
+    console.error('Auth check failed:', err);
+    window.location.href = '/login.html';
+    return false;
+  }
+}
+
+// ---------- выход ----------
+async function logout() {
+  try {
+    await fetch('/logout', { method: 'POST' });
+    window.location.href = '/login.html';
+  } catch (err) {
+    console.error('Logout failed:', err);
+  }
+}
+
+// Добавляем обработчик кнопки выхода
+document.getElementById('logoutBtn')?.addEventListener('click', logout);
+
   // ---------- init ----------
 async function init() {
+  const isAuth = await checkAuth();
+  if (!isAuth) return;
+  
   await loadProjects();
   await loadModels();
   await loadProjectSettings();

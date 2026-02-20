@@ -241,7 +241,8 @@
         <h1>Проекты и чат</h1>
       </div>
       <div class="toolbar">
-        <span class="loading" id="apiStatus"><span class="spinner"></span> Подключение...</span>
+        <span style="color:var(--muted); font-size:14px;">👤 <span id="username">...</span></span>
+        <button class="btn btn-sm" id="logoutBtn" style="padding:6px 12px; font-size:13px;">Выход</button>
       </div>
     </header>
 
@@ -292,7 +293,15 @@
 
       <div class="composer">
         <textarea id="message" placeholder="Напишите сообщение... (Enter — отправить, Shift+Enter — перенос)"></textarea>
-        <button class="btn primary" id="sendBtn">Отправить</button>
+        <div style="display:flex;flex-direction:column;gap:8px;align-items:flex-end">
+          <div style="display:flex;gap:8px;align-items:center;">
+            <input type="file" id="fileInput" multiple style="display:none" />
+            <button class="btn" id="attachBtn">Прикрепить</button>
+            <button class="btn primary" id="sendBtn">Отправить</button>
+          </div>
+          <div id="uploadStatus" style="color:var(--muted); font-size:13px;"></div>
+          <div id="pendingAttachments" style="display:flex; flex-wrap:wrap; gap:6px; justify-content:flex-end;"></div>
+        </div>
       </div>
     </section>
   </div>
@@ -377,7 +386,11 @@
 
       const b = document.createElement('div');
       b.className = 'bubble';
-      b.innerHTML = renderRichText(content);
+
+      const contentEl = document.createElement('div');
+      contentEl.className = 'bubble-content';
+      contentEl.innerHTML = renderRichText(content);
+      b.appendChild(contentEl);
 
       const ts = document.createElement('div');
       ts.className = 'timestamp';
@@ -394,14 +407,13 @@
       return wrapper;
     }
 
-    function setApiStatus(ok) {
-      const el = $('#apiStatus');
-      if (ok) {
-        el.innerHTML = '✅ API доступен';
-      } else {
-        el.innerHTML = '<span class="spinner"></span> Подключение...';
-      }
+    function setBubbleText(wrapper, text) {
+      const contentEl = wrapper?.querySelector?.('.bubble-content');
+      if (!contentEl) return;
+      contentEl.innerHTML = renderRichText(text || '');
     }
+
+    // API status removed - not needed with auth
 
     // ---------- State ----------
     let state = {
@@ -410,6 +422,7 @@
       currentProjectId: null,
       selectedModel: localStorage.getItem('selectedModel') || '',
       systemPrompt: localStorage.getItem('systemPrompt') || '',
+      pendingAttachments: [] // [{ id, original_name, filename, size, url }]
     };
 
     // ---------- API ----------
@@ -481,17 +494,113 @@
       return r.json();
     }
 
-    async function sendAssistant(projectId, userMessage, model) {
+    async function sendAssistantStream(projectId, userMessage, model, attachmentIds = [], onDelta) {
       const r = await fetch('/assistant', {
         method: 'POST',
         headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({ projectId, userMessage, model })
+        body: JSON.stringify({ projectId, userMessage, model, attachmentIds })
       });
       if (!r.ok) {
         const err = await r.json().catch(()=>({}));
         throw new Error(err?.details || 'assistant failed');
       }
-      return r.json();
+
+      if (!r.body) throw new Error('stream_not_supported');
+
+      const reader = r.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let full = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const frames = buffer.split('\n\n');
+        buffer = frames.pop() || '';
+
+        for (const frame of frames) {
+          // SSE может содержать несколько строк. Берём data: (первую)
+          const dataLine = frame
+            .split('\n')
+            .find(l => l.startsWith('data: '));
+          if (!dataLine) continue;
+
+          let payload;
+          try {
+            payload = JSON.parse(dataLine.slice(6));
+          } catch (e) {
+            // если прилетело что-то неожиданное — пропускаем
+            continue;
+          }
+
+          if (payload?.error) {
+            throw new Error(payload?.details || payload?.error);
+          }
+
+          if (payload?.content) {
+            const part = String(payload.content);
+            full += part;
+            if (typeof onDelta === 'function') onDelta(part, full);
+          }
+
+          if (payload?.done) {
+            return full;
+          }
+        }
+      }
+
+      return full;
+    }
+
+    // ---------- Pending attachments UI ----------
+    function renderPendingAttachments() {
+      const el = document.getElementById('pendingAttachments');
+      if (!el) return;
+      el.innerHTML = '';
+
+      if (!state.pendingAttachments?.length) return;
+
+      state.pendingAttachments.forEach(a => {
+        const chip = document.createElement('div');
+        chip.style.display = 'inline-flex';
+        chip.style.alignItems = 'center';
+        chip.style.gap = '6px';
+        chip.style.maxWidth = '320px';
+        chip.style.padding = '6px 8px';
+        chip.style.border = '1px solid var(--border)';
+        chip.style.borderRadius = '999px';
+        chip.style.background = '#0e131a';
+        chip.style.color = 'var(--text)';
+        chip.title = 'Будет отправлено вместе с сообщением';
+
+        const name = document.createElement('span');
+        name.style.whiteSpace = 'nowrap';
+        name.style.overflow = 'hidden';
+        name.style.textOverflow = 'ellipsis';
+        name.textContent = a.original_name || a.filename;
+
+        const rm = document.createElement('button');
+        rm.className = 'btn ghost';
+        rm.style.padding = '3px 8px';
+        rm.style.fontSize = '12px';
+        rm.textContent = '×';
+        rm.title = 'Убрать из отправки';
+        rm.addEventListener('click', () => {
+          state.pendingAttachments = state.pendingAttachments.filter(x => x.id !== a.id);
+          renderPendingAttachments();
+        });
+
+        chip.appendChild(name);
+        chip.appendChild(rm);
+        el.appendChild(chip);
+      });
+    }
+
+    function clearPendingAttachments() {
+      state.pendingAttachments = [];
+      renderPendingAttachments();
     }
 
     // ---------- UI binding ----------
@@ -540,9 +649,14 @@
       } else if (!state.currentProjectId || !list.some(p => p.id === state.currentProjectId)) {
         state.currentProjectId = list[0].id;
       }
+
+      // не переносим вложения между проектами
+      clearPendingAttachments();
+
       sel.value = state.currentProjectId;
       sel.onchange = async () => {
         state.currentProjectId = Number(sel.value);
+        clearPendingAttachments();
         await showMessages(state.currentProjectId);
       };
 
@@ -570,6 +684,11 @@
     async function showMessages(projectId) {
       const chat = $('#chat');
       chat.innerHTML = '<div class="meta"><span class="dot"></span> История диалога</div>';
+      // attachments container
+      const attContainer = document.createElement('div');
+      attContainer.id = 'attachments';
+      attContainer.style.margin = '8px 0 12px';
+      chat.appendChild(attContainer);
       const sys = state.systemPrompt?.trim();
       if (sys) {
         chat.appendChild(bubble({ role:'system', content: 'Инструкция: ' + sys, created_at: new Date() }));
@@ -586,6 +705,76 @@
       }
       chat.scrollTop = chat.scrollHeight;
       $('#emptyState')?.remove?.();
+
+      // load attachments for project
+      try { await loadAttachments(projectId); } catch (e) { console.error('loadAttachments failed', e); }
+    }
+
+    // ---------- Attachments API ----------
+    async function loadAttachments(projectId) {
+      const r = await fetch(`/projects/${projectId}/attachments`);
+      if (!r.ok) return;
+      const list = await r.json();
+
+      const container = $('#attachments');
+      if (!container) return;
+      container.innerHTML = '';
+      if (!list.length) return;
+
+      const title = document.createElement('div');
+      title.style.color = 'var(--muted)';
+      title.style.fontSize = '13px';
+      title.style.marginBottom = '6px';
+      title.textContent = 'Вложения';
+      container.appendChild(title);
+
+      list.forEach(a => {
+        const row = document.createElement('div');
+        row.style.display = 'flex';
+        row.style.gap = '8px';
+        row.style.alignItems = 'center';
+        row.style.marginBottom = '6px';
+
+        const link = document.createElement('a');
+        link.href = a.url;
+        link.target = '_blank';
+        link.textContent = a.original_name || a.filename;
+        link.style.color = 'var(--accent)';
+
+        const info = document.createElement('span');
+        info.style.color = 'var(--muted)';
+        info.style.fontSize = '12px';
+        info.textContent = ` · ${Math.round(a.size/1024)} KB`;
+
+        row.appendChild(link);
+        row.appendChild(info);
+        container.appendChild(row);
+      });
+    }
+
+    async function uploadAttachment(projectId, file) {
+      const status = $('#uploadStatus');
+      status.textContent = 'Загружаю...';
+      const fd = new FormData();
+      fd.append('file', file);
+
+      const r = await fetch(`/projects/${projectId}/attachments`, {
+        method: 'POST',
+        body: fd
+      });
+
+      if (!r.ok) {
+        const err = await r.json().catch(()=>({}));
+        status.textContent = 'Ошибка загрузки: ' + (err?.error || r.statusText);
+        setTimeout(()=> status.textContent = '', 4000);
+        throw new Error('upload failed');
+      }
+
+      const data = await r.json();
+      status.textContent = 'Загружено: ' + (data.attachment?.original_name || data.attachment?.filename);
+      setTimeout(()=> status.textContent = '', 3000);
+      await loadAttachments(projectId);
+      return data;
     }
 
     function setSending(disabled) {
@@ -597,7 +786,8 @@
     async function onSend() {
       const txtEl = $('#message');
       const text = txtEl.value.trim();
-      if (!text) return;
+      const attachmentIds = (state.pendingAttachments || []).map(a => a.id).filter(Boolean);
+      if (!text && attachmentIds.length === 0) return;
       if (!state.currentProjectId) {
         alert('Сначала создайте или выберите проект');
         return;
@@ -605,7 +795,11 @@
 
       // Render immediately user message
       const chat = $('#chat');
-      chat.appendChild(bubble({ role:'user', content: text, created_at: new Date() }));
+
+      const userRendered = text || (attachmentIds.length ? 'См. прикрепленные файлы.' : '');
+      if (userRendered) {
+        chat.appendChild(bubble({ role:'user', content: userRendered, created_at: new Date() }));
+      }
       chat.scrollTop = chat.scrollHeight;
 
       txtEl.value = '';
@@ -613,10 +807,34 @@
       showTyping();
 
       try {
-        const { reply } = await sendAssistant(state.currentProjectId, text, state.selectedModel);
+        // Готовим bubble для потока
+        const assistantWrap = bubble({ role:'assistant', content: '', created_at: new Date() });
+        let inserted = false;
+
+        const reply = await sendAssistantStream(
+          state.currentProjectId,
+          text,
+          state.selectedModel,
+          attachmentIds,
+          (_delta, full) => {
+            if (!inserted) {
+              hideTyping();
+              chat.appendChild(assistantWrap);
+              inserted = true;
+            }
+            setBubbleText(assistantWrap, full);
+            chat.scrollTop = chat.scrollHeight;
+          }
+        );
+
         hideTyping();
-        chat.appendChild(bubble({ role:'assistant', content: reply || '(пустой ответ)', created_at: new Date() }));
+        if (!inserted) {
+          // если стрим не прислал ни одного content
+          chat.appendChild(bubble({ role:'assistant', content: reply || '(пустой ответ)', created_at: new Date() }));
+        }
         chat.scrollTop = chat.scrollHeight;
+        clearPendingAttachments();
+        try { await loadAttachments(state.currentProjectId); } catch (e) {}
       } catch (e) {
         hideTyping();
         const errMsg = 'Ошибка: ' + (e?.message || 'не удалось получить ответ');
@@ -668,6 +886,32 @@
       }
     });
 
+    // Attachments UI
+    const attachBtn = document.getElementById('attachBtn');
+    const fileInput = document.getElementById('fileInput');
+    attachBtn.addEventListener('click', () => fileInput.click());
+    fileInput.addEventListener('change', async (e) => {
+      const files = Array.from(e.target.files || []);
+      if (!files.length) return;
+      if (!state.currentProjectId) { alert('Сначала выберите проект'); return; }
+      try {
+        setSending(true);
+        for (const f of files) {
+          const data = await uploadAttachment(state.currentProjectId, f);
+          const a = data?.attachment;
+          if (a?.id) {
+            state.pendingAttachments.push(a);
+            renderPendingAttachments();
+          }
+        }
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setSending(false);
+        fileInput.value = '';
+      }
+    });
+
     $('#savePrompt').addEventListener('click', () => {
       const v = $('#systemPrompt').value || '';
       state.systemPrompt = v;
@@ -681,14 +925,52 @@
       showMessages(state.currentProjectId);
     });
 
+    // Обработчик кнопки выхода
+    const logoutBtn = document.getElementById('logoutBtn');
+    if (logoutBtn) {
+      logoutBtn.addEventListener('click', async () => {
+        try {
+          await fetch('/logout', { method: 'POST' });
+          window.location.href = '/login.html';
+        } catch (err) {
+          console.error('Logout failed:', err);
+          window.location.href = '/login.html';
+        }
+      });
+    }
+
     // ---------- Boot ----------
     (async function init(){
+      // Проверка авторизации
+      try {
+        const authRes = await fetch('/auth/check');
+        const authData = await authRes.json();
+        
+        if (!authData.authenticated) {
+          window.location.href = '/login.html';
+          return;
+        }
+        
+        // Показываем имя пользователя
+        if (authData.user && authData.user.username) {
+          const usernameEl = document.getElementById('username');
+          if (usernameEl) {
+            usernameEl.textContent = authData.user.username;
+          }
+        }
+      } catch (err) {
+        console.error('Auth check failed:', err);
+        window.location.href = '/login.html';
+        return;
+      }
+
       $('#systemPrompt').value = state.systemPrompt;
 
       try {
-        const ok = await apiHealth();
-        setApiStatus(ok);
-      } catch { setApiStatus(false); }
+        await apiHealth();
+      } catch (err) {
+        console.error('API health check failed:', err);
+      }
 
       try {
         await refreshModels();

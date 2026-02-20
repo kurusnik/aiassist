@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <title>Вход - AI Assistant</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root {
+      --bg: #0f1216;
+      --panel: #141a22;
+      --panel-2: #18202a;
+      --text: #e6edf3;
+      --muted: #9fb0c0;
+      --accent: #4ea1ff;
+      --accent-2: #7f5af0;
+      --danger: #ff6b6b;
+      --border: #243041;
+      --shadow: 0 10px 30px rgba(0,0,0,0.35);
+      --radius: 14px;
+    }
+    
+    * { box-sizing: border-box; }
+    
+    html, body {
+      height: 100%;
+      margin: 0;
+      background: linear-gradient(180deg, #0e141b 0%, #0d131a 100%);
+      color: var(--text);
+      font: 16px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+    }
+    
+    .login-container {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 20px;
+    }
+    
+    .login-box {
+      background: linear-gradient(180deg, var(--panel) 0%, var(--panel-2) 100%);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 40px;
+      width: 100%;
+      max-width: 420px;
+    }
+    
+    .logo {
+      text-align: center;
+      margin-bottom: 32px;
+    }
+    
+    .logo h1 {
+      margin: 0 0 8px;
+      font-size: 28px;
+      background: linear-gradient(135deg, var(--accent), var(--accent-2));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    
+    .logo p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 14px;
+    }
+    
+    .tabs {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 24px;
+      background: #0f141b;
+      padding: 4px;
+      border-radius: 10px;
+    }
+    
+    .tab {
+      flex: 1;
+      padding: 10px;
+      background: transparent;
+      border: none;
+      color: var(--muted);
+      cursor: pointer;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      transition: all 0.2s;
+    }
+    
+    .tab.active {
+      background: linear-gradient(135deg, var(--accent), var(--accent-2));
+      color: white;
+    }
+    
+    .form-group {
+      margin-bottom: 20px;
+    }
+    
+    label {
+      display: block;
+      margin-bottom: 8px;
+      color: var(--muted);
+      font-size: 14px;
+      font-weight: 600;
+    }
+    
+    input {
+      width: 100%;
+      background: #0f141b;
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px 14px;
+      outline: none;
+      transition: 0.15s ease;
+      font-size: 15px;
+    }
+    
+    input:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(78,161,255,.15);
+    }
+    
+    .btn {
+      width: 100%;
+      padding: 12px;
+      background: linear-gradient(135deg, var(--accent), var(--accent-2));
+      color: white;
+      border: none;
+      border-radius: 10px;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: 0.2s;
+      box-shadow: var(--shadow);
+    }
+    
+    .btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 12px 35px rgba(78,161,255,0.3);
+    }
+    
+    .btn:active {
+      transform: translateY(0);
+    }
+    
+    .btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none;
+    }
+    
+    .error {
+      background: rgba(255, 107, 107, 0.1);
+      border: 1px solid var(--danger);
+      color: var(--danger);
+      padding: 12px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+      font-size: 14px;
+      display: none;
+    }
+    
+    .error.show {
+      display: block;
+    }
+    
+    .form-section {
+      display: none;
+    }
+    
+    .form-section.active {
+      display: block;
+    }
+  </style>
+</head>
+<body>
+  <div class="login-container">
+    <div class="login-box">
+      <div class="logo">
+        <h1>AI Assistant</h1>
+        <p>Персональный AI-помощник</p>
+      </div>
+      
+      <div class="tabs">
+        <button class="tab active" data-tab="login">Вход</button>
+        <button class="tab" data-tab="register">Регистрация</button>
+      </div>
+      
+      <div class="error" id="error"></div>
+      
+      <!-- Форма входа -->
+      <div class="form-section active" id="login-form">
+        <form id="loginForm">
+          <div class="form-group">
+            <label for="login-username">Логин</label>
+            <input type="text" id="login-username" name="username" required autocomplete="username" />
+          </div>
+          
+          <div class="form-group">
+            <label for="login-password">Пароль</label>
+            <input type="password" id="login-password" name="password" required autocomplete="current-password" />
+          </div>
+          
+          <button type="submit" class="btn" id="loginBtn">Войти</button>
+        </form>
+      </div>
+      
+      <!-- Форма регистрации -->
+      <div class="form-section" id="register-form">
+        <form id="registerForm">
+          <div class="form-group">
+            <label for="register-username">Логин</label>
+            <input type="text" id="register-username" name="username" required autocomplete="username" />
+          </div>
+          
+          <div class="form-group">
+            <label for="register-email">Email (опционально)</label>
+            <input type="email" id="register-email" name="email" autocomplete="email" />
+          </div>
+          
+          <div class="form-group">
+            <label for="register-password">Пароль</label>
+            <input type="password" id="register-password" name="password" required autocomplete="new-password" />
+          </div>
+          
+          <button type="submit" class="btn" id="registerBtn">Зарегистрироваться</button>
+        </form>
+      </div>
+    </div>
+  </div>
+  
+  <script>
+    // Переключение табов
+    document.querySelectorAll('.tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        const tabName = tab.dataset.tab;
+        
+        // Обновление активного таба
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+        
+        // Показ нужной формы
+        document.querySelectorAll('.form-section').forEach(f => f.classList.remove('active'));
+        document.getElementById(tabName + '-form').classList.add('active');
+        
+        // Скрытие ошибки
+        hideError();
+      });
+    });
+    
+    // Показ ошибки
+    function showError(message) {
+      const errorEl = document.getElementById('error');
+      errorEl.textContent = message;
+      errorEl.classList.add('show');
+    }
+    
+    // Скрытие ошибки
+    function hideError() {
+      const errorEl = document.getElementById('error');
+      errorEl.classList.remove('show');
+    }
+    
+    // Обработка входа
+    document.getElementById('loginForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      hideError();
+      
+      const btn = document.getElementById('loginBtn');
+      btn.disabled = true;
+      btn.textContent = 'Вход...';
+      
+      const username = document.getElementById('login-username').value;
+      const password = document.getElementById('login-password').value;
+      
+      try {
+        const response = await fetch('/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, password })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+          window.location.href = '/';
+        } else {
+          showError(data.error || 'Ошибка входа');
+        }
+      } catch (err) {
+        showError('Ошибка соединения с сервером');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Войти';
+      }
+    });
+    
+    // Обработка регистрации
+    document.getElementById('registerForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      hideError();
+      
+      const btn = document.getElementById('registerBtn');
+      btn.disabled = true;
+      btn.textContent = 'Регистрация...';
+      
+      const username = document.getElementById('register-username').value;
+      const email = document.getElementById('register-email').value;
+      const password = document.getElementById('register-password').value;
+      
+      try {
+        const response = await fetch('/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, email, password })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+          window.location.href = '/';
+        } else {
+          showError(data.error || 'Ошибка регистрации');
+        }
+      } catch (err) {
+        showError('Ошибка соединения с сервером');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Зарегистрироваться';
+      }
+    });
+    
+    // Проверка авторизации при загрузке
+    async function checkAuth() {
+      try {
+        const response = await fetch('/auth/check');
+        const data = await response.json();
+        
+        if (data.authenticated) {
+          window.location.href = '/';
+        }
+      } catch (err) {
+        console.error('Auth check failed:', err);
+      }
+    }
+    
+    checkAuth();
+  </script>
+</body>
+</html>
