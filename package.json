@@ -1,12 +1,24 @@
 {
   "name": "backend",
   "version": "1.0.0",
-  "description": "",
+  "description": "AI Assistant - Персональный AI-помощник",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "node scripts/build.js",
+    "deploy": "node scripts/deploy.js",
+    "migrate": "node scripts/migrate.js",
+    "backup": "node scripts/backup.js",
+    "update": "node scripts/update.js",
+    "start": "node index.js",
+    "dev": "nodemon index.js",
+    "lint": "eslint . --ext .js",
+    "docker:build": "docker build -t ai-assistant:latest .",
+    "docker:run": "docker-compose up -d",
+    "docker:stop": "docker-compose down",
+    "docker:restart": "docker-compose restart"
   },
-  "keywords": [],
+  "keywords": ["ai", "assistant", "openai", "llm", "chatbot"],
   "author": "",
   "license": "ISC",
   "type": "commonjs",
@@ -19,5 +31,9 @@
     "multer": "^2.0.2",
     "openai": "^6.21.0",
     "pg": "^8.18.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1",
+    "eslint": "^8.57.0"
   }
 }
