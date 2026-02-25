@@ -18,7 +18,13 @@
     "docker:stop": "docker-compose down",
     "docker:restart": "docker-compose restart"
   },
-  "keywords": ["ai", "assistant", "openai", "llm", "chatbot"],
+  "keywords": [
+    "ai",
+    "assistant",
+    "openai",
+    "llm",
+    "chatbot"
+  ],
   "author": "",
   "license": "ISC",
   "type": "commonjs",
@@ -28,12 +34,13 @@
     "dotenv": "^17.2.4",
     "express": "^5.2.1",
     "express-session": "^1.19.0",
+    "iconv-lite": "^0.7.2",
     "multer": "^2.0.2",
     "openai": "^6.21.0",
     "pg": "^8.18.0"
   },
   "devDependencies": {
-    "nodemon": "^3.0.1",
-    "eslint": "^8.57.0"
+    "eslint": "^8.57.0",
+    "nodemon": "^3.0.1"
   }
 }

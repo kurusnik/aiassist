@@ -1,4 +1,4 @@
-// server.js
+﻿// server.js
 require('dotenv').config();
 const express = require('express');
 const session = require('express-session');
@@ -7,10 +7,10 @@ const bcrypt = require('bcrypt');
 const path = require('path');
 const pool = require('./db');
 
-// Настройка подключения к базе данных в Docker
+// РќР°СЃС‚СЂРѕР№РєР° РїРѕРґРєР»СЋС‡РµРЅРёСЏ Рє Р±Р°Р·Рµ РґР°РЅРЅС‹С… РІ Docker
 if (process.env.NODE_ENV === 'production') {
   process.env.DATABASE_URL = 'postgresql://ai_user:ai_password@db:5432/ai_assistant';
-  // Принудительно для того, чтобы приложение использовало правильный хост
+  // РџСЂРёРЅСѓРґРёС‚РµР»СЊРЅРѕ РґР»СЏ С‚РѕРіРѕ, С‡С‚РѕР±С‹ РїСЂРёР»РѕР¶РµРЅРёРµ РёСЃРїРѕР»СЊР·РѕРІР°Р»Рѕ РїСЂР°РІРёР»СЊРЅС‹Р№ С…РѕСЃС‚
   process.env.PGHOST = 'db';
   process.env.PGPORT = '5432';
   process.env.PGDATABASE = 'ai_assistant';
@@ -23,9 +23,24 @@ const multer = require('multer');
 const fs = require('fs');
 
 const app = express();
+app.set('trust proxy', 1);
+app.use(session({
+  store: new pgSession({
+    pool: pool,
+    tableName: 'session'
+  }),
+  secret: process.env.SESSION_SECRET || 'your-secret-key-change-in-production',
+  resave: false,
+    saveUninitialized: true,
+  cookie: {
+    maxAge: 30 * 24 * 60 * 60 * 1000, // 30 дней
+    httpOnly: true,
+    secure: false
+  }
+}));
 app.use(express.json());
 
-// Настройка загрузки файлов
+// РќР°СЃС‚СЂРѕР№РєР° Р·Р°РіСЂСѓР·РєРё С„Р°Р№Р»РѕРІ
 const UPLOAD_DIR = path.join(__dirname, 'uploads');
 if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 
@@ -69,52 +84,36 @@ function formatBytes(n) {
   return `${Math.round(num / (1024 * 1024))} MB`;
 }
 
-// Настройка сессий
-app.use(session({
-  store: new pgSession({
-    pool: pool,
-    tableName: 'session'
-  }),
-  secret: process.env.SESSION_SECRET || 'your-secret-key-change-in-production',
-  resave: false,
-  saveUninitialized: false,
-  cookie: {
-    maxAge: 30 * 24 * 60 * 60 * 1000, // 30 дней
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production'
-  }
-}));
-
-// Healthcheck
+// РќР°СЃС‚СЂРѕР№РєР° СЃРµСЃСЃРёР№
 app.get('/health', (req, res) => {
   res.json({ status: 'ok' });
 });
 
-// ========== АВТОРИЗАЦИЯ ==========
+// ========== РђР’РўРћР РР—РђР¦РРЇ ==========
 
-// Регистрация нового пользователя
+// Р РµРіРёСЃС‚СЂР°С†РёСЏ РЅРѕРІРѕРіРѕ РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ
 app.post('/register', async (req, res) => {
   try {
     const { username, password, email } = req.body;
     
     if (!username || !password) {
-      return res.status(400).json({ error: 'username и password обязательны' });
+      return res.status(400).json({ error: 'username Рё password РѕР±СЏР·Р°С‚РµР»СЊРЅС‹' });
     }
 
-    // Проверка существования пользователя
+    // РџСЂРѕРІРµСЂРєР° СЃСѓС‰РµСЃС‚РІРѕРІР°РЅРёСЏ РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ
     const existingUser = await pool.query(
       'SELECT id FROM users WHERE username = $1',
       [username]
     );
 
     if (existingUser.rows.length > 0) {
-      return res.status(400).json({ error: 'Пользователь уже существует' });
+      return res.status(400).json({ error: 'РџРѕР»СЊР·РѕРІР°С‚РµР»СЊ СѓР¶Рµ СЃСѓС‰РµСЃС‚РІСѓРµС‚' });
     }
 
-    // Хеширование пароля
+    // РҐРµС€РёСЂРѕРІР°РЅРёРµ РїР°СЂРѕР»СЏ
     const passwordHash = await bcrypt.hash(password, 10);
 
-    // Создание пользователя
+    // РЎРѕР·РґР°РЅРёРµ РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ
     const result = await pool.query(
       `INSERT INTO users (username, password_hash, email, name)
        VALUES ($1, $2, $3, $4)
@@ -124,11 +123,11 @@ app.post('/register', async (req, res) => {
 
     const user = result.rows[0];
 
-    // Автоматический вход после регистрации
+    // РђРІС‚РѕРјР°С‚РёС‡РµСЃРєРёР№ РІС…РѕРґ РїРѕСЃР»Рµ СЂРµРіРёСЃС‚СЂР°С†РёРё
     req.session.userId = user.id;
     req.session.username = user.username;
-
-    res.json({ 
+    // Явное сохранение сессии
+    res.json({
       success: true, 
       user: { id: user.id, username: user.username, email: user.email }
     });
@@ -138,39 +137,38 @@ app.post('/register', async (req, res) => {
   }
 });
 
-// Вход
+// Р’С…РѕРґ
 app.post('/login', async (req, res) => {
   try {
     const { username, password } = req.body;
 
     if (!username || !password) {
-      return res.status(400).json({ error: 'username и password обязательны' });
+      return res.status(400).json({ error: 'username Рё password РѕР±СЏР·Р°С‚РµР»СЊРЅС‹' });
     }
 
-    // Поиск пользователя
+    // РџРѕРёСЃРє РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ
     const result = await pool.query(
       'SELECT id, username, password_hash, email FROM users WHERE username = $1',
       [username]
     );
 
     if (result.rows.length === 0) {
-      return res.status(401).json({ error: 'Неверный логин или пароль' });
+      return res.status(401).json({ error: 'РќРµРІРµСЂРЅС‹Р№ Р»РѕРіРёРЅ РёР»Рё РїР°СЂРѕР»СЊ' });
     }
 
     const user = result.rows[0];
 
-    // Проверка пароля
+    // РџСЂРѕРІРµСЂРєР° РїР°СЂРѕР»СЏ
     const isValid = await bcrypt.compare(password, user.password_hash);
 
     if (!isValid) {
-      return res.status(401).json({ error: 'Неверный логин или пароль' });
+      return res.status(401).json({ error: 'РќРµРІРµСЂРЅС‹Р№ Р»РѕРіРёРЅ РёР»Рё РїР°СЂРѕР»СЊ' });
     }
 
-    // Создание сессии
+    // РЎРѕР·РґР°РЅРёРµ СЃРµСЃСЃРёРё
     req.session.userId = user.id;
     req.session.username = user.username;
-
-    res.json({ 
+    res.json({
       success: true, 
       user: { id: user.id, username: user.username, email: user.email }
     });
@@ -180,7 +178,7 @@ app.post('/login', async (req, res) => {
   }
 });
 
-// Выход
+// Р’С‹С…РѕРґ
 app.post('/logout', (req, res) => {
   req.session.destroy(err => {
     if (err) {
@@ -190,7 +188,7 @@ app.post('/logout', (req, res) => {
   });
 });
 
-// Проверка авторизации
+// РџСЂРѕРІРµСЂРєР° Р°РІС‚РѕСЂРёР·Р°С†РёРё
 app.get('/auth/check', (req, res) => {
   if (req.session && req.session.userId) {
     res.json({ 
@@ -205,9 +203,9 @@ app.get('/auth/check', (req, res) => {
   }
 });
 
-// ========== ЗАЩИЩЕННЫЕ ЭНДПОИНТЫ ==========
+// ========== Р—РђР©РР©Р•РќРќР«Р• Р­РќР”РџРћРРќРўР« ==========
 
-// Получить список проектов
+// РџРѕР»СѓС‡РёС‚СЊ СЃРїРёСЃРѕРє РїСЂРѕРµРєС‚РѕРІ
 app.get('/projects', requireAuth, async (req, res) => {
   try {
     const userId = req.session.userId;
@@ -222,7 +220,7 @@ app.get('/projects', requireAuth, async (req, res) => {
   }
 });
 
-// Получить всех пользователей
+// РџРѕР»СѓС‡РёС‚СЊ РІСЃРµС… РїРѕР»СЊР·РѕРІР°С‚РµР»РµР№
 app.get('/users', requireAuth, async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM users ORDER BY id DESC');
@@ -233,12 +231,12 @@ app.get('/users', requireAuth, async (req, res) => {
   }
 });
 
-// Добавить пользователя
+// Р”РѕР±Р°РІРёС‚СЊ РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ
 app.post('/users', requireAuth, async (req, res) => {
   try {
     const { name, email } = req.body;
     if (!name || !email) {
-      return res.status(400).json({ error: 'name и email обязательны' });
+      return res.status(400).json({ error: 'name Рё email РѕР±СЏР·Р°С‚РµР»СЊРЅС‹' });
     }
 
     await pool.query(
@@ -255,14 +253,14 @@ app.post('/users', requireAuth, async (req, res) => {
   }
 });
 
-// Создать проект
+// РЎРѕР·РґР°С‚СЊ РїСЂРѕРµРєС‚
 app.post('/projects', requireAuth, async (req, res) => {
   try {
     const { name } = req.body;
     const userId = req.session.userId;
     
     if (!name) {
-      return res.status(400).json({ error: 'name обязателен' });
+      return res.status(400).json({ error: 'name РѕР±СЏР·Р°С‚РµР»РµРЅ' });
     }
 
     const result = await pool.query(
@@ -279,12 +277,12 @@ app.post('/projects', requireAuth, async (req, res) => {
   }
 });
 
-// Добавить сообщение в проект
+// Р”РѕР±Р°РІРёС‚СЊ СЃРѕРѕР±С‰РµРЅРёРµ РІ РїСЂРѕРµРєС‚
 app.post('/messages', requireAuth, async (req, res) => {
   try {
     const { projectId, role, content } = req.body;
     if (!projectId || !role || !content) {
-      return res.status(400).json({ error: 'projectId, role и content обязательны' });
+      return res.status(400).json({ error: 'projectId, role Рё content РѕР±СЏР·Р°С‚РµР»СЊРЅС‹' });
     }
 
     const result = await pool.query(
@@ -301,7 +299,7 @@ app.post('/messages', requireAuth, async (req, res) => {
   }
 });
 
-// Получить один проект
+// РџРѕР»СѓС‡РёС‚СЊ РѕРґРёРЅ РїСЂРѕРµРєС‚
 app.get('/projects/:id', requireAuth, async (req, res) => {
   try {
     const { id } = req.params;
@@ -323,13 +321,13 @@ app.get('/projects/:id', requireAuth, async (req, res) => {
   }
 });
 
-// Удалить проект (сначала его сообщения)
+// РЈРґР°Р»РёС‚СЊ РїСЂРѕРµРєС‚ (СЃРЅР°С‡Р°Р»Р° РµРіРѕ СЃРѕРѕР±С‰РµРЅРёСЏ)
 app.delete('/projects/:id', requireAuth, async (req, res) => {
   try {
     const { id } = req.params;
     const userId = req.session.userId;
 
-    // Проверка владельца
+    // РџСЂРѕРІРµСЂРєР° РІР»Р°РґРµР»СЊС†Р°
     const checkResult = await pool.query(
       'SELECT id FROM projects WHERE id = $1 AND user_id = $2',
       [id, userId]
@@ -349,13 +347,13 @@ app.delete('/projects/:id', requireAuth, async (req, res) => {
   }
 });
 
-// Сбросить диалог проекта
+// РЎР±СЂРѕСЃРёС‚СЊ РґРёР°Р»РѕРі РїСЂРѕРµРєС‚Р°
 app.delete('/projects/:id/messages', requireAuth, async (req, res) => {
   try {
     const { id } = req.params;
     const userId = req.session.userId;
 
-    // Проверка владельца
+    // РџСЂРѕРІРµСЂРєР° РІР»Р°РґРµР»СЊС†Р°
     const checkResult = await pool.query(
       'SELECT id FROM projects WHERE id = $1 AND user_id = $2',
       [id, userId]
@@ -374,13 +372,13 @@ app.delete('/projects/:id/messages', requireAuth, async (req, res) => {
   }
 });
 
-// Получить историю сообщений проекта
+// РџРѕР»СѓС‡РёС‚СЊ РёСЃС‚РѕСЂРёСЋ СЃРѕРѕР±С‰РµРЅРёР№ РїСЂРѕРµРєС‚Р°
 app.get('/projects/:id/messages', requireAuth, async (req, res) => {
   try {
     const projectId = req.params.id;
     const userId = req.session.userId;
 
-    // Проверка владельца
+    // РџСЂРѕРІРµСЂРєР° РІР»Р°РґРµР»СЊС†Р°
     const checkResult = await pool.query(
       'SELECT id FROM projects WHERE id = $1 AND user_id = $2',
       [projectId, userId]
@@ -405,38 +403,38 @@ app.get('/projects/:id/messages', requireAuth, async (req, res) => {
   }
 });
 
-// Список доступных моделей
+// РЎРїРёСЃРѕРє РґРѕСЃС‚СѓРїРЅС‹С… РјРѕРґРµР»РµР№
 const AVAILABLE_MODELS = [
-  { id: 'openai/gpt-5.2-codex', name: 'GPT‑5.2 Codex (программирование)' },
-  { id: 'openai/gpt-5.2', name: 'GPT‑5.2 Base (универсальная)' },
-  { id: 'openai/gpt-5.2-pro', name: 'GPT‑5.2 Pro (макс качество)' },
-  { id: 'anthropic/claude-opus-4.5', name: 'Claude Opus 4.5 (SEO / сложные тексты)' },
-  { id: 'anthropic/claude-sonnet-4.5', name: 'Claude Sonnet 4.5 (универсал)' },
+  { id: 'openai/gpt-5.2-codex', name: 'GPTвЂ‘5.2 Codex (РїСЂРѕРіСЂР°РјРјРёСЂРѕРІР°РЅРёРµ)' },
+  { id: 'openai/gpt-5.2', name: 'GPTвЂ‘5.2 Base (СѓРЅРёРІРµСЂСЃР°Р»СЊРЅР°СЏ)' },
+  { id: 'openai/gpt-5.2-pro', name: 'GPTвЂ‘5.2 Pro (РјР°РєСЃ РєР°С‡РµСЃС‚РІРѕ)' },
+  { id: 'anthropic/claude-opus-4.5', name: 'Claude Opus 4.5 (SEO / СЃР»РѕР¶РЅС‹Рµ С‚РµРєСЃС‚С‹)' },
+  { id: 'anthropic/claude-sonnet-4.5', name: 'Claude Sonnet 4.5 (СѓРЅРёРІРµСЂСЃР°Р»)' },
 ];
 
 app.get('/models', (req, res) => {
   res.json(AVAILABLE_MODELS);
 });
 
-// Загрузка вложений для проекта
+// Р—Р°РіСЂСѓР·РєР° РІР»РѕР¶РµРЅРёР№ РґР»СЏ РїСЂРѕРµРєС‚Р°
 app.post('/projects/:id/attachments', requireAuth, upload.single('file'), async (req, res) => {
   try {
     const projectId = req.params.id;
     const userId = req.session.userId;
 
-    // Проверка наличия файла
+    // РџСЂРѕРІРµСЂРєР° РЅР°Р»РёС‡РёСЏ С„Р°Р№Р»Р°
     if (!req.file) {
       return res.status(400).json({ error: 'file is required' });
     }
 
-    // Проверка владельца проекта
+    // РџСЂРѕРІРµСЂРєР° РІР»Р°РґРµР»СЊС†Р° РїСЂРѕРµРєС‚Р°
     const checkResult = await pool.query(
       'SELECT id FROM projects WHERE id = $1 AND user_id = $2',
       [projectId, userId]
     );
 
     if (checkResult.rows.length === 0) {
-      // удалить файл, если загрузили
+      // СѓРґР°Р»РёС‚СЊ С„Р°Р№Р», РµСЃР»Рё Р·Р°РіСЂСѓР·РёР»Рё
       try { fs.unlinkSync(req.file.path); } catch (e) {}
       return res.status(404).json({ error: 'Project not found' });
     }
@@ -448,7 +446,7 @@ app.post('/projects/:id/attachments', requireAuth, upload.single('file'), async 
     );
 
     const row = insert.rows[0];
-    // URL для доступа к файлу
+    // URL РґР»СЏ РґРѕСЃС‚СѓРїР° Рє С„Р°Р№Р»Сѓ
     const url = `/uploads/${row.filename}`;
 
     res.json({ attachment: { id: row.id, filename: row.filename, original_name: row.original_name, mime: row.mime, size: row.size, url, created_at: row.created_at } });
@@ -458,7 +456,7 @@ app.post('/projects/:id/attachments', requireAuth, upload.single('file'), async 
   }
 });
 
-// Получить список вложений проекта
+// РџРѕР»СѓС‡РёС‚СЊ СЃРїРёСЃРѕРє РІР»РѕР¶РµРЅРёР№ РїСЂРѕРµРєС‚Р°
 app.get('/projects/:id/attachments', requireAuth, async (req, res) => {
   try {
     const projectId = req.params.id;
@@ -486,13 +484,13 @@ app.get('/projects/:id/attachments', requireAuth, async (req, res) => {
   }
 });
 
-// Ассистент
+// РђСЃСЃРёСЃС‚РµРЅС‚
 app.post('/assistant', requireAuth, async (req, res) => {
-  // Streaming (SSE): если заголовки отдать поздно, браузер часто буферизует
-  // и UI получает весь ответ только в конце. Поэтому:
-  // - отдаем SSE заголовки + flushHeaders() ДО запроса к модели
-  // - шлем начальный байт и keep-alive комментарии
-  // - обрабатываем закрытие соединения клиентом
+  // Streaming (SSE): РµСЃР»Рё Р·Р°РіРѕР»РѕРІРєРё РѕС‚РґР°С‚СЊ РїРѕР·РґРЅРѕ, Р±СЂР°СѓР·РµСЂ С‡Р°СЃС‚Рѕ Р±СѓС„РµСЂРёР·СѓРµС‚
+  // Рё UI РїРѕР»СѓС‡Р°РµС‚ РІРµСЃСЊ РѕС‚РІРµС‚ С‚РѕР»СЊРєРѕ РІ РєРѕРЅС†Рµ. РџРѕСЌС‚РѕРјСѓ:
+  // - РѕС‚РґР°РµРј SSE Р·Р°РіРѕР»РѕРІРєРё + flushHeaders() Р”Рћ Р·Р°РїСЂРѕСЃР° Рє РјРѕРґРµР»Рё
+  // - С€Р»РµРј РЅР°С‡Р°Р»СЊРЅС‹Р№ Р±Р°Р№С‚ Рё keep-alive РєРѕРјРјРµРЅС‚Р°СЂРёРё
+  // - РѕР±СЂР°Р±Р°С‚С‹РІР°РµРј Р·Р°РєСЂС‹С‚РёРµ СЃРѕРµРґРёРЅРµРЅРёСЏ РєР»РёРµРЅС‚РѕРј
   const abortController = new AbortController();
   let sseStarted = false;
   let pingTimer = null;
@@ -506,16 +504,16 @@ app.post('/assistant', requireAuth, async (req, res) => {
     const { projectId, userMessage, model, attachmentIds } = req.body;
     const userId = req.session.userId;
 
-    // Клиенты в проекте исторически ожидали JSON ({ reply }).
-    // Поэтому включаем SSE только если клиент ЯВНО этого хочет.
-    // Иначе возвращаем обычный JSON-ответ (backward compatible).
+    // РљР»РёРµРЅС‚С‹ РІ РїСЂРѕРµРєС‚Рµ РёСЃС‚РѕСЂРёС‡РµСЃРєРё РѕР¶РёРґР°Р»Рё JSON ({ reply }).
+    // РџРѕСЌС‚РѕРјСѓ РІРєР»СЋС‡Р°РµРј SSE С‚РѕР»СЊРєРѕ РµСЃР»Рё РєР»РёРµРЅС‚ РЇР’РќРћ СЌС‚РѕРіРѕ С…РѕС‡РµС‚.
+    // РРЅР°С‡Рµ РІРѕР·РІСЂР°С‰Р°РµРј РѕР±С‹С‡РЅС‹Р№ JSON-РѕС‚РІРµС‚ (backward compatible).
     const accepts = String(req.headers?.accept || '');
     const wantsStream =
       accepts.includes('text/event-stream') ||
       String(req.headers?.['x-stream'] || '') === '1' ||
       String(req.query?.stream || '') === '1';
 
-    // Вложения (опционально)
+    // Р’Р»РѕР¶РµРЅРёСЏ (РѕРїС†РёРѕРЅР°Р»СЊРЅРѕ)
     const attIds = Array.isArray(attachmentIds)
       ? [...new Set(attachmentIds.map(Number).filter(n => Number.isInteger(n) && n > 0))]
       : [];
@@ -524,10 +522,10 @@ app.post('/assistant', requireAuth, async (req, res) => {
     const userMessageTrimmed = userMessageText.trim();
 
     if (!projectId || (!userMessageTrimmed && attIds.length === 0)) {
-      return res.status(400).json({ error: 'projectId и userMessage обязательны' });
+      return res.status(400).json({ error: 'projectId Рё userMessage РѕР±СЏР·Р°С‚РµР»СЊРЅС‹' });
     }
 
-    // Проверка владельца проекта
+    // РџСЂРѕРІРµСЂРєР° РІР»Р°РґРµР»СЊС†Р° РїСЂРѕРµРєС‚Р°
     const projectCheck = await pool.query(
       'SELECT id FROM projects WHERE id = $1 AND user_id = $2',
       [projectId, userId]
@@ -539,13 +537,13 @@ app.post('/assistant', requireAuth, async (req, res) => {
 
     const selectedModel = model || 'openai/gpt-5.2';
 
-    // 0) Вложения (опционально): подмешиваем содержимое текстовых файлов в контекст
+    // 0) Р’Р»РѕР¶РµРЅРёСЏ (РѕРїС†РёРѕРЅР°Р»СЊРЅРѕ): РїРѕРґРјРµС€РёРІР°РµРј СЃРѕРґРµСЂР¶РёРјРѕРµ С‚РµРєСЃС‚РѕРІС‹С… С„Р°Р№Р»РѕРІ РІ РєРѕРЅС‚РµРєСЃС‚
 
     if (attIds.length > 10) {
-      return res.status(400).json({ error: 'too_many_attachments', details: 'Максимум 10 вложений за сообщение' });
+      return res.status(400).json({ error: 'too_many_attachments', details: 'РњР°РєСЃРёРјСѓРј 10 РІР»РѕР¶РµРЅРёР№ Р·Р° СЃРѕРѕР±С‰РµРЅРёРµ' });
     }
 
-    // 1) История
+    // 1) РСЃС‚РѕСЂРёСЏ
     const historyResult = await pool.query(
       `SELECT id, role, content
        FROM messages
@@ -556,14 +554,14 @@ app.post('/assistant', requireAuth, async (req, res) => {
 
     let history = historyResult.rows;
 
-    // 2) Суммаризация при длинной истории
+    // 2) РЎСѓРјРјР°СЂРёР·Р°С†РёСЏ РїСЂРё РґР»РёРЅРЅРѕР№ РёСЃС‚РѕСЂРёРё
     if (history.length > 20) {
       const oldMessages = history.slice(0, history.length - 10);
 
       const summaryResponse = await openrouter.chat.completions.create({
         model: selectedModel,
         messages: [
-          { role: 'system', content: 'Кратко суммируй диалог. Сохрани факты и решения.' },
+          { role: 'system', content: 'РљСЂР°С‚РєРѕ СЃСѓРјРјРёСЂСѓР№ РґРёР°Р»РѕРі. РЎРѕС…СЂР°РЅРё С„Р°РєС‚С‹ Рё СЂРµС€РµРЅРёСЏ.' },
           ...oldMessages.map(m => ({ role: m.role, content: m.content }))
         ]
       });
@@ -586,7 +584,7 @@ app.post('/assistant', requireAuth, async (req, res) => {
       history = history.slice(-10);
     }
 
-    // 3) Подтягиваем summary проекта
+    // 3) РџРѕРґС‚СЏРіРёРІР°РµРј summary РїСЂРѕРµРєС‚Р°
     const projectResult = await pool.query(
       'SELECT summary FROM projects WHERE id = $1',
       [projectId]
@@ -597,52 +595,52 @@ app.post('/assistant', requireAuth, async (req, res) => {
     const systemPrompt = {
       role: "system",
       content: `
-Ты — senior AI-ассистент и практический наставник.
+РўС‹ вЂ” senior AI-Р°СЃСЃРёСЃС‚РµРЅС‚ Рё РїСЂР°РєС‚РёС‡РµСЃРєРёР№ РЅР°СЃС‚Р°РІРЅРёРє.
 
-Твоя задача — помогать пользователю эффективно решать прикладные задачи
-в следующих областях:
+РўРІРѕСЏ Р·Р°РґР°С‡Р° вЂ” РїРѕРјРѕРіР°С‚СЊ РїРѕР»СЊР·РѕРІР°С‚РµР»СЋ СЌС„С„РµРєС‚РёРІРЅРѕ СЂРµС€Р°С‚СЊ РїСЂРёРєР»Р°РґРЅС‹Рµ Р·Р°РґР°С‡Рё
+РІ СЃР»РµРґСѓСЋС‰РёС… РѕР±Р»Р°СЃС‚СЏС…:
 
-1) Программирование как хобби:
-- JavaScript, Node.js, Telegram-боты
-- Объяснять с нуля и до среднего уровня
-- Давать рабочий код, готовый к использованию
-- Комментировать код
-- Объяснять ошибки и архитектурные решения
-- Не усложнять без необходимости
+1) РџСЂРѕРіСЂР°РјРјРёСЂРѕРІР°РЅРёРµ РєР°Рє С…РѕР±Р±Рё:
+- JavaScript, Node.js, Telegram-Р±РѕС‚С‹
+- РћР±СЉСЏСЃРЅСЏС‚СЊ СЃ РЅСѓР»СЏ Рё РґРѕ СЃСЂРµРґРЅРµРіРѕ СѓСЂРѕРІРЅСЏ
+- Р”Р°РІР°С‚СЊ СЂР°Р±РѕС‡РёР№ РєРѕРґ, РіРѕС‚РѕРІС‹Р№ Рє РёСЃРїРѕР»СЊР·РѕРІР°РЅРёСЋ
+- РљРѕРјРјРµРЅС‚РёСЂРѕРІР°С‚СЊ РєРѕРґ
+- РћР±СЉСЏСЃРЅСЏС‚СЊ РѕС€РёР±РєРё Рё Р°СЂС…РёС‚РµРєС‚СѓСЂРЅС‹Рµ СЂРµС€РµРЅРёСЏ
+- РќРµ СѓСЃР»РѕР¶РЅСЏС‚СЊ Р±РµР· РЅРµРѕР±С…РѕРґРёРјРѕСЃС‚Рё
 
-2) Управление оптово-розничной компанией и торговлей на маркетплейсах:
-- Помогать с управлением процессами, аналитикой, автоматизацией
-- Подсказывать по логике учёта, KPI, юнит-экономике, складу, закупкам
-- Давать практичные советы, а не общие бизнес-цитаты
-- Допускать, что данные могут быть неполными — задавать уточняющие вопросы
+2) РЈРїСЂР°РІР»РµРЅРёРµ РѕРїС‚РѕРІРѕ-СЂРѕР·РЅРёС‡РЅРѕР№ РєРѕРјРїР°РЅРёРµР№ Рё С‚РѕСЂРіРѕРІР»РµР№ РЅР° РјР°СЂРєРµС‚РїР»РµР№СЃР°С…:
+- РџРѕРјРѕРіР°С‚СЊ СЃ СѓРїСЂР°РІР»РµРЅРёРµРј РїСЂРѕС†РµСЃСЃР°РјРё, Р°РЅР°Р»РёС‚РёРєРѕР№, Р°РІС‚РѕРјР°С‚РёР·Р°С†РёРµР№
+- РџРѕРґСЃРєР°Р·С‹РІР°С‚СЊ РїРѕ Р»РѕРіРёРєРµ СѓС‡С‘С‚Р°, KPI, СЋРЅРёС‚-СЌРєРѕРЅРѕРјРёРєРµ, СЃРєР»Р°РґСѓ, Р·Р°РєСѓРїРєР°Рј
+- Р”Р°РІР°С‚СЊ РїСЂР°РєС‚РёС‡РЅС‹Рµ СЃРѕРІРµС‚С‹, Р° РЅРµ РѕР±С‰РёРµ Р±РёР·РЅРµСЃ-С†РёС‚Р°С‚С‹
+- Р”РѕРїСѓСЃРєР°С‚СЊ, С‡С‚Рѕ РґР°РЅРЅС‹Рµ РјРѕРіСѓС‚ Р±С‹С‚СЊ РЅРµРїРѕР»РЅС‹РјРё вЂ” Р·Р°РґР°РІР°С‚СЊ СѓС‚РѕС‡РЅСЏСЋС‰РёРµ РІРѕРїСЂРѕСЃС‹
 
-3) DeFi-инвестирование (долгосрок и доход):
-- Объяснять DeFi простым языком
-- Помогать разбираться в стратегиях дохода, рисках, механиках протоколов
-- Не давать финансовых гарантий
-- Всегда указывать риски и допущения
-- Не выдумывать доходности и не придумывать несуществующие протоколы
+3) DeFi-РёРЅРІРµСЃС‚РёСЂРѕРІР°РЅРёРµ (РґРѕР»РіРѕСЃСЂРѕРє Рё РґРѕС…РѕРґ):
+- РћР±СЉСЏСЃРЅСЏС‚СЊ DeFi РїСЂРѕСЃС‚С‹Рј СЏР·С‹РєРѕРј
+- РџРѕРјРѕРіР°С‚СЊ СЂР°Р·Р±РёСЂР°С‚СЊСЃСЏ РІ СЃС‚СЂР°С‚РµРіРёСЏС… РґРѕС…РѕРґР°, СЂРёСЃРєР°С…, РјРµС…Р°РЅРёРєР°С… РїСЂРѕС‚РѕРєРѕР»РѕРІ
+- РќРµ РґР°РІР°С‚СЊ С„РёРЅР°РЅСЃРѕРІС‹С… РіР°СЂР°РЅС‚РёР№
+- Р’СЃРµРіРґР° СѓРєР°Р·С‹РІР°С‚СЊ СЂРёСЃРєРё Рё РґРѕРїСѓС‰РµРЅРёСЏ
+- РќРµ РІС‹РґСѓРјС‹РІР°С‚СЊ РґРѕС…РѕРґРЅРѕСЃС‚Рё Рё РЅРµ РїСЂРёРґСѓРјС‹РІР°С‚СЊ РЅРµСЃСѓС‰РµСЃС‚РІСѓСЋС‰РёРµ РїСЂРѕС‚РѕРєРѕР»С‹
 
-Общие правила:
-- Отвечай кратко, структурировано, по делу
-- Если используешь термин — коротко объясни его
-- Не выдумывай API, цифры, источники и факты
-- Если не уверен — прямо скажи об этом
-- Если есть несколько вариантов — предложи лучший и объясни почему
-- Избегай флуда, философии и воды
-- Ориентируйся на практическую пользу
+РћР±С‰РёРµ РїСЂР°РІРёР»Р°:
+- РћС‚РІРµС‡Р°Р№ РєСЂР°С‚РєРѕ, СЃС‚СЂСѓРєС‚СѓСЂРёСЂРѕРІР°РЅРѕ, РїРѕ РґРµР»Сѓ
+- Р•СЃР»Рё РёСЃРїРѕР»СЊР·СѓРµС€СЊ С‚РµСЂРјРёРЅ вЂ” РєРѕСЂРѕС‚РєРѕ РѕР±СЉСЏСЃРЅРё РµРіРѕ
+- РќРµ РІС‹РґСѓРјС‹РІР°Р№ API, С†РёС„СЂС‹, РёСЃС‚РѕС‡РЅРёРєРё Рё С„Р°РєС‚С‹
+- Р•СЃР»Рё РЅРµ СѓРІРµСЂРµРЅ вЂ” РїСЂСЏРјРѕ СЃРєР°Р¶Рё РѕР± СЌС‚РѕРј
+- Р•СЃР»Рё РµСЃС‚СЊ РЅРµСЃРєРѕР»СЊРєРѕ РІР°СЂРёР°РЅС‚РѕРІ вЂ” РїСЂРµРґР»РѕР¶Рё Р»СѓС‡С€РёР№ Рё РѕР±СЉСЏСЃРЅРё РїРѕС‡РµРјСѓ
+- РР·Р±РµРіР°Р№ С„Р»СѓРґР°, С„РёР»РѕСЃРѕС„РёРё Рё РІРѕРґС‹
+- РћСЂРёРµРЅС‚РёСЂСѓР№СЃСЏ РЅР° РїСЂР°РєС‚РёС‡РµСЃРєСѓСЋ РїРѕР»СЊР·Сѓ
 
-Формат ответов:
-- Короткие абзацы или списки
-- Пошаговое объяснение
-- Код — сразу готовый к использованию
+Р¤РѕСЂРјР°С‚ РѕС‚РІРµС‚РѕРІ:
+- РљРѕСЂРѕС‚РєРёРµ Р°Р±Р·Р°С†С‹ РёР»Рё СЃРїРёСЃРєРё
+- РџРѕС€Р°РіРѕРІРѕРµ РѕР±СЉСЏСЃРЅРµРЅРёРµ
+- РљРѕРґ вЂ” СЃСЂР°Р·Сѓ РіРѕС‚РѕРІС‹Р№ Рє РёСЃРїРѕР»СЊР·РѕРІР°РЅРёСЋ
 `
     };
 
-    // 5) Собираем сообщения
+    // 5) РЎРѕР±РёСЂР°РµРј СЃРѕРѕР±С‰РµРЅРёСЏ
     const messages = [systemPrompt];
     if (summary) {
-      messages.push({ role: 'system', content: 'Сводка прошлого диалога: ' + summary });
+      messages.push({ role: 'system', content: 'РЎРІРѕРґРєР° РїСЂРѕС€Р»РѕРіРѕ РґРёР°Р»РѕРіР°: ' + summary });
     }
 
     if (attIds.length) {
@@ -654,8 +652,8 @@ app.post('/assistant', requireAuth, async (req, res) => {
         [projectId, attIds]
       );
 
-      const MAX_TEXT_BYTES = 2 * 1024 * 1024; // читаем максимум 2MB на файл
-      const MAX_TEXT_CHARS = 200_000; // и ограничиваем по символам
+      const MAX_TEXT_BYTES = 2 * 1024 * 1024; // С‡РёС‚Р°РµРј РјР°РєСЃРёРјСѓРј 2MB РЅР° С„Р°Р№Р»
+      const MAX_TEXT_CHARS = 200_000; // Рё РѕРіСЂР°РЅРёС‡РёРІР°РµРј РїРѕ СЃРёРјРІРѕР»Р°Рј
 
       const blocks = [];
       for (const a of attRes.rows) {
@@ -664,7 +662,7 @@ app.post('/assistant', requireAuth, async (req, res) => {
 
         if (!a.path || !isProbablyTextFile(a.mime, a.original_name) || (a.size && a.size > MAX_TEXT_BYTES)) {
           blocks.push(
-            `Файл: ${meta}\nURL: ${url}\n(Содержимое не подгружено: бинарный/слишком большой файл)`
+            `Р¤Р°Р№Р»: ${meta}\nURL: ${url}\n(РЎРѕРґРµСЂР¶РёРјРѕРµ РЅРµ РїРѕРґРіСЂСѓР¶РµРЅРѕ: Р±РёРЅР°СЂРЅС‹Р№/СЃР»РёС€РєРѕРј Р±РѕР»СЊС€РѕР№ С„Р°Р№Р»)`
           );
           continue;
         }
@@ -672,14 +670,14 @@ app.post('/assistant', requireAuth, async (req, res) => {
         try {
           let text = fs.readFileSync(a.path, 'utf8');
           if (text.length > MAX_TEXT_CHARS) {
-            text = text.slice(0, MAX_TEXT_CHARS) + `\n\n... (обрезано до ${MAX_TEXT_CHARS} символов)`;
+            text = text.slice(0, MAX_TEXT_CHARS) + `\n\n... (РѕР±СЂРµР·Р°РЅРѕ РґРѕ ${MAX_TEXT_CHARS} СЃРёРјРІРѕР»РѕРІ)`;
           }
           blocks.push(
-            `Файл: ${meta}\nURL: ${url}\nСодержимое:\n\n\`\`\`\n${text}\n\`\`\``
+            `Р¤Р°Р№Р»: ${meta}\nURL: ${url}\nРЎРѕРґРµСЂР¶РёРјРѕРµ:\n\n\`\`\`\n${text}\n\`\`\``
           );
         } catch (e) {
           blocks.push(
-            `Файл: ${meta}\nURL: ${url}\n(Не удалось прочитать содержимое на сервере: ${e?.message || 'read_error'})`
+            `Р¤Р°Р№Р»: ${meta}\nURL: ${url}\n(РќРµ СѓРґР°Р»РѕСЃСЊ РїСЂРѕС‡РёС‚Р°С‚СЊ СЃРѕРґРµСЂР¶РёРјРѕРµ РЅР° СЃРµСЂРІРµСЂРµ: ${e?.message || 'read_error'})`
           );
         }
       }
@@ -688,7 +686,7 @@ app.post('/assistant', requireAuth, async (req, res) => {
         messages.push({
           role: 'user',
           content:
-            'Пользователь приложил файлы. Используй их содержимое как контекст для ответа.\n\n' +
+            'РџРѕР»СЊР·РѕРІР°С‚РµР»СЊ РїСЂРёР»РѕР¶РёР» С„Р°Р№Р»С‹. РСЃРїРѕР»СЊР·СѓР№ РёС… СЃРѕРґРµСЂР¶РёРјРѕРµ РєР°Рє РєРѕРЅС‚РµРєСЃС‚ РґР»СЏ РѕС‚РІРµС‚Р°.\n\n' +
             blocks.join('\n\n---\n\n')
         });
       }
@@ -696,32 +694,32 @@ app.post('/assistant', requireAuth, async (req, res) => {
 
     messages.push(...history.map(m => ({ role: m.role, content: m.content })));
 
-    const finalUserMessage = userMessageTrimmed || 'См. прикрепленные файлы.';
+    const finalUserMessage = userMessageTrimmed || 'РЎРј. РїСЂРёРєСЂРµРїР»РµРЅРЅС‹Рµ С„Р°Р№Р»С‹.';
     messages.push({ role: 'user', content: finalUserMessage });
 
-    // 6) Сохраняем пользовательское сообщение
+    // 6) РЎРѕС…СЂР°РЅСЏРµРј РїРѕР»СЊР·РѕРІР°С‚РµР»СЊСЃРєРѕРµ СЃРѕРѕР±С‰РµРЅРёРµ
     await pool.query(
       `INSERT INTO messages (project_id, role, content) VALUES ($1, $2, $3)`,
       [projectId, 'user', finalUserMessage]
     );
 
-    // 7) Если нужен SSE — стартуем его ДО запроса к модели
+    // 7) Р•СЃР»Рё РЅСѓР¶РµРЅ SSE вЂ” СЃС‚Р°СЂС‚СѓРµРј РµРіРѕ Р”Рћ Р·Р°РїСЂРѕСЃР° Рє РјРѕРґРµР»Рё
     if (wantsStream) {
       res.status(200);
       res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
       res.setHeader('Cache-Control', 'no-cache, no-transform');
       res.setHeader('Connection', 'keep-alive');
-      // Если будет прокси (например, Nginx) — не буферизовать.
+      // Р•СЃР»Рё Р±СѓРґРµС‚ РїСЂРѕРєСЃРё (РЅР°РїСЂРёРјРµСЂ, Nginx) вЂ” РЅРµ Р±СѓС„РµСЂРёР·РѕРІР°С‚СЊ.
       res.setHeader('X-Accel-Buffering', 'no');
 
-      // Немедленно отправляем заголовки, чтобы браузер начал читать поток.
+      // РќРµРјРµРґР»РµРЅРЅРѕ РѕС‚РїСЂР°РІР»СЏРµРј Р·Р°РіРѕР»РѕРІРєРё, С‡С‚РѕР±С‹ Р±СЂР°СѓР·РµСЂ РЅР°С‡Р°Р» С‡РёС‚Р°С‚СЊ РїРѕС‚РѕРє.
       res.flushHeaders();
       sseStarted = true;
 
-      // Стартовый пакет (валидный JSON).
+      // РЎС‚Р°СЂС‚РѕРІС‹Р№ РїР°РєРµС‚ (РІР°Р»РёРґРЅС‹Р№ JSON).
       res.write(`data: ${JSON.stringify({ ready: true })}\n\n`);
 
-      // Keep-alive (валидный JSON).
+      // Keep-alive (РІР°Р»РёРґРЅС‹Р№ JSON).
       pingTimer = setInterval(() => {
         try {
           res.write(`data: ${JSON.stringify({ ping: true })}\n\n`);
@@ -729,7 +727,7 @@ app.post('/assistant', requireAuth, async (req, res) => {
       }, 15000);
     }
 
-    // 8) Запрос в модель (OpenRouter) с потоковой выдачей
+    // 8) Р—Р°РїСЂРѕСЃ РІ РјРѕРґРµР»СЊ (OpenRouter) СЃ РїРѕС‚РѕРєРѕРІРѕР№ РІС‹РґР°С‡РµР№
     let stream;
     try {
       stream = await openrouter.chat.completions.create(
@@ -743,7 +741,7 @@ app.post('/assistant', requireAuth, async (req, res) => {
         }
       );
     } catch (e) {
-      // На случай, если установленная версия клиента не поддерживает options/signal.
+      // РќР° СЃР»СѓС‡Р°Р№, РµСЃР»Рё СѓСЃС‚Р°РЅРѕРІР»РµРЅРЅР°СЏ РІРµСЂСЃРёСЏ РєР»РёРµРЅС‚Р° РЅРµ РїРѕРґРґРµСЂР¶РёРІР°РµС‚ options/signal.
       stream = await openrouter.chat.completions.create({
         model: selectedModel,
         messages,
@@ -759,30 +757,30 @@ app.post('/assistant', requireAuth, async (req, res) => {
       fullReply += content;
       if (wantsStream) {
         res.write(`data: ${JSON.stringify({ content })}\n\n`);
-        // Если включен какой-то middleware, добавляющий flush(), выталкиваем данные.
+        // Р•СЃР»Рё РІРєР»СЋС‡РµРЅ РєР°РєРѕР№-С‚Рѕ middleware, РґРѕР±Р°РІР»СЏСЋС‰РёР№ flush(), РІС‹С‚Р°Р»РєРёРІР°РµРј РґР°РЅРЅС‹Рµ.
         if (typeof res.flush === 'function') res.flush();
       }
     }
 
-    // 9) Сохраняем полный ответ ассистента
+    // 9) РЎРѕС…СЂР°РЅСЏРµРј РїРѕР»РЅС‹Р№ РѕС‚РІРµС‚ Р°СЃСЃРёСЃС‚РµРЅС‚Р°
     await pool.query(
       `INSERT INTO messages (project_id, role, content) VALUES ($1, $2, $3)`,
       [projectId, 'assistant', fullReply]
     );
 
     if (wantsStream) {
-      // Завершаем поток
+      // Р—Р°РІРµСЂС€Р°РµРј РїРѕС‚РѕРє
       res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
       res.end();
     } else {
-      // Backward compatible: обычный JSON
+      // Backward compatible: РѕР±С‹С‡РЅС‹Р№ JSON
       res.json({ reply: fullReply });
     }
   } catch (err) {
     console.error('POST /assistant error:', err);
     if (pingTimer) clearInterval(pingTimer);
 
-    // Если SSE уже стартовал — обычный JSON-ответ невозможен.
+    // Р•СЃР»Рё SSE СѓР¶Рµ СЃС‚Р°СЂС‚РѕРІР°Р» вЂ” РѕР±С‹С‡РЅС‹Р№ JSON-РѕС‚РІРµС‚ РЅРµРІРѕР·РјРѕР¶РµРЅ.
     if (sseStarted) {
       try {
         res.write(`event: error\ndata: ${JSON.stringify({ error: 'internal_error', details: err?.message })}\n\n`);
@@ -797,11 +795,11 @@ app.post('/assistant', requireAuth, async (req, res) => {
   }
 });
 
-// Статика
+// РЎС‚Р°С‚РёРєР°
 app.use('/uploads', express.static(UPLOAD_DIR));
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Старт сервера
+// РЎС‚Р°СЂС‚ СЃРµСЂРІРµСЂР°
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`API started on http://localhost:${PORT}`);
