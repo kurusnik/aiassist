@@ -497,7 +497,7 @@
     async function sendAssistantStream(projectId, userMessage, model, attachmentIds = [], onDelta) {
       const r = await fetch('/assistant', {
         method: 'POST',
-        headers: {'Content-Type':'application/json'},
+        headers: {'Content-Type':'application/json', 'X-Stream':'1'},
         body: JSON.stringify({ projectId, userMessage, model, attachmentIds })
       });
       if (!r.ok) {

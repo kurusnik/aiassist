@@ -1,5 +1,11 @@
 // middleware/auth.js
 function requireAuth(req, res, next) {
+  // DEBUG: логируем заголовки для /assistant
+  if (req.path === '/assistant') {
+    console.log('[AUTH DEBUG] /assistant headers:', JSON.stringify(req.headers));
+    console.log('[AUTH DEBUG] x-stream:', req.headers['x-stream']);
+  }
+  
   if (req.session && req.session.userId) {
     return next();
   }

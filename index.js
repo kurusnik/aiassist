@@ -510,10 +510,13 @@ app.post('/assistant', requireAuth, async (req, res) => {
     // Поэтому включаем SSE только если клиент ЯВНО этого хочет.
     // Иначе возвращаем обычный JSON-ответ (backward compatible).
     const accepts = String(req.headers?.accept || '');
+    const xStreamHeader = req.headers?.['x-stream'] || '';
     const wantsStream =
       accepts.includes('text/event-stream') ||
-      String(req.headers?.['x-stream'] || '') === '1' ||
+      String(xStreamHeader) === '1' ||
       String(req.query?.stream || '') === '1';
+    
+    console.log('[DEBUG] x-stream header:', xStreamHeader, 'wantsStream:', wantsStream);
 
     // Вложения (опционально)
     const attIds = Array.isArray(attachmentIds)

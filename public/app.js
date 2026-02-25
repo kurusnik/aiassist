@@ -58,7 +58,10 @@ async function sendMessage() {
 
   const response = await fetch('/assistant', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Stream': '1'  // Запрашиваем потоковую выдачу
+    },
     credentials: 'include',
     body: JSON.stringify({
       projectId: state.currentProjectId,
