@@ -407,7 +407,7 @@ app.get('/projects/:id/messages', requireAuth, async (req, res) => {
 
 // Список доступных моделей
 const AVAILABLE_MODELS = [
-  { id: 'openai/gpt-5.2-codex', name: 'GPT‑5.2 Codex (программирование)' },
+  { id: 'arcee-ai/trinity-large-preview:free', name: 'ARcee free' },
   { id: 'openai/gpt-5.2', name: 'GPT‑5.2 Base (универсальная)' },
   { id: 'openai/gpt-5.2-pro', name: 'GPT‑5.2 Pro (макс качество)' },
   { id: 'anthropic/claude-opus-4.5', name: 'Claude Opus 4.5 (SEO / сложные тексты)' },
