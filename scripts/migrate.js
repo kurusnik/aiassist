@@ -50,7 +50,7 @@ migrationFiles.forEach((file, index) => {
     const sql = fs.readFileSync(filePath, 'utf8');
     
     // Выполняем SQL
-    execSync(`psql -d ${dbName} -c "${sql}"`, { stdio: 'inherit' });
+    execSync(`docker-compose exec db psql -d ${dbName} -U ai_user -c "${sql}"`, { stdio: 'inherit' });
     
     console.log(`✅ ${file} применена успешно`);
     successCount++;

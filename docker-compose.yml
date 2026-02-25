@@ -1,4 +1,4 @@
-version: '3.8'
+# version: '3.8'
 services:
   app:
     build: .
@@ -42,10 +42,8 @@ services:
     image: nginx:alpine
     ports:
       - "80:80"
-      - "443:443"
     volumes:
       - ./nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./ssl:/etc/nginx/ssl:ro
       - ./public:/var/www/html:ro
     depends_on:
       - app
