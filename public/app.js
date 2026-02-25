@@ -10,7 +10,7 @@ import { updateSystemPrompt } from './stateActions.js';
 
 // ---------- загрузка моделей ----------
 async function loadModels() {
-  const res = await fetch('/models');
+  const res = await fetch('/models', { credentials: 'include' });
   const models = await res.json();
 
   const select = document.getElementById('model');
@@ -35,7 +35,7 @@ async function loadModels() {
 
 // ---------- загрузка истории ----------
 async function loadHistory() {
-  const res = await fetch('/projects/' + state.currentProjectId + '/messages');
+  const res = await fetch('/projects/' + state.currentProjectId + '/messages', { credentials: 'include' });
   const messages = await res.json();
 
   setMessages(messages);
@@ -59,6 +59,7 @@ async function sendMessage() {
   const response = await fetch('/assistant', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
     body: JSON.stringify({
       projectId: state.currentProjectId,
       userMessage: text,
@@ -105,6 +106,7 @@ async function addProject() {
   const res = await fetch('/projects', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
     body: JSON.stringify({ name })
   });
 
@@ -126,7 +128,7 @@ async function addProject() {
   await loadHistory();
 }
 async function loadProjectSettings() {
-  const res = await fetch('/projects/' + state.currentProjectId);
+  const res = await fetch('/projects/' + state.currentProjectId, { credentials: 'include' });
   const project = await res.json();
 
   updateModel(project.model);
@@ -144,7 +146,8 @@ async function deleteProject() {
   if (!confirmDelete) return;
 
   await fetch('/projects/' + state.currentProjectId, {
-    method: 'DELETE'
+    method: 'DELETE',
+    credentials: 'include'
   });
 
   // очищаем localStorage
@@ -178,7 +181,8 @@ async function resetChat() {
   if (!confirmReset) return;
 
   await fetch('/projects/' + state.currentProjectId + '/messages', {
-    method: 'DELETE'
+    method: 'DELETE',
+    credentials: 'include'
   });
 
   // очищаем state
@@ -215,6 +219,7 @@ document.getElementById('savePrompt')
     await fetch('/projects/' + state.currentProjectId, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
       body: JSON.stringify({
         model: state.projectSettings.model,
         systemPrompt: state.projectSettings.systemPrompt
@@ -238,7 +243,7 @@ document
 
   // Выбор проекта
 async function loadProjects() {
-  const res = await fetch('/projects');
+  const res = await fetch('/projects', { credentials: 'include' });
   const projects = await res.json();
 
   const select = document.getElementById('projectSelect');
@@ -276,7 +281,7 @@ async function loadProjects() {
 // ---------- проверка авторизации ----------
 async function checkAuth() {
   try {
-    const res = await fetch('/auth/check');
+    const res = await fetch('/auth/check', { credentials: 'include' });
     const data = await res.json();
     
     if (!data.authenticated) {
@@ -301,7 +306,7 @@ async function checkAuth() {
 // ---------- выход ----------
 async function logout() {
   try {
-    await fetch('/logout', { method: 'POST' });
+    await fetch('/logout', { method: 'POST', credentials: 'include' });
     window.location.href = '/login.html';
   } catch (err) {
     console.error('Logout failed:', err);
