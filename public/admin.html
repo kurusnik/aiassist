@@ -1,0 +1,579 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Админ-панель</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 1200px;
+      margin: 20px auto;
+      padding: 0 20px;
+      background: #f5f5f5;
+    }
+    
+    h1, h2 {
+      color: #333;
+    }
+    
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+      padding-bottom: 10px;
+      border-bottom: 2px solid #ccc;
+    }
+    
+    .logout-btn {
+      background: #dc3545;
+      color: white;
+      padding: 8px 15px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    
+    .tabs {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+    
+    .tab-btn {
+      padding: 10px 20px;
+      background: #007bff;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    
+    .tab-btn.active {
+      background: #0056b3;
+    }
+    
+    .tab-content {
+      display: none;
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    
+    .tab-content.active {
+      display: block;
+    }
+    
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+    }
+    
+    th, td {
+      padding: 10px;
+      text-align: left;
+      border-bottom: 1px solid #ddd;
+    }
+    
+    th {
+      background: #f8f9fa;
+      font-weight: bold;
+    }
+    
+    .status-approved {
+      color: green;
+      font-weight: bold;
+    }
+    
+    .status-pending {
+      color: orange;
+      font-weight: bold;
+    }
+    
+    .status-admin {
+      color: purple;
+      font-weight: bold;
+    }
+    
+    .btn {
+      padding: 6px 12px;
+      margin: 2px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+    }
+    
+    .btn-approve {
+      background: #28a745;
+      color: white;
+    }
+    
+    .btn-edit {
+      background: #007bff;
+      color: white;
+    }
+    
+    .btn-delete {
+      background: #dc3545;
+      color: white;
+    }
+    
+    .btn-add {
+      background: #28a745;
+      color: white;
+      padding: 10px 20px;
+      margin-bottom: 10px;
+    }
+    
+    .form-group {
+      margin-bottom: 15px;
+    }
+    
+    .form-group label {
+      display: block;
+      margin-bottom: 5px;
+      font-weight: bold;
+    }
+    
+    .form-group input {
+      width: 100%;
+      padding: 8px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      box-sizing: border-box;
+    }
+    
+    .modal {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.5);
+      justify-content: center;
+      align-items: center;
+    }
+    
+    .modal.active {
+      display: flex;
+    }
+    
+    .modal-content {
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      width: 400px;
+      max-width: 90%;
+    }
+    
+    .modal-buttons {
+      display: flex;
+      gap: 10px;
+      justify-content: flex-end;
+      margin-top: 15px;
+    }
+    
+    .error {
+      color: red;
+      margin: 10px 0;
+    }
+    
+    .success {
+      color: green;
+      margin: 10px 0;
+    }
+    
+    .model-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px;
+      border-bottom: 1px solid #eee;
+    }
+    
+    .model-item:last-child {
+      border-bottom: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>Админ-панель</h1>
+    <button class="logout-btn" onclick="logout()">Выйти</button>
+  </div>
+  
+  <div class="tabs">
+    <button class="tab-btn active" onclick="showTab('users')">Пользователи</button>
+    <button class="tab-btn" onclick="showTab('models')">Модели</button>
+  </div>
+  
+  <!-- Таблица пользователей -->
+  <div id="users-tab" class="tab-content active">
+    <h2>Управление пользователями</h2>
+    <div id="users-message"></div>
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Имя пользователя</th>
+          <th>Email</th>
+          <th>Имя</th>
+          <th>Статус</th>
+          <th>Админ</th>
+          <th>Дата регистрации</th>
+          <th>Действия</th>
+        </tr>
+      </thead>
+      <tbody id="users-table">
+        <tr><td colspan="8">Загрузка...</td></tr>
+      </tbody>
+    </table>
+  </div>
+  
+  <!-- Управление моделями -->
+  <div id="models-tab" class="tab-content">
+    <h2>Управление моделями</h2>
+    <div id="models-message"></div>
+    
+    <button class="btn btn-add" onclick="showAddModelModal()">+ Добавить модель</button>
+    
+    <div id="models-list">
+      <div class="model-item">Загрузка...</div>
+    </div>
+  </div>
+  
+  <!-- Модальное окно редактирования пользователя -->
+  <div id="edit-user-modal" class="modal">
+    <div class="modal-content">
+      <h2>Редактировать пользователя</h2>
+      <form id="edit-user-form">
+        <input type="hidden" id="edit-user-id">
+        <div class="form-group">
+          <label>Имя пользователя:</label>
+          <input type="text" id="edit-username" required>
+        </div>
+        <div class="form-group">
+          <label>Email:</label>
+          <input type="email" id="edit-email">
+        </div>
+        <div class="form-group">
+          <label>Имя:</label>
+          <input type="text" id="edit-name">
+        </div>
+        <div class="modal-buttons">
+          <button type="button" class="btn" onclick="closeEditUserModal()">Отмена</button>
+          <button type="submit" class="btn btn-edit">Сохранить</button>
+        </div>
+      </form>
+    </div>
+  </div>
+  
+  <!-- Модальное окно добавления модели -->
+  <div id="add-model-modal" class="modal">
+    <div class="modal-content">
+      <h2>Добавить модель</h2>
+      <form id="add-model-form">
+        <div class="form-group">
+          <label>ID модели:</label>
+          <input type="text" id="model-id" placeholder="например: openai/gpt-5.2" required>
+        </div>
+        <div class="form-group">
+          <label>Название:</label>
+          <input type="text" id="model-name" placeholder="например: GPT-5.2" required>
+        </div>
+        <div class="modal-buttons">
+          <button type="button" class="btn" onclick="closeAddModelModal()">Отмена</button>
+          <button type="submit" class="btn btn-add">Добавить</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    // Переключение вкладок
+    function showTab(tabName) {
+      document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+      
+      document.querySelector(`[onclick="showTab('${tabName}')"]`).classList.add('active');
+      document.getElementById(`${tabName}-tab`).classList.add('active');
+      
+      if (tabName === 'users') loadUsers();
+      if (tabName === 'models') loadModels();
+    }
+    
+    // Загрузка пользователей
+    async function loadUsers() {
+      try {
+        const response = await fetch('/api/admin/users', { credentials: 'include' });
+        if (!response.ok) {
+          if (response.status === 401 || response.status === 403) {
+            window.location.href = '/login.html';
+            return;
+          }
+          throw new Error('Ошибка загрузки пользователей');
+        }
+        const users = await response.json();
+        renderUsers(users);
+      } catch (err) {
+        document.getElementById('users-message').innerHTML = `<div class="error">${err.message}</div>`;
+      }
+    }
+    
+    // Отображение пользователей
+    function renderUsers(users) {
+      const tbody = document.getElementById('users-table');
+      if (users.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="8">Нет пользователей</td></tr>';
+        return;
+      }
+      
+      tbody.innerHTML = users.map(user => `
+        <tr>
+          <td>${user.id}</td>
+          <td>${escapeHtml(user.username || '')}</td>
+          <td>${escapeHtml(user.email || '')}</td>
+          <td>${escapeHtml(user.name || '')}</td>
+          <td>
+            <span class="${user.is_approved ? 'status-approved' : 'status-pending'}">
+              ${user.is_approved ? 'Одобрен' : 'Ожидает'}
+            </span>
+          </td>
+          <td>
+            <span class="${user.is_admin ? 'status-admin' : ''}">
+              ${user.is_admin ? 'Админ' : '-'}
+            </span>
+          </td>
+          <td>${new Date(user.created_at).toLocaleDateString()}</td>
+          <td>
+            ${!user.is_approved ? `<button class="btn btn-approve" onclick="approveUser(${user.id})">Одобрить</button>` : ''}
+            <button class="btn btn-edit" onclick="editUser(${user.id}, '${escapeHtml(user.username || '')}', '${escapeHtml(user.email || '')}', '${escapeHtml(user.name || '')}')">Ред.</button>
+            <button class="btn btn-delete" onclick="deleteUser(${user.id})">Удалить</button>
+          </td>
+        </tr>
+      `).join('');
+    }
+    
+    // Одобрение пользователя
+    async function approveUser(userId) {
+      if (!confirm('Одобрить этого пользователя?')) return;
+      
+      try {
+        const response = await fetch(`/api/admin/users/${userId}/approve`, {
+          method: 'PUT',
+          credentials: 'include'
+        });
+        
+        if (!response.ok) {
+          const data = await response.json();
+          throw new Error(data.error || 'Ошибка одобрения');
+        }
+        
+        document.getElementById('users-message').innerHTML = '<div class="success">Пользователь одобрен</div>';
+        loadUsers();
+      } catch (err) {
+        document.getElementById('users-message').innerHTML = `<div class="error">${err.message}</div>`;
+      }
+    }
+    
+    // Редактирование пользователя
+    function editUser(id, username, email, name) {
+      document.getElementById('edit-user-id').value = id;
+      document.getElementById('edit-username').value = username;
+      document.getElementById('edit-email').value = email || '';
+      document.getElementById('edit-name').value = name || '';
+      document.getElementById('edit-user-modal').classList.add('active');
+    }
+    
+    function closeEditUserModal() {
+      document.getElementById('edit-user-modal').classList.remove('active');
+    }
+    
+    document.getElementById('edit-user-form').onsubmit = async (e) => {
+      e.preventDefault();
+      const userId = document.getElementById('edit-user-id').value;
+      const username = document.getElementById('edit-username').value;
+      const email = document.getElementById('edit-email').value;
+      const name = document.getElementById('edit-name').value;
+      
+      try {
+        const response = await fetch(`/api/admin/users/${userId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ username, email, name })
+        });
+        
+        if (!response.ok) {
+          const data = await response.json();
+          throw new Error(data.error || 'Ошибка сохранения');
+        }
+        
+        closeEditUserModal();
+        document.getElementById('users-message').innerHTML = '<div class="success">Изменения сохранены</div>';
+        loadUsers();
+      } catch (err) {
+        document.getElementById('users-message').innerHTML = `<div class="error">${err.message}</div>`;
+      }
+    };
+    
+    // Удаление пользователя
+    async function deleteUser(userId) {
+      if (!confirm('Вы уверены, что хотите удалить этого пользователя? Все его проекты и сообщения будут удалены.')) return;
+      
+      try {
+        const response = await fetch(`/api/admin/users/${userId}`, {
+          method: 'DELETE',
+          credentials: 'include'
+        });
+        
+        if (!response.ok) {
+          const data = await response.json();
+          throw new Error(data.error || 'Ошибка удаления');
+        }
+        
+        document.getElementById('users-message').innerHTML = '<div class="success">Пользователь удален</div>';
+        loadUsers();
+      } catch (err) {
+        document.getElementById('users-message').innerHTML = `<div class="error">${err.message}</div>`;
+      }
+    }
+    
+    // Загрузка моделей
+    async function loadModels() {
+      try {
+        const response = await fetch('/api/admin/models', { credentials: 'include' });
+        if (!response.ok) {
+          if (response.status === 401 || response.status === 403) {
+            window.location.href = '/login.html';
+            return;
+          }
+          throw new Error('Ошибка загрузки моделей');
+        }
+        const models = await response.json();
+        renderModels(models);
+      } catch (err) {
+        document.getElementById('models-message').innerHTML = `<div class="error">${err.message}</div>`;
+      }
+    }
+    
+    // Отображение моделей
+    function renderModels(models) {
+      const container = document.getElementById('models-list');
+      if (models.length === 0) {
+        container.innerHTML = '<div class="model-item">Нет моделей</div>';
+        return;
+      }
+      
+      container.innerHTML = models.map(model => `
+        <div class="model-item">
+          <div>
+            <strong>${escapeHtml(model.name)}</strong>
+            <br><small>${escapeHtml(model.id)}</small>
+          </div>
+          <button class="btn btn-delete" onclick="deleteModel('${escapeHtml(model.id)}')">Удалить</button>
+        </div>
+      `).join('');
+    }
+    
+    // Показать модальное окно добавления модели
+    function showAddModelModal() {
+      document.getElementById('model-id').value = '';
+      document.getElementById('model-name').value = '';
+      document.getElementById('add-model-modal').classList.add('active');
+    }
+    
+    function closeAddModelModal() {
+      document.getElementById('add-model-modal').classList.remove('active');
+    }
+    
+    // Добавление модели
+    document.getElementById('add-model-form').onsubmit = async (e) => {
+      e.preventDefault();
+      const id = document.getElementById('model-id').value;
+      const name = document.getElementById('model-name').value;
+      
+      try {
+        const response = await fetch('/api/admin/models', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ id, name })
+        });
+        
+        if (!response.ok) {
+          const data = await response.json();
+          throw new Error(data.error || 'Ошибка добавления');
+        }
+        
+        closeAddModelModal();
+        document.getElementById('models-message').innerHTML = '<div class="success">Модель добавлена</div>';
+        loadModels();
+      } catch (err) {
+        document.getElementById('models-message').innerHTML = `<div class="error">${err.message}</div>`;
+      }
+    };
+    
+    // Удаление модели
+    async function deleteModel(modelId) {
+      if (!confirm('Вы уверены, что хотите удалить эту модель?')) return;
+      
+      try {
+        const response = await fetch(`/api/admin/models/${encodeURIComponent(modelId)}`, {
+          method: 'DELETE',
+          credentials: 'include'
+        });
+        
+        if (!response.ok) {
+          const data = await response.json();
+          throw new Error(data.error || 'Ошибка удаления');
+        }
+        
+        document.getElementById('models-message').innerHTML = '<div class="success">Модель удалена</div>';
+        loadModels();
+      } catch (err) {
+        document.getElementById('models-message').innerHTML = `<div class="error">${err.message}</div>`;
+      }
+    }
+    
+    // Выход
+    async function logout() {
+      try {
+        await fetch('/logout', { method: 'POST', credentials: 'include' });
+        window.location.href = '/login.html';
+      } catch (err) {
+        window.location.href = '/login.html';
+      }
+    }
+    
+    // Экранирование HTML
+    function escapeHtml(text) {
+      if (!text) return '';
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+    
+    // Проверка авторизации при загрузке
+    async function checkAuth() {
+      try {
+        const response = await fetch('/auth/check', { credentials: 'include' });
+        const data = await response.json();
+        if (!data.authenticated) {
+          window.location.href = '/login.html';
+        }
+      } catch (err) {
+        window.location.href = '/login.html';
+      }
+    }
+    
+    // Инициализация
+    checkAuth().then(() => loadUsers());
+  </script>
+</body>
+</html>

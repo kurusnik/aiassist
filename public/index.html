@@ -242,6 +242,7 @@
       </div>
       <div class="toolbar">
         <span style="color:var(--muted); font-size:14px;">👤 <span id="username">...</span></span>
+        <button class="btn btn-sm" id="adminBtn" style="padding:6px 12px; font-size:13px; display:none; margin-right:8px;">Админ-панель</button>
         <button class="btn btn-sm" id="logoutBtn" style="padding:6px 12px; font-size:13px;">Выход</button>
       </div>
     </header>
@@ -925,6 +926,14 @@
       showMessages(state.currentProjectId);
     });
 
+    // Обработчик кнопки админ-панели
+    const adminBtn = document.getElementById('adminBtn');
+    if (adminBtn) {
+      adminBtn.addEventListener('click', () => {
+        window.location.href = '/admin.html';
+      });
+    }
+
     // Обработчик кнопки выхода
     const logoutBtn = document.getElementById('logoutBtn');
     if (logoutBtn) {
@@ -956,6 +965,14 @@
           const usernameEl = document.getElementById('username');
           if (usernameEl) {
             usernameEl.textContent = authData.user.username;
+          }
+        }
+        
+        // Проверяем, является ли пользователь админом
+        if (authData.user && authData.user.isAdmin) {
+          const adminBtn = document.getElementById('adminBtn');
+          if (adminBtn) {
+            adminBtn.style.display = 'inline-block';
           }
         }
       } catch (err) {

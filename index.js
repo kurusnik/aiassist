@@ -18,7 +18,7 @@ if (process.env.NODE_ENV === 'production') {
   process.env.PGPASSWORD = 'ai_password';
 }
 const openrouter = require('./openrouter');
-const { requireAuth } = require('./middleware/auth');
+const { requireAuth, requireAdmin } = require('./middleware/auth');
 const multer = require('multer');
 const fs = require('fs');
 
@@ -191,15 +191,36 @@ app.post('/logout', (req, res) => {
 });
 
 // Проверка авторизации
-app.get('/auth/check', (req, res) => {
+app.get('/auth/check', async (req, res) => {
   if (req.session && req.session.userId) {
-    res.json({ 
-      authenticated: true, 
-      user: { 
-        id: req.session.userId, 
-        username: req.session.username 
-      }
-    });
+    try {
+      // Получаем is_admin из базы данных
+      const userResult = await pool.query(
+        'SELECT is_admin FROM users WHERE id = $1',
+        [req.session.userId]
+      );
+      
+      const isAdmin = userResult.rows.length > 0 ? userResult.rows[0].is_admin : false;
+      
+      res.json({
+        authenticated: true,
+        user: {
+          id: req.session.userId,
+          username: req.session.username,
+          isAdmin: isAdmin
+        }
+      });
+    } catch (err) {
+      console.error('/auth/check error:', err);
+      res.json({
+        authenticated: true,
+        user: {
+          id: req.session.userId,
+          username: req.session.username,
+          isAdmin: false
+        }
+      });
+    }
   } else {
     res.json({ authenticated: false });
   }
@@ -416,6 +437,186 @@ const AVAILABLE_MODELS = [
 
 app.get('/models', (req, res) => {
   res.json(AVAILABLE_MODELS);
+});
+
+// ========== АДМИН-ПАНЕЛЬ ==========
+
+// Получить всех пользователей (для админа)
+app.get('/api/admin/users', requireAdmin, async (req, res) => {
+  try {
+    const result = await pool.query(
+      'SELECT id, username, email, name, is_admin, is_approved, created_at FROM users ORDER BY id DESC'
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error('GET /api/admin/users error:', err);
+    res.status(500).json({ error: 'internal_error' });
+  }
+});
+
+// Редактировать пользователя (для админа)
+app.put('/api/admin/users/:id', requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { username, email, name, is_admin, is_approved } = req.body;
+    
+    // Нельзя редактировать самого себя
+    if (parseInt(id) === req.session.userId) {
+      return res.status(400).json({ error: 'Нельзя редактировать самого себя' });
+    }
+    
+    const updates = [];
+    const values = [];
+    let paramCount = 1;
+    
+    if (username !== undefined) {
+      updates.push(`username = $${paramCount++}`);
+      values.push(username);
+    }
+    if (email !== undefined) {
+      updates.push(`email = $${paramCount++}`);
+      values.push(email);
+    }
+    if (name !== undefined) {
+      updates.push(`name = $${paramCount++}`);
+      values.push(name);
+    }
+    if (is_admin !== undefined) {
+      updates.push(`is_admin = $${paramCount++}`);
+      values.push(is_admin);
+    }
+    if (is_approved !== undefined) {
+      updates.push(`is_approved = $${paramCount++}`);
+      values.push(is_approved);
+    }
+    
+    if (updates.length === 0) {
+      return res.status(400).json({ error: 'Не указаны данные для обновления' });
+    }
+    
+    values.push(id);
+    
+    await pool.query(
+      `UPDATE users SET ${updates.join(', ')} WHERE id = $${paramCount}`,
+      values
+    );
+    
+    res.json({ success: true });
+  } catch (err) {
+    console.error('PUT /api/admin/users/:id error:', err);
+    res.status(500).json({ error: 'internal_error' });
+  }
+});
+
+// Одобрить пользователя (для админа)
+app.put('/api/admin/users/:id/approve', requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // Нельзя одобрить самого себя
+    if (parseInt(id) === req.session.userId) {
+      return res.status(400).json({ error: 'Нельзя одобрить самого себя' });
+    }
+    
+    await pool.query(
+      'UPDATE users SET is_approved = true WHERE id = $1',
+      [id]
+    );
+    
+    res.json({ success: true, message: 'Пользователь одобрен' });
+  } catch (err) {
+    console.error('PUT /api/admin/users/:id/approve error:', err);
+    res.status(500).json({ error: 'internal_error' });
+  }
+});
+
+// Удалить пользователя (для админа)
+app.delete('/api/admin/users/:id', requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // Нельзя удалить самого себя
+    if (parseInt(id) === req.session.userId) {
+      return res.status(400).json({ error: 'Нельзя удалить самого себя' });
+    }
+    
+    // Удаляем проекты и сообщения пользователя (CASCADE)
+    // Сначала получаем проекты пользователя
+    const projectsResult = await pool.query(
+      'SELECT id FROM projects WHERE user_id = $1',
+      [id]
+    );
+    
+    // Удаляем сообщения проектов
+    for (const project of projectsResult.rows) {
+      await pool.query('DELETE FROM messages WHERE project_id = $1', [project.id]);
+    }
+    
+    // Удаляем проекты
+    await pool.query('DELETE FROM projects WHERE user_id = $1', [id]);
+    
+    // Удаляем вложения
+    await pool.query('DELETE FROM attachments WHERE user_id = $1', [id]);
+    
+    // Удаляем сессии пользователя
+    await pool.query('DELETE FROM "session" WHERE sess->>\'userId\' = $1', [id]);
+    
+    // Удаляем пользователя
+    await pool.query('DELETE FROM users WHERE id = $1', [id]);
+    
+    res.json({ success: true, message: 'Пользователь удален' });
+  } catch (err) {
+    console.error('DELETE /api/admin/users/:id error:', err);
+    res.status(500).json({ error: 'internal_error' });
+  }
+});
+
+// Получить все модели (для админа)
+app.get('/api/admin/models', requireAdmin, (req, res) => {
+  res.json(AVAILABLE_MODELS);
+});
+
+// Добавить модель (для админа)
+app.post('/api/admin/models', requireAdmin, (req, res) => {
+  try {
+    const { id, name } = req.body;
+    
+    if (!id || !name) {
+      return res.status(400).json({ error: 'id и name обязательны' });
+    }
+    
+    // Проверяем, не существует ли модель уже
+    if (AVAILABLE_MODELS.some(m => m.id === id)) {
+      return res.status(400).json({ error: 'Модель с таким id уже существует' });
+    }
+    
+    AVAILABLE_MODELS.push({ id, name });
+    
+    res.json({ success: true, models: AVAILABLE_MODELS });
+  } catch (err) {
+    console.error('POST /api/admin/models error:', err);
+    res.status(500).json({ error: 'internal_error' });
+  }
+});
+
+// Удалить модель (для админа)
+app.delete('/api/admin/models/:id', requireAdmin, (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const index = AVAILABLE_MODELS.findIndex(m => m.id === id);
+    
+    if (index === -1) {
+      return res.status(404).json({ error: 'Модель не найдена' });
+    }
+    
+    AVAILABLE_MODELS.splice(index, 1);
+    
+    res.json({ success: true, models: AVAILABLE_MODELS });
+  } catch (err) {
+    console.error('DELETE /api/admin/models/:id error:', err);
+    res.status(500).json({ error: 'internal_error' });
+  }
 });
 
 // Загрузка вложений для проекта
@@ -798,6 +999,11 @@ app.post('/assistant', requireAuth, async (req, res) => {
   } finally {
     if (pingTimer) clearInterval(pingTimer);
   }
+});
+
+// Защита админ-панели
+app.get('/admin.html', requireAdmin, (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'admin.html'));
 });
 
 // Статика
