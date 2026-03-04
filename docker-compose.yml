@@ -1,4 +1,5 @@
-# version: '3.8'
+version: "3.9"
+
 services:
   app:
     build: .
@@ -58,6 +59,20 @@ services:
       - ./certbot/www:/var/www/certbot
     command: certonly --webroot -w /var/www/certbot --dry-run
     restart: unless-stopped
+
+  certbot-renew:
+    image: certbot/certbot
+    container_name: certbot-renew
+    volumes:
+      - ./certbot/www:/var/www/certbot
+      - ./certbot/conf:/etc/letsencrypt
+    entrypoint: >
+      sh -c "while :; do
+      certbot renew --webroot -w /var/www/certbot \
+      --deploy-hook 'nginx -s reload';
+      sleep 12h;
+      done"
+    restart: always
 
 volumes:
   postgres_data:
