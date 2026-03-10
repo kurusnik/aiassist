@@ -187,6 +187,44 @@
       border-radius:10px;
       overflow:auto;
       margin: 10px 0;
+      position: relative;
+    }
+    .copy-btn {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 10px;
+      background: #18202a;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--muted);
+      font-size: 12px;
+      cursor: pointer;
+      transition: all .15s ease;
+      opacity: 0;
+      transform: translateY(-2px);
+    }
+    .copy-btn:hover {
+      background: var(--accent);
+      color: white;
+      border-color: var(--accent);
+      opacity: 1;
+    }
+    .bubble pre:hover .copy-btn {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    .copy-btn.copied {
+      background: var(--ok);
+      border-color: var(--ok);
+      color: white;
+    }
+    .copy-btn svg {
+      width: 14px;
+      height: 14px;
     }
     .timestamp { color:var(--muted); font-size:12px; margin-top:6px; }
 
@@ -274,6 +312,39 @@
     .credits-panel .credits-loading {
       color: var(--muted);
       font-size: 11px;
+    }
+
+    /* Toast notification */
+    .toast {
+      position: fixed;
+      bottom: 30px;
+      left: 50%;
+      transform: translateX(-50%) translateY(20px);
+      background: linear-gradient(180deg, var(--panel) 0%, var(--panel-2) 100%);
+      border: 1px solid var(--ok);
+      border-radius: 10px;
+      padding: 12px 20px;
+      color: var(--ok);
+      font-size: 14px;
+      font-weight: 500;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+      opacity: 0;
+      visibility: hidden;
+      transition: all .3s ease;
+      z-index: 1000;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .toast.show {
+      opacity: 1;
+      visibility: visible;
+      transform: translateX(-50%) translateY(0);
+    }
+    .toast svg {
+      width: 18px;
+      height: 18px;
+      flex-shrink: 0;
     }
   </style>
 </head>
@@ -442,6 +513,25 @@
       ts.textContent = time;
       b.appendChild(ts);
 
+      // Add copy button to code blocks
+      const preElements = b.querySelectorAll('pre');
+      preElements.forEach(pre => {
+        const copyBtn = document.createElement('button');
+        copyBtn.className = 'copy-btn';
+        copyBtn.setAttribute('aria-label', 'Скопировать код в буфер обмена');
+        copyBtn.innerHTML = `
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+          </svg>
+          <span>Копировать</span>
+        `;
+        copyBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          handleCopyCode(pre, copyBtn);
+        });
+        pre.appendChild(copyBtn);
+      });
+
       if (side === 'user') {
         wrapper.appendChild(b);
         wrapper.appendChild(av);
@@ -456,6 +546,73 @@
       const contentEl = wrapper?.querySelector?.('.bubble-content');
       if (!contentEl) return;
       contentEl.innerHTML = renderRichText(text || '');
+    }
+
+    // ---------- Copy to clipboard ----------
+    async function handleCopyCode(preElement, button) {
+      const codeElement = preElement.querySelector('code');
+      if (!codeElement) return;
+
+      const codeText = codeElement.textContent;
+
+      try {
+        await navigator.clipboard.writeText(codeText);
+
+        // Show copied state on button
+        const originalContent = button.innerHTML;
+        button.classList.add('copied');
+        button.innerHTML = `
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+          </svg>
+          <span>Скопировано!</span>
+        `;
+
+        // Show toast notification
+        showToast('Код скопирован в буфер обмена');
+
+        // Reset button after delay
+        setTimeout(() => {
+          button.classList.remove('copied');
+          button.innerHTML = originalContent;
+        }, 2000);
+      } catch (err) {
+        console.error('Failed to copy:', err);
+
+        // Fallback for older browsers
+        try {
+          const textArea = document.createElement('textarea');
+          textArea.value = codeText;
+          textArea.style.position = 'fixed';
+          textArea.style.left = '-999999px';
+          document.body.appendChild(textArea);
+          textArea.select();
+          document.execCommand('copy');
+          document.body.removeChild(textArea);
+
+          showToast('Код скопирован (устаревший метод)');
+        } catch (fallbackErr) {
+          console.error('Fallback copy failed:', fallbackErr);
+          showToast('Не удалось скопировать код');
+        }
+      }
+    }
+
+    // ---------- Toast notification ----------
+    function showToast(message) {
+      const toast = document.getElementById('toast');
+      if (!toast) return;
+
+      const messageSpan = toast.querySelector('span');
+      if (messageSpan) {
+        messageSpan.textContent = message;
+      }
+
+      toast.classList.add('show');
+
+      setTimeout(() => {
+        toast.classList.remove('show');
+      }, 3000);
     }
 
     // API status removed - not needed with auth
@@ -1059,6 +1216,14 @@
       <span class="credits-label">Потрачено:</span>
       <span id="spent-amount" class="credits-loading">--</span>
     </div>
+  </div>
+
+  <!-- Toast notification -->
+  <div id="toast" class="toast" role="status" aria-live="polite">
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+    </svg>
+    <span>Скопировано!</span>
   </div>
 
   <script>
