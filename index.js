@@ -90,6 +90,63 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok' });
 });
 
+// ========== OPENROUTER CREDITS ==========
+
+// Получение баланса OpenRouter
+app.get('/api/credits', async (req, res) => {
+  try {
+    const apiKey = process.env.OPENROUTER_API_KEY;
+    if (!apiKey) {
+      return res.status(500).json({ error: 'OPENROUTER_API_KEY not configured' });
+    }
+
+    const response = await fetch('https://openrouter.ai/api/v1/credits', {
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error(`OpenRouter API error: ${response.status}`);
+    }
+
+    const data = await response.json();
+    
+    // OpenRouter возвращает: { data: { total_credits: 15, total_usage: 5.56 } }
+    // balance = total_credits - total_usage
+    let balance = '0.00';
+    let totalUsage = '0.00';
+    
+    if (data?.data) {
+      const d = data.data;
+      
+      // Потрачено
+      if (typeof d.total_usage === 'number') {
+        totalUsage = d.total_usage.toFixed(2);
+      } else if (typeof d.total_usage === 'string') {
+        totalUsage = parseFloat(d.total_usage).toFixed(2);
+      }
+      
+      // Баланс = total_credits - total_usage
+      if (typeof d.total_credits === 'number' && typeof d.total_usage === 'number') {
+        balance = (d.total_credits - d.total_usage).toFixed(2);
+      } else if (typeof d.total_credits === 'string' && typeof d.total_usage === 'string') {
+        balance = (parseFloat(d.total_credits) - parseFloat(d.total_usage)).toFixed(2);
+      }
+    }
+    
+    res.json({
+      balance: balance,
+      spent: totalUsage,
+      currency: 'USD'
+    });
+  } catch (error) {
+    console.error('Error fetching OpenRouter credits:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // ========== АВТОРИЗАЦИЯ ==========
 
 // Регистрация нового пользователя

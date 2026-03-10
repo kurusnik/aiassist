@@ -231,6 +231,50 @@
       .content { height: auto; min-height: 70vh; }
       .chat { height: 50vh; }
     }
+
+    /* Плашка баланса OpenRouter */
+    .credits-panel {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      background: linear-gradient(180deg, var(--panel) 0%, var(--panel-2) 100%);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 12px 16px;
+      font-size: 13px;
+      box-shadow: var(--shadow);
+      z-index: 100;
+      min-width: 140px;
+    }
+
+    .credits-panel .credits-item {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+    }
+
+    .credits-panel .credits-item + .credits-item {
+      margin-top: 6px;
+    }
+
+    .credits-panel .credits-label {
+      color: var(--muted);
+    }
+
+    .credits-panel .credits-value {
+      color: var(--accent);
+      font-weight: 600;
+    }
+
+    .credits-panel .credits-error {
+      color: var(--danger);
+      font-size: 11px;
+    }
+
+    .credits-panel .credits-loading {
+      color: var(--muted);
+      font-size: 11px;
+    }
   </style>
 </head>
 <body>
@@ -1003,6 +1047,51 @@
         alert('Не удалось загрузить проекты');
       }
     })();
+  </script>
+
+  <!-- Плашка баланса OpenRouter -->
+  <div id="credits-panel" class="credits-panel">
+    <div class="credits-item">
+      <span class="credits-label">Баланс:</span>
+      <span id="balance-amount" class="credits-loading">загрузка...</span>
+    </div>
+    <div class="credits-item">
+      <span class="credits-label">Потрачено:</span>
+      <span id="spent-amount" class="credits-loading">--</span>
+    </div>
+  </div>
+
+  <script>
+    // Загрузка баланса OpenRouter
+    async function loadCredits() {
+      const balanceEl = document.getElementById('balance-amount');
+      const spentEl = document.getElementById('spent-amount');
+      
+      try {
+        const response = await fetch('/api/credits');
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+        const data = await response.json();
+        
+        balanceEl.textContent = data.balance ? `$${data.balance}` : '--';
+        balanceEl.classList.remove('credits-loading');
+        
+        spentEl.textContent = data.spent ? `$${data.spent}` : '--';
+        spentEl.classList.remove('credits-loading');
+      } catch (error) {
+        console.error('Ошибка загрузки баланса:', error);
+        balanceEl.textContent = 'ошибка';
+        balanceEl.classList.remove('credits-loading');
+        balanceEl.classList.add('credits-error');
+        spentEl.textContent = '--';
+        spentEl.classList.remove('credits-loading');
+      }
+    }
+
+    // Загружать при старте и обновлять каждые 60 секунд
+    loadCredits();
+    setInterval(loadCredits, 60000);
   </script>
 </body>
 </html>
