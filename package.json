@@ -37,7 +37,8 @@
     "iconv-lite": "^0.7.2",
     "multer": "^2.0.2",
     "openai": "^6.21.0",
-    "pg": "^8.18.0"
+    "pg": "^8.18.0",
+    "tesseract.js": "^7.0.0"
   },
   "devDependencies": {
     "eslint": "^8.57.0",

@@ -298,6 +298,31 @@
     .credits-panel .credits-label {
       color: var(--muted);
     }
+    
+        /* OCR Loading Indicator */
+        #loading-ocr {
+          display: none;
+          align-items: center;
+          gap: 10px;
+          padding: 12px 16px;
+          background: linear-gradient(180deg, #1a2330, #141c26);
+          border: 1px solid var(--border);
+          border-radius: 10px;
+          margin: 10px 0;
+          font-size: 14px;
+          color: var(--text);
+        }
+        
+        #loading-ocr .spinner {
+          width: 16px;
+          height: 16px;
+          border: 2px solid #2d3a4d;
+          border-top-color: var(--accent);
+          border-radius: 50%;
+          animation: spin .9s linear infinite;
+        }
+        
+        @keyframes spin { to { transform: rotate(360deg); } }
 
     .credits-panel .credits-value {
       color: var(--accent);
@@ -411,13 +436,21 @@
         <textarea id="message" placeholder="Напишите сообщение... (Enter — отправить, Shift+Enter — перенос)"></textarea>
         <div style="display:flex;flex-direction:column;gap:8px;align-items:flex-end">
           <div style="display:flex;gap:8px;align-items:center;">
-            <input type="file" id="fileInput" multiple style="display:none" />
+            <input type="file" id="fileInput" multiple style="display:none" accept="image/jpeg,image/png,image/webp" />
+            <input type="file" id="image-upload" style="display:none" accept="image/jpeg,image/png,image/webp" />
             <button class="btn" id="attachBtn">Прикрепить</button>
+            <button class="btn" id="imageUploadBtn" title="Загрузить изображение для распознавания">📷</button>
             <button class="btn primary" id="sendBtn">Отправить</button>
           </div>
           <div id="uploadStatus" style="color:var(--muted); font-size:13px;"></div>
           <div id="pendingAttachments" style="display:flex; flex-wrap:wrap; gap:6px; justify-content:flex-end;"></div>
         </div>
+      </div>
+      
+      <!-- OCR Loading Indicator -->
+      <div id="loading-ocr">
+        <div class="spinner"></div>
+        <span>Распознавание изображения...</span>
       </div>
     </section>
   </div>
@@ -1127,6 +1160,80 @@
       showMessages(state.currentProjectId);
     });
 
+    // ---------- OCR Image Upload Handler ----------
+    const imageUploadBtn = document.getElementById('imageUploadBtn');
+    const imageUploadInput = document.getElementById('image-upload');
+    
+    if (imageUploadBtn && imageUploadInput) {
+      imageUploadBtn.addEventListener('click', () => {
+        imageUploadInput.click();
+      });
+      
+      imageUploadInput.addEventListener('change', async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        
+        // Проверка типа файла
+        if (!file.type.startsWith('image/')) {
+          alert('Пожалуйста, выберите изображение (JPEG, PNG, WebP)');
+          return;
+        }
+        
+        if (!state.currentProjectId) {
+          alert('Сначала выберите или создайте проект');
+          return;
+        }
+        
+        // Показываем индикатор загрузки
+        const loadingEl = document.getElementById('loading-ocr');
+        if (loadingEl) {
+          loadingEl.style.display = 'flex';
+        }
+        
+        setSending(true);
+        
+        try {
+          const formData = new FormData();
+          formData.append('image', file);
+          formData.append('projectId', state.currentProjectId);
+          
+          const response = await fetch('/api/ocr', {
+            method: 'POST',
+            credentials: 'include',
+            body: formData
+          });
+          
+          if (!response.ok) {
+            const error = await response.json().catch(() => ({}));
+            throw new Error(error.error || 'Ошибка распознавания');
+          }
+          
+          const result = await response.json();
+          
+          // Показываем ответ AI
+          const chat = $('#chat');
+          chat.appendChild(bubble({
+            role: 'assistant',
+            content: result.aiResponse,
+            created_at: new Date()
+          }));
+          chat.scrollTop = chat.scrollHeight;
+          
+          // Очищаем input
+          imageUploadInput.value = '';
+          
+        } catch (error) {
+          console.error('OCR Error:', error);
+          alert('Не удалось распознать изображение: ' + error.message);
+        } finally {
+          setSending(false);
+          if (loadingEl) {
+            loadingEl.style.display = 'none';
+          }
+        }
+      });
+    }
+ 
     // Обработчик кнопки админ-панели
     const adminBtn = document.getElementById('adminBtn');
     if (adminBtn) {

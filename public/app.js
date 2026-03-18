@@ -101,7 +101,74 @@ async function sendMessage() {
     }
   }
 }
-   //новый проект
+
+// ---------- загрузка и распознавание изображения ----------
+async function handleImageUpload(file) {
+  const formData = new FormData();
+  formData.append('image', file);
+  formData.append('projectId', state.currentProjectId);
+
+  try {
+    // Показываем индикатор загрузки
+    setLoading(true);
+    const loadingEl = document.getElementById('loading-ocr');
+    if (loadingEl) {
+      loadingEl.style.display = 'flex';
+      loadingEl.textContent = 'Распознавание изображения...';
+    }
+
+    const response = await fetch('/api/ocr', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('token') || ''}`
+      },
+      credentials: 'include',
+      body: formData
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Ошибка распознавания');
+    }
+
+    const result = await response.json();
+
+    // Показываем ответ AI напрямую
+    addMessage({
+      role: 'assistant',
+      content: result.aiResponse,
+      metadata: {
+        source: 'ocr',
+        filename: result.filename
+      }
+    });
+    
+    renderChat();
+
+    // Очищаем input
+    document.getElementById('image-upload').value = '';
+
+  } catch (error) {
+    console.error('OCR Error:', error);
+    alert('Не удалось распознать изображение: ' + error.message);
+  } finally {
+    setLoading(false);
+    const loadingEl = document.getElementById('loading-ocr');
+    if (loadingEl) {
+      loadingEl.style.display = 'none';
+    }
+  }
+}
+
+// Обработчик для input type="file"
+document.getElementById('image-upload')?.addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if (file && file.type.startsWith('image/')) {
+    handleImageUpload(file);
+  }
+});
+
+// Новый проект
 async function addProject() {
   const name = prompt('Название проекта:');
   if (!name) return;

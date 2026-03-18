@@ -1058,6 +1058,137 @@ app.post('/assistant', requireAuth, async (req, res) => {
   }
 });
 
+// ========== OCR ENDPOINT ==========
+
+// Распознавание текста с изображений с автоматической отправкой в AI
+app.post('/api/ocr', requireAuth, upload.single('image'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'Изображение не загружено' });
+    }
+
+    // Валидация типа файла
+    const validTypes = ['image/jpeg', 'image/png', 'image/webp'];
+    if (!validTypes.includes(req.file.mimetype)) {
+      return res.status(400).json({ error: 'Неподдерживаемый формат файла. Поддерживаются: JPEG, PNG, WebP' });
+    }
+
+    // Распознавание текста
+    const ocrService = require('./services/ocr');
+    const recognizedText = await ocrService.recognize(req.file.path);
+
+    // Очистка временного файла
+    fs.unlinkSync(req.file.path);
+
+    // Получение ID проекта из запроса или сессии
+    const projectId = req.body.projectId || req.session.projectId;
+    
+    if (!projectId) {
+      return res.status(400).json({ error: 'projectId обязателен' });
+    }
+
+    // Отправка распознанного текста в AI
+    const aiResponse = await processAiRequest({
+      text: recognizedText,
+      projectId: projectId,
+      userId: req.session.userId
+    });
+
+    res.json({
+      success: true,
+      recognizedText: recognizedText,
+      aiResponse: aiResponse,
+      filename: req.file.originalname
+    });
+  } catch (error) {
+    console.error('OCR Error:', error);
+    
+    // Очистка файла в случае ошибки
+    if (req.file && fs.existsSync(req.file.path)) {
+      fs.unlinkSync(req.file.path);
+    }
+    
+    res.status(500).json({ error: 'Ошибка распознавания текста: ' + error.message });
+  }
+});
+
+// Вспомогательная функция для обработки AI запроса
+async function processAiRequest({ text, projectId, userId }) {
+  try {
+    // Получение проекта и system prompt
+    const project = await pool.query(
+      'SELECT * FROM projects WHERE id = $1',
+      [projectId]
+    );
+    
+    if (project.rows.length === 0) {
+      throw new Error('Проект не найден');
+    }
+    
+    const projectData = project.rows[0];
+    const systemPrompt = projectData.systemPrompt || '';
+    const model = projectData.model || 'default';
+
+    // Формирование контекста
+    const messages = [];
+    
+    if (systemPrompt) {
+      messages.push({ role: 'system', content: systemPrompt });
+    }
+
+    // История сообщений проекта
+    const history = await pool.query(
+      'SELECT content, role FROM messages WHERE project_id = $1 ORDER BY created_at DESC LIMIT 10',
+      [projectId]
+    );
+
+    // Добавляем последние сообщения в обратном порядке
+    history.rows.forEach(msg => {
+      messages.push({ role: msg.role, content: msg.content });
+    });
+
+    // Добавляем распознанный текст
+    messages.push({ role: 'user', content: text });
+
+    // Вызов OpenRouter API
+    let stream;
+    try {
+      stream = await openrouter.chat.completions.create({
+        model: model,
+        messages: messages,
+        stream: false
+      });
+    } catch (e) {
+      // На случай, если установленная версия клиента не поддерживает options/signal.
+      stream = await openrouter.chat.completions.create({
+        model: model,
+        messages: messages,
+        stream: false
+      });
+    }
+
+    const fullReply = stream?.choices?.[0]?.message?.content || '';
+
+    // Сохранение в БД (без user_id, так как этой колонки нет в таблице messages)
+    await pool.query(
+      `INSERT INTO messages (project_id, role, content)
+       VALUES ($1, $2, $3)`,
+      [projectId, 'user', text]
+    );
+
+    await pool.query(
+      `INSERT INTO messages (project_id, role, content)
+       VALUES ($1, $2, $3)`,
+      [projectId, 'assistant', fullReply]
+    );
+
+    return fullReply;
+  } catch (error) {
+    console.error('AI Processing Error:', error);
+    throw new Error('Не удалось обработать запрос в AI: ' + error.message);
+  }
+}
+
 // Защита админ-панели
 app.get('/admin.html', requireAdmin, (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'admin.html'));
