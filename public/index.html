@@ -2632,6 +2632,8 @@
 
       let recognition = null;
       let isListening = false;
+      let lastFinalIndex = -1;
+      let accumulatedText = '';
 
       // Проверка поддержки Web Speech API
       const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -2646,15 +2648,14 @@
       recognition = new SpeechRecognition();
       recognition.lang = 'ru-RU';
       recognition.continuous = true;
-      recognition.interimResults = true;
-
-      let finalTranscript = '';
+      recognition.interimResults = false;
 
       // Старт распознавания
       function startListening() {
         if (isListening) return;
         
-        finalTranscript = '';
+        accumulatedText = '';
+        lastFinalIndex = -1;
         recognition.start();
         isListening = true;
         voiceBtn.classList.add('listening');
@@ -2673,22 +2674,24 @@
 
       // Обработка результатов
       recognition.onresult = (event) => {
-        let interimTranscript = '';
-
-        for (let i = event.resultIndex; i < event.results.length; i++) {
-          const transcript = event.results[i][0].transcript;
-          if (event.results[i].isFinal) {
-            finalTranscript += transcript;
-          } else {
-            interimTranscript += transcript;
+        const results = event.results;
+        
+        for (let i = 0; i < results.length; i++) {
+          if (results[i].isFinal) {
+            const transcript = results[i][0].transcript.trim();
+            
+            if (transcript && i > lastFinalIndex) {
+              if (accumulatedText) {
+                accumulatedText += ' ' + transcript;
+              } else {
+                accumulatedText = transcript;
+              }
+              lastFinalIndex = i;
+            }
           }
         }
-
-        // Добавляем распознанный текст в поле ввода
-        const currentText = messageTextarea.value;
-        const newText = currentText + (currentText ? ' ' : '') + finalTranscript;
-        messageTextarea.value = newText;
-        finalTranscript = '';
+        
+        messageTextarea.value = accumulatedText;
       };
 
       recognition.onerror = (event) => {
@@ -2713,12 +2716,15 @@
 
       recognition.onend = () => {
         if (isListening) {
-          // Автоматический перезапуск при обрыве
-          try {
-            recognition.start();
-          } catch (e) {
-            stopListening();
-          }
+          setTimeout(() => {
+            if (isListening) {
+              try {
+                recognition.start();
+              } catch (e) {
+                stopListening();
+              }
+            }
+          }, 100);
         }
       };
 
@@ -2741,7 +2747,6 @@
         if (isListening && 
             !voiceIndicator.contains(e.target) && 
             !voiceBtn.contains(e.target)) {
-          // Не закрываем, позволяем пользователю продолжать диктовку
         }
       });
 
