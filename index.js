@@ -19,6 +19,7 @@ if (process.env.NODE_ENV === 'production') {
 }
 const openrouter = require('./openrouter');
 const { requireAuth, requireAdmin } = require('./middleware/auth');
+const PasswordManager = require('./services/passwordManager');
 const multer = require('multer');
 const fs = require('fs');
 
@@ -511,6 +512,127 @@ app.get('/api/admin/users', requireAdmin, async (req, res) => {
   }
 });
 
+// Изменить пароль другого пользователя (для супер-администраторов)
+app.put('/api/admin/users/:id/change-password', requireAdmin, async (req, res) => {
+  try {
+    const targetUserId = parseInt(req.params.id);
+    const adminUserId = req.session.userId;
+    const { newPassword, confirmPassword, requireTwoFactor = false } = req.body;
+    const ipAddress = req.ip || req.connection.remoteAddress;
+    const userAgent = req.headers['user-agent'];
+
+    // Проверка, что не меняем пароль самому себе (чтобы использовать обычный эндпоинт)
+    if (targetUserId === adminUserId) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Для изменения собственного пароля используйте /api/change-password' 
+      });
+    }
+
+    // Проверка обязательных полей
+    if (!newPassword || !confirmPassword) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Новый пароль и подтверждение обязательны' 
+      });
+    }
+
+    // Проверка совпадения паролей
+    if (newPassword !== confirmPassword) {
+      await PasswordManager.logPasswordChange({
+        userId: targetUserId,
+        changedByUserId: adminUserId,
+        ipAddress,
+        userAgent,
+        success: false,
+        errorMessage: 'Новый пароль и подтверждение не совпадают (админ)'
+      });
+      
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Новый пароль и подтверждение не совпадают' 
+      });
+    }
+
+    // Валидация пароля
+    const validation = PasswordManager.validatePassword(newPassword);
+    if (!validation.valid) {
+      await PasswordManager.logPasswordChange({
+        userId: targetUserId,
+        changedByUserId: adminUserId,
+        ipAddress,
+        userAgent,
+        success: false,
+        errorMessage: `Невалидный пароль (админ): ${validation.errors.join(', ')}`
+      });
+      
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Пароль не соответствует требованиям безопасности',
+        validationErrors: validation.errors
+      });
+    }
+
+    // Проверка, что целевой пользователь существует
+    const targetUser = await PasswordManager.getUserInfo(targetUserId);
+    if (!targetUser) {
+      return res.status(404).json({ 
+        success: false, 
+        error: 'Пользователь не найден' 
+      });
+    }
+
+    // Опциональная проверка двухфакторной аутентификации
+    if (requireTwoFactor) {
+      // Здесь можно добавить проверку 2FA кода
+      // В текущей реализации просто отмечаем, что 2FA требуется
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Двухфакторная аутентификация требуется, но не реализована' 
+      });
+    }
+
+    // Изменение пароля
+    const success = await PasswordManager.changePassword(targetUserId, newPassword, adminUserId);
+    if (!success) {
+      await PasswordManager.logPasswordChange({
+        userId: targetUserId,
+        changedByUserId: adminUserId,
+        ipAddress,
+        userAgent,
+        success: false,
+        errorMessage: 'Ошибка при изменении пароля администратором'
+      });
+      
+      return res.status(500).json({ 
+        success: false, 
+        error: 'Ошибка при изменении пароля' 
+      });
+    }
+
+    // Логирование успешного изменения администратором
+    await PasswordManager.logPasswordChange({
+      userId: targetUserId,
+      changedByUserId: adminUserId,
+      ipAddress,
+      userAgent,
+      success: true
+    });
+
+    res.json({ 
+      success: true, 
+      message: `Пароль пользователя ${targetUser.username} успешно изменен администратором` 
+    });
+
+  } catch (error) {
+    console.error('PUT /api/admin/users/:id/change-password error:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Внутренняя ошибка сервера' 
+    });
+  }
+});
+
 // Редактировать пользователя (для админа)
 app.put('/api/admin/users/:id', requireAdmin, async (req, res) => {
   try {
@@ -625,6 +747,246 @@ app.delete('/api/admin/users/:id', requireAdmin, async (req, res) => {
   } catch (err) {
     console.error('DELETE /api/admin/users/:id error:', err);
     res.status(500).json({ error: 'internal_error' });
+  }
+});
+
+// ========== ИЗМЕНЕНИЕ ПАРОЛЯ ==========
+
+// Изменить собственный пароль
+app.put('/api/change-password', requireAuth, async (req, res) => {
+  try {
+    const userId = req.session.userId;
+    const { currentPassword, newPassword, confirmPassword } = req.body;
+    const ipAddress = req.ip || req.connection.remoteAddress;
+    const userAgent = req.headers['user-agent'];
+
+    console.log('[DEBUG] Изменение пароля: userId =', userId);
+    console.log('[DEBUG] Сессия:', req.session);
+
+    // Проверка обязательных полей
+    if (!currentPassword || !newPassword || !confirmPassword) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Все поля обязательны для заполнения' 
+      });
+    }
+
+    // Проверка совпадения паролей
+    if (newPassword !== confirmPassword) {
+      await PasswordManager.logPasswordChange({
+        userId,
+        ipAddress,
+        userAgent,
+        success: false,
+        errorMessage: 'Новый пароль и подтверждение не совпадают'
+      });
+      
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Новый пароль и подтверждение не совпадают' 
+      });
+    }
+
+    // Проверка лимита попыток
+    const rateLimit = await PasswordManager.checkRateLimit(userId, ipAddress);
+    if (!rateLimit.allowed) {
+      return res.status(429).json({ 
+        success: false, 
+        error: `Слишком много попыток. Попробуйте через ${rateLimit.timeLeft} минут`,
+        remainingAttempts: rateLimit.remainingAttempts,
+        timeLeft: rateLimit.timeLeft
+      });
+    }
+
+    // Валидация пароля
+    const validation = PasswordManager.validatePassword(newPassword);
+    if (!validation.valid) {
+      await PasswordManager.incrementAttemptCount(userId, ipAddress);
+      await PasswordManager.logPasswordChange({
+        userId,
+        ipAddress,
+        userAgent,
+        success: false,
+        errorMessage: `Невалидный пароль: ${validation.errors.join(', ')}`
+      });
+      
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Пароль не соответствует требованиям безопасности',
+        validationErrors: validation.errors
+      });
+    }
+
+    // Проверка текущего пароля
+    const isCurrentPasswordValid = await PasswordManager.verifyCurrentPassword(userId, currentPassword);
+    if (!isCurrentPasswordValid) {
+      await PasswordManager.incrementAttemptCount(userId, ipAddress);
+      await PasswordManager.logPasswordChange({
+        userId,
+        ipAddress,
+        userAgent,
+        success: false,
+        errorMessage: 'Неверный текущий пароль'
+      });
+      
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Неверный текущий пароль',
+        remainingAttempts: rateLimit.remainingAttempts - 1
+      });
+    }
+
+    // Проверка, что новый пароль не совпадает с текущим
+    const isSameAsCurrent = await PasswordManager.checkPreviousPasswords(userId, newPassword);
+    if (isSameAsCurrent) {
+      await PasswordManager.incrementAttemptCount(userId, ipAddress);
+      await PasswordManager.logPasswordChange({
+        userId,
+        ipAddress,
+        userAgent,
+        success: false,
+        errorMessage: 'Новый пароль совпадает с текущим'
+      });
+      
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Новый пароль должен отличаться от текущего' 
+      });
+    }
+
+    // Изменение пароля
+    const success = await PasswordManager.changePassword(userId, newPassword);
+    if (!success) {
+      await PasswordManager.logPasswordChange({
+        userId,
+        ipAddress,
+        userAgent,
+        success: false,
+        errorMessage: 'Ошибка при изменении пароля в базе данных'
+      });
+      
+      return res.status(500).json({ 
+        success: false, 
+        error: 'Ошибка при изменении пароля' 
+      });
+    }
+
+    // Логирование успешного изменения
+    await PasswordManager.resetAttemptCount(userId, ipAddress);
+    await PasswordManager.logPasswordChange({
+      userId,
+      ipAddress,
+      userAgent,
+      success: true
+    });
+
+    res.json({ 
+      success: true, 
+      message: 'Пароль успешно изменен' 
+    });
+
+  } catch (error) {
+    console.error('PUT /api/change-password error:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Внутренняя ошибка сервера' 
+    });
+  }
+});
+
+
+
+// Получить информацию о пользователе (для админов)
+app.get('/api/admin/users/:id/info', requireAdmin, async (req, res) => {
+  try {
+    const userId = parseInt(req.params.id);
+    const userInfo = await PasswordManager.getUserInfo(userId);
+    
+    if (!userInfo) {
+      return res.status(404).json({ 
+        success: false, 
+        error: 'Пользователь не найден' 
+      });
+    }
+
+    res.json({ 
+      success: true, 
+      user: userInfo 
+    });
+
+  } catch (error) {
+    console.error('GET /api/admin/users/:id/info error:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Внутренняя ошибка сервера' 
+    });
+  }
+});
+
+// Получить все логи изменения паролей (для админов)
+app.get('/api/admin/users/password-logs', requireAdmin, async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit) || 100;
+    
+    const logs = await PasswordManager.getPasswordChangeLogs(null, limit);
+    
+    res.json({ 
+      success: true, 
+      logs: logs,
+      count: logs.length
+    });
+
+  } catch (error) {
+    console.error('GET /api/admin/users/password-logs error:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Внутренняя ошибка сервера' 
+    });
+  }
+});
+
+// Получить логи изменения пароля пользователя (для админов)
+app.get('/api/admin/users/:id/password-logs', requireAdmin, async (req, res) => {
+  try {
+    const userId = parseInt(req.params.id);
+    const limit = parseInt(req.query.limit) || 50;
+    
+    const logs = await PasswordManager.getPasswordChangeLogs(userId, limit);
+    
+    res.json({ 
+      success: true, 
+      logs: logs,
+      count: logs.length
+    });
+
+  } catch (error) {
+    console.error('GET /api/admin/users/:id/password-logs error:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Внутренняя ошибка сервера' 
+    });
+  }
+});
+
+// Получить информацию о лимитах попыток изменения пароля
+app.get('/api/password-change/rate-limit', requireAuth, async (req, res) => {
+  try {
+    const userId = req.session.userId;
+    const ipAddress = req.ip || req.connection.remoteAddress;
+    
+    const rateLimit = await PasswordManager.checkRateLimit(userId, ipAddress);
+    
+    res.json({ 
+      success: true, 
+      rateLimit: rateLimit 
+    });
+
+  } catch (error) {
+    console.error('GET /api/password-change/rate-limit error:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Внутренняя ошибка сервера' 
+    });
   }
 });
 
@@ -1191,6 +1553,9 @@ async function processAiRequest({ text, projectId, userId }) {
 
 // Защита админ-панели
 app.get('/admin.html', requireAdmin, (req, res) => {
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
   res.sendFile(path.join(__dirname, 'public', 'admin.html'));
 });
 

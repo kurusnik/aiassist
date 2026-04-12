@@ -10,6 +10,7 @@ async function requireAuth(req, res, next) {
   }
   
   if (req.session && req.session.userId) {
+    
     // Проверяем, одобрен ли пользователь
     try {
       const userResult = await pool.query(

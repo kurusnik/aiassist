@@ -199,6 +199,69 @@
     .model-item:last-child {
       border-bottom: none;
     }
+    
+    .password-sections {
+      display: grid;
+      gap: 30px;
+    }
+    
+    .password-section {
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      border: 1px solid #eee;
+    }
+    
+    .password-section h3 {
+      margin-top: 0;
+      margin-bottom: 15px;
+      padding-bottom: 10px;
+      border-bottom: 2px solid #f0f0f0;
+      color: #333;
+    }
+    
+    .password-requirements {
+      color: #666;
+      font-size: 12px;
+      margin-top: 5px;
+    }
+    
+    .btn-primary {
+      background: #007bff;
+      color: white;
+    }
+    
+    .btn-secondary {
+      background: #6c757d;
+      color: white;
+    }
+    
+    .password-logs-table {
+      max-height: 400px;
+      overflow-y: auto;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+    }
+    
+    .password-logs-table table {
+      margin: 0;
+    }
+    
+    .password-logs-table th {
+      position: sticky;
+      top: 0;
+      background: #f8f9fa;
+      z-index: 1;
+    }
+    
+    select {
+      width: 100%;
+      padding: 8px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      background: white;
+      box-sizing: border-box;
+    }
   </style>
 </head>
 <body>
@@ -210,6 +273,7 @@
   <div class="tabs">
     <button class="tab-btn active" onclick="showTab('users')">Пользователи</button>
     <button class="tab-btn" onclick="showTab('models')">Модели</button>
+    <button class="tab-btn" onclick="showTab('passwords')">Пароли</button>
   </div>
   
   <!-- Таблица пользователей -->
@@ -244,6 +308,104 @@
     
     <div id="models-list">
       <div class="model-item">Загрузка...</div>
+    </div>
+  </div>
+  
+  <!-- Управление паролями -->
+  <div id="passwords-tab" class="tab-content">
+    <h2>Управление паролями</h2>
+    <div id="passwords-message"></div>
+    
+    <div class="password-sections">
+      <!-- Секция изменения собственного пароля -->
+      <div class="password-section">
+        <h3>Изменить свой пароль</h3>
+        <div id="change-own-password-message"></div>
+        <form id="change-own-password-form">
+          <div class="form-group">
+            <label for="current-password">Текущий пароль:</label>
+            <input type="password" id="current-password" required>
+          </div>
+          <div class="form-group">
+            <label for="new-password">Новый пароль:</label>
+            <input type="password" id="new-password" required>
+            <div class="password-requirements">
+              <small>Минимум 8 символов, буквы верхнего и нижнего регистра, цифры</small>
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="confirm-password">Подтверждение пароля:</label>
+            <input type="password" id="confirm-password" required>
+          </div>
+          <div class="form-group">
+            <button type="submit" class="btn btn-primary">Изменить пароль</button>
+            <button type="button" class="btn btn-secondary" onclick="checkRateLimit()">Проверить лимиты</button>
+          </div>
+        </form>
+        <div id="rate-limit-info" style="margin-top: 15px; padding: 10px; background: #f8f9fa; border-radius: 4px;"></div>
+      </div>
+      
+      <!-- Секция изменения пароля других пользователей (для админов) -->
+      <div class="password-section">
+        <h3>Изменить пароль пользователя</h3>
+        <div id="change-user-password-message"></div>
+        <form id="change-user-password-form">
+          <div class="form-group">
+            <label for="user-select">Пользователь:</label>
+            <select id="user-select" required>
+              <option value="">Выберите пользователя...</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="admin-new-password">Новый пароль:</label>
+            <input type="password" id="admin-new-password" required>
+          </div>
+          <div class="form-group">
+            <label for="admin-confirm-password">Подтверждение пароля:</label>
+            <input type="password" id="admin-confirm-password" required>
+          </div>
+          <div class="form-group">
+            <label>
+              <input type="checkbox" id="require-2fa">
+              Требовать двухфакторную аутентификацию
+            </label>
+          </div>
+          <div class="form-group">
+            <button type="submit" class="btn btn-primary">Изменить пароль</button>
+          </div>
+        </form>
+      </div>
+      
+      <!-- Секция просмотра логов -->
+      <div class="password-section">
+        <h3>Логи изменения паролей</h3>
+        <div id="password-logs-message"></div>
+        <div class="form-group">
+          <label for="log-user-select">Пользователь для просмотра логов:</label>
+          <select id="log-user-select" onchange="loadPasswordLogs()">
+            <option value="">Все пользователи...</option>
+          </select>
+        </div>
+        <div id="password-logs-container">
+          <div class="password-logs-table">
+            <table>
+              <thead>
+                <tr>
+                  <th>Дата</th>
+                  <th>Пользователь</th>
+                  <th>Изменено</th>
+                  <th>IP адрес</th>
+                  <th>Статус</th>
+                  <th>Ошибка</th>
+                </tr>
+              </thead>
+              <tbody id="password-logs-table">
+                <tr><td colspan="6">Выберите пользователя для просмотра логов</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
   
@@ -571,6 +733,238 @@
         window.location.href = '/login.html';
       }
     }
+    
+    // ========== ФУНКЦИИ ДЛЯ УПРАВЛЕНИЯ ПАРОЛЯМИ ==========
+    
+    // Показать вкладку паролей
+    function showPasswordTab() {
+      showTab('passwords');
+      loadUserLists();
+    }
+    
+    // Загрузка списков пользователей
+    async function loadUserLists() {
+      try {
+        const response = await fetch('/api/admin/users', { credentials: 'include' });
+        if (!response.ok) throw new Error('Ошибка загрузки пользователей');
+        
+        const users = await response.json();
+        
+        // Заполняем выпадающий список для изменения пароля
+        const userSelect = document.getElementById('user-select');
+        const logUserSelect = document.getElementById('log-user-select');
+        
+        userSelect.innerHTML = '<option value="">Выберите пользователя...</option>';
+        logUserSelect.innerHTML = '<option value="">Все пользователи...</option>';
+        
+        users.forEach(user => {
+          const option = document.createElement('option');
+          option.value = user.id;
+          option.textContent = `${user.username} (${user.email || 'без email'})`;
+          
+          const logOption = option.cloneNode(true);
+          
+          userSelect.appendChild(option);
+          logUserSelect.appendChild(logOption);
+        });
+        
+      } catch (err) {
+        document.getElementById('passwords-message').innerHTML = `<div class="error">Ошибка загрузки пользователей: ${err.message}</div>`;
+      }
+    }
+    
+    // Проверка лимитов попыток
+    async function checkRateLimit() {
+      try {
+        const response = await fetch('/api/password-change/rate-limit', { 
+          credentials: 'include' 
+        });
+        
+        if (!response.ok) throw new Error('Ошибка проверки лимитов');
+        
+        const data = await response.json();
+        const rateLimit = data.rateLimit;
+        
+        const infoDiv = document.getElementById('rate-limit-info');
+        if (rateLimit.allowed) {
+          infoDiv.innerHTML = `
+            <div class="success">
+              <strong>Лимиты попыток:</strong> Доступно ${rateLimit.remainingAttempts} из 5 попыток
+            </div>
+          `;
+        } else {
+          infoDiv.innerHTML = `
+            <div class="error">
+              <strong>Лимит превышен:</strong> Подождите ${rateLimit.timeLeft} минут(ы) перед следующей попыткой
+            </div>
+          `;
+        }
+        
+      } catch (err) {
+        document.getElementById('change-own-password-message').innerHTML = `<div class="error">Ошибка проверки лимитов: ${err.message}</div>`;
+      }
+    }
+    
+    // Изменение собственного пароля
+    document.getElementById('change-own-password-form').onsubmit = async (e) => {
+      e.preventDefault();
+      
+      const currentPassword = document.getElementById('current-password').value;
+      const newPassword = document.getElementById('new-password').value;
+      const confirmPassword = document.getElementById('confirm-password').value;
+      
+      const messageDiv = document.getElementById('change-own-password-message');
+      messageDiv.innerHTML = '';
+      
+      try {
+        const response = await fetch('/api/change-password', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ currentPassword, newPassword, confirmPassword })
+        });
+        
+        const data = await response.json();
+        
+        if (!response.ok) {
+          let errorMessage = data.error || 'Ошибка при изменении пароля';
+          if (data.validationErrors) {
+            errorMessage += '<br>' + data.validationErrors.map(err => `• ${err}`).join('<br>');
+          }
+          if (data.remainingAttempts !== undefined) {
+            errorMessage += `<br>Осталось попыток: ${data.remainingAttempts}`;
+          }
+          if (data.timeLeft !== undefined) {
+            errorMessage += `<br>Подождите ${data.timeLeft} минут(ы)`;
+          }
+          
+          throw new Error(errorMessage);
+        }
+        
+        messageDiv.innerHTML = '<div class="success">Пароль успешно изменен!</div>';
+        
+        // Очистка формы
+        document.getElementById('current-password').value = '';
+        document.getElementById('new-password').value = '';
+        document.getElementById('confirm-password').value = '';
+        
+        // Обновление информации о лимитах
+        checkRateLimit();
+        
+      } catch (err) {
+        messageDiv.innerHTML = `<div class="error">${err.message}</div>`;
+      }
+    };
+    
+    // Изменение пароля пользователя администратором
+    document.getElementById('change-user-password-form').onsubmit = async (e) => {
+      e.preventDefault();
+      
+      const userId = document.getElementById('user-select').value;
+      const newPassword = document.getElementById('admin-new-password').value;
+      const confirmPassword = document.getElementById('admin-confirm-password').value;
+      const requireTwoFactor = document.getElementById('require-2fa').checked;
+      
+      if (!userId) {
+        document.getElementById('change-user-password-message').innerHTML = '<div class="error">Выберите пользователя</div>';
+        return;
+      }
+      
+      const messageDiv = document.getElementById('change-user-password-message');
+      messageDiv.innerHTML = '';
+      
+      try {
+        const response = await fetch(`/api/admin/users/${userId}/change-password`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ newPassword, confirmPassword, requireTwoFactor })
+        });
+        
+        const data = await response.json();
+        
+        if (!response.ok) {
+          let errorMessage = data.error || 'Ошибка при изменении пароля';
+          if (data.validationErrors) {
+            errorMessage += '<br>' + data.validationErrors.map(err => `• ${err}`).join('<br>');
+          }
+          throw new Error(errorMessage);
+        }
+        
+        messageDiv.innerHTML = `<div class="success">${data.message}</div>`;
+        
+        // Очистка формы
+        document.getElementById('admin-new-password').value = '';
+        document.getElementById('admin-confirm-password').value = '';
+        document.getElementById('require-2fa').checked = false;
+        
+      } catch (err) {
+        messageDiv.innerHTML = `<div class="error">${err.message}</div>`;
+      }
+    };
+    
+    // Загрузка логов изменения паролей
+    async function loadPasswordLogs() {
+      const userId = document.getElementById('log-user-select').value;
+      const messageDiv = document.getElementById('password-logs-message');
+      const tableBody = document.getElementById('password-logs-table');
+      
+      messageDiv.innerHTML = '';
+      tableBody.innerHTML = '<tr><td colspan="6">Загрузка...</td></tr>';
+      
+      try {
+        let url = '/api/admin/users/password-logs';
+        if (userId) {
+          url = `/api/admin/users/${userId}/password-logs`;
+        }
+        
+        const response = await fetch(url, { credentials: 'include' });
+        
+        if (!response.ok) {
+          if (response.status === 404 && userId) {
+            // Если логов нет для конкретного пользователя
+            tableBody.innerHTML = '<tr><td colspan="6">Нет логов изменения пароля для этого пользователя</td></tr>';
+            return;
+          }
+          throw new Error('Ошибка загрузки логов');
+        }
+        
+        const data = await response.json();
+        
+        if (data.logs.length === 0) {
+          tableBody.innerHTML = '<tr><td colspan="6">Нет логов изменения пароля</td></tr>';
+          return;
+        }
+        
+        tableBody.innerHTML = data.logs.map(log => `
+          <tr>
+            <td>${new Date(log.created_at).toLocaleString()}</td>
+            <td>${escapeHtml(log.user_username || 'N/A')}</td>
+            <td>${log.changed_by_username ? escapeHtml(log.changed_by_username) : 'Сам пользователь'}</td>
+            <td>${log.ip_address || 'N/A'}</td>
+            <td>
+              <span class="${log.success ? 'status-approved' : 'status-pending'}">
+                ${log.success ? 'Успешно' : 'Ошибка'}
+              </span>
+            </td>
+            <td>${log.error_message ? escapeHtml(log.error_message) : '-'}</td>
+          </tr>
+        `).join('');
+        
+      } catch (err) {
+        messageDiv.innerHTML = `<div class="error">Ошибка загрузки логов: ${err.message}</div>`;
+        tableBody.innerHTML = '<tr><td colspan="6">Ошибка загрузки</td></tr>';
+      }
+    }
+    
+    // Обновление функции showTab для загрузки пользователей при переключении на вкладку паролей
+    const originalShowTab = showTab;
+    showTab = function(tabName) {
+      originalShowTab(tabName);
+      if (tabName === 'passwords') {
+        loadUserLists();
+      }
+    };
     
     // Инициализация
     checkAuth().then(() => loadUsers());
