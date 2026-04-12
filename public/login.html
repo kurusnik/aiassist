@@ -3,7 +3,12 @@
 <head>
   <meta charset="UTF-8" />
   <title>Вход - AI Assistant</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5" />
+  <link rel="icon" type="image/svg+xml" href="/icons/favicon.svg" />
+  <link rel="apple-touch-icon" href="/icons/favicon.svg" />
+  <meta name="theme-color" content="#4ea1ff" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <style>
     :root {
       --bg: #0f1216;
@@ -173,6 +178,145 @@
     
     .form-section.active {
       display: block;
+    }
+
+    @media (max-width: 768px) {
+      .login-container {
+        padding: 16px;
+        align-items: flex-start;
+        padding-top: 40px;
+      }
+      
+      .login-box {
+        padding: 24px 20px;
+        max-width: 100%;
+      }
+      
+      .logo h1 {
+        font-size: 24px;
+      }
+      
+      .logo p {
+        font-size: 13px;
+      }
+      
+      .tabs {
+        margin-bottom: 20px;
+      }
+      
+      .tab {
+        padding: 10px;
+        font-size: 14px;
+        min-height: 44px;
+      }
+      
+      .form-group {
+        margin-bottom: 16px;
+      }
+      
+      label {
+        font-size: 14px;
+        margin-bottom: 6px;
+      }
+      
+      input {
+        font-size: 16px;
+        padding: 12px 14px;
+        min-height: 48px;
+      }
+      
+      .btn {
+        font-size: 15px;
+        padding: 12px;
+        min-height: 48px;
+      }
+      
+      .error {
+        font-size: 14px;
+        padding: 10px;
+      }
+    }
+
+    @media (max-width: 480px) {
+      .login-container {
+        padding: 12px;
+        padding-top: 30px;
+      }
+      
+      .login-box {
+        padding: 20px 16px;
+        border-radius: 12px;
+      }
+      
+      .logo h1 {
+        font-size: 20px;
+      }
+      
+      .logo p {
+        font-size: 12px;
+      }
+      
+      .tabs {
+        gap: 4px;
+        padding: 3px;
+      }
+      
+      .tab {
+        padding: 8px;
+        font-size: 13px;
+        min-height: 40px;
+      }
+      
+      .form-group {
+        margin-bottom: 14px;
+      }
+      
+      label {
+        font-size: 13px;
+      }
+      
+      input {
+        font-size: 15px;
+        padding: 10px 12px;
+        min-height: 44px;
+      }
+      
+      .btn {
+        font-size: 14px;
+        padding: 11px;
+        min-height: 46px;
+      }
+      
+      .error {
+        font-size: 13px;
+        padding: 8px;
+      }
+    }
+
+    @media (max-width: 360px) {
+      .logo h1 {
+        font-size: 18px;
+      }
+      
+      .logo p {
+        font-size: 11px;
+      }
+      
+      .tab {
+        font-size: 12px;
+      }
+      
+      label {
+        font-size: 12px;
+      }
+      
+      input {
+        font-size: 14px;
+      }
+      
+      .btn {
+        font-size: 13px;
+      }
     }
   </style>
 </head>

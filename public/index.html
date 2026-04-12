@@ -4,7 +4,12 @@
 <head>
   <meta charset="UTF-8" />
   <title>AI Assistant</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5" />
+  <link rel="icon" type="image/svg+xml" href="/icons/favicon.svg" />
+  <link rel="apple-touch-icon" href="/icons/favicon.svg" />
+  <meta name="theme-color" content="#4ea1ff" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <style>
     :root{
       --bg:#0f1216;
@@ -268,6 +273,777 @@
       .sidebar { position: static; height:auto; }
       .content { height: auto; min-height: 70vh; }
       .chat { height: 50vh; }
+    }
+
+    @media (max-width: 768px) {
+      .app {
+        margin: 0;
+        padding: 0 0 16px;
+        display: flex;
+        flex-direction: column;
+      }
+      
+      header {
+        flex-direction: column;
+        gap: 12px;
+        padding: 12px 16px;
+        margin-bottom: 0;
+      }
+      
+      .title {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 4px;
+      }
+      
+      .title h1 {
+        font-size: 18px;
+      }
+      
+      .toolbar {
+        width: 100%;
+        justify-content: space-between;
+      }
+      
+      .sidebar {
+        padding: 12px;
+        height: auto;
+        position: static;
+        top: 0;
+        overflow: visible;
+      }
+      
+      .content {
+        height: calc(100vh - 180px);
+        min-height: 50vh;
+      }
+      
+      .chat {
+        height: calc(100vh - 280px);
+        min-height: 300px;
+        padding: 12px;
+      }
+      
+      .section h3 {
+        font-size: 12px;
+        margin-bottom: 6px;
+      }
+      
+      .btn {
+        padding: 8px 12px;
+        font-size: 14px;
+        min-height: 44px;
+        touch-action: manipulation;
+      }
+      
+      .btn-sm {
+        padding: 6px 10px;
+        font-size: 13px;
+        min-height: 40px;
+      }
+      
+      select, textarea, input[type="text"] {
+        font-size: 16px;
+        padding: 10px 12px;
+        min-height: 44px;
+      }
+      
+      textarea {
+        min-height: 80px;
+        font-size: 16px;
+      }
+      
+      .bubble {
+        max-width: 90%;
+        padding: 10px 12px;
+        font-size: 15px;
+      }
+      
+      .avatar {
+        width: 28px;
+        height: 28px;
+        font-size: 12px;
+      }
+      
+      .composer {
+        padding: 10px;
+        flex-direction: column;
+        gap: 8px;
+      }
+      
+      .composer textarea {
+        min-height: 48px;
+        width: 100%;
+      }
+      
+      .composer > div:last-child {
+        width: 100%;
+        flex-direction: row;
+        justify-content: flex-end;
+      }
+      
+      .credits-panel {
+        bottom: 10px;
+        right: 10px;
+        left: 10px;
+        min-width: auto;
+        font-size: 12px;
+        padding: 10px 12px;
+      }
+      
+      .toast {
+        bottom: 20px;
+        left: 50%;
+        width: 90%;
+        max-width: 340px;
+        font-size: 13px;
+        padding: 10px 16px;
+      }
+      
+      #loading-ocr {
+        margin: 8px;
+        padding: 10px 12px;
+        font-size: 13px;
+      }
+    }
+
+    @media (max-width: 480px) {
+      .app {
+        padding: 0 0 12px;
+      }
+      
+      header {
+        padding: 10px 12px;
+      }
+      
+      .title h1 {
+        font-size: 16px;
+      }
+      
+      .badge {
+        font-size: 11px;
+        padding: 2px 6px;
+      }
+      
+      #username {
+        font-size: 13px;
+      }
+      
+      .sidebar {
+        padding: 10px;
+      }
+      
+      .section + .section {
+        margin-top: 14px;
+      }
+      
+      .row {
+        flex-wrap: wrap;
+      }
+      
+      .row .btn {
+        flex: 1;
+        min-width: calc(50% - 4px);
+      }
+      
+      .chat {
+        padding: 8px;
+        height: calc(100vh - 260px);
+      }
+      
+      .bubble {
+        max-width: 95%;
+        padding: 8px 10px;
+        font-size: 14px;
+        border-radius: 12px;
+      }
+      
+      .bubble code {
+        font-size: 0.85em;
+      }
+      
+      .bubble pre {
+        padding: 8px;
+        font-size: 12px;
+      }
+      
+      .copy-btn {
+        padding: 4px 8px;
+        font-size: 11px;
+      }
+      
+      .avatar {
+        width: 24px;
+        height: 24px;
+        font-size: 11px;
+      }
+      
+      .composer {
+        padding: 8px;
+      }
+      
+      .composer textarea {
+        font-size: 15px;
+        min-height: 44px;
+      }
+      
+      .btn {
+        padding: 10px 14px;
+        font-size: 14px;
+        min-height: 48px;
+      }
+      
+      .meta {
+        font-size: 12px;
+        margin-bottom: 8px;
+      }
+      
+      .empty {
+        padding: 24px 12px;
+        font-size: 14px;
+      }
+    }
+
+    @media (max-width: 360px) {
+      .title h1 {
+        font-size: 14px;
+      }
+      
+      .badge {
+        font-size: 10px;
+      }
+      
+      .bubble {
+        font-size: 13px;
+        padding: 8px;
+      }
+      
+      .btn {
+        font-size: 13px;
+        padding: 10px 12px;
+      }
+      
+      .section h3 {
+        font-size: 11px;
+      }
+      
+      select, textarea, input[type="text"] {
+        font-size: 15px;
+      }
+    }
+
+    @media (max-width: 768px) {
+      .app {
+        margin: 0;
+        padding: 0 0 16px;
+        display: flex;
+        flex-direction: column;
+      }
+      
+      header {
+        flex-direction: column;
+        gap: 12px;
+        padding: 12px 16px;
+        margin-bottom: 0;
+      }
+      
+      .title {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 4px;
+      }
+      
+      .title h1 {
+        font-size: 18px;
+      }
+      
+      .toolbar {
+        width: 100%;
+        justify-content: space-between;
+      }
+      
+      .sidebar {
+        padding: 12px;
+        height: auto;
+        position: static;
+        top: 0;
+        overflow: visible;
+      }
+      
+      .content {
+        height: calc(100vh - 180px);
+        min-height: 50vh;
+      }
+      
+      .chat {
+        height: calc(100vh - 280px);
+        min-height: 300px;
+        padding: 12px;
+      }
+      
+      .section h3 {
+        font-size: 12px;
+        margin-bottom: 6px;
+      }
+      
+      .btn {
+        padding: 8px 12px;
+        font-size: 14px;
+        min-height: 44px;
+        touch-action: manipulation;
+      }
+      
+      .btn-sm {
+        padding: 6px 10px;
+        font-size: 13px;
+        min-height: 40px;
+      }
+      
+      select, textarea, input[type="text"] {
+        font-size: 16px;
+        padding: 10px 12px;
+        min-height: 44px;
+      }
+      
+      textarea {
+        min-height: 80px;
+        font-size: 16px;
+      }
+      
+      .bubble {
+        max-width: 90%;
+        padding: 10px 12px;
+        font-size: 15px;
+      }
+      
+      .avatar {
+        width: 28px;
+        height: 28px;
+        font-size: 12px;
+      }
+      
+      .composer {
+        padding: 10px;
+        flex-direction: column;
+        gap: 8px;
+      }
+      
+      .composer textarea {
+        min-height: 48px;
+        width: 100%;
+      }
+      
+      .composer > div:last-child {
+        width: 100%;
+        flex-direction: row;
+        justify-content: flex-end;
+      }
+      
+      .credits-panel {
+        bottom: 10px;
+        right: 10px;
+        left: 10px;
+        min-width: auto;
+        font-size: 12px;
+        padding: 10px 12px;
+      }
+      
+      .toast {
+        bottom: 20px;
+        left: 50%;
+        width: 90%;
+        max-width: 340px;
+        font-size: 13px;
+        padding: 10px 16px;
+      }
+      
+      #loading-ocr {
+        margin: 8px;
+        padding: 10px 12px;
+        font-size: 13px;
+      }
+    }
+
+    @media (max-width: 480px) {
+      .app {
+        padding: 0 0 12px;
+      }
+      
+      header {
+        padding: 10px 12px;
+      }
+      
+      .title h1 {
+        font-size: 16px;
+      }
+      
+      .badge {
+        font-size: 11px;
+        padding: 2px 6px;
+      }
+      
+      #username {
+        font-size: 13px;
+      }
+      
+      .sidebar {
+        padding: 10px;
+      }
+      
+      .section + .section {
+        margin-top: 14px;
+      }
+      
+      .row {
+        flex-wrap: wrap;
+      }
+      
+      .row .btn {
+        flex: 1;
+        min-width: calc(50% - 4px);
+      }
+      
+      .chat {
+        padding: 8px;
+        height: calc(100vh - 260px);
+      }
+      
+      .bubble {
+        max-width: 95%;
+        padding: 8px 10px;
+        font-size: 14px;
+        border-radius: 12px;
+      }
+      
+      .bubble code {
+        font-size: 0.85em;
+      }
+      
+      .bubble pre {
+        padding: 8px;
+        font-size: 12px;
+      }
+      
+      .copy-btn {
+        padding: 4px 8px;
+        font-size: 11px;
+      }
+      
+      .avatar {
+        width: 24px;
+        height: 24px;
+        font-size: 11px;
+      }
+      
+      .composer {
+        padding: 8px;
+      }
+      
+      .composer textarea {
+        font-size: 15px;
+        min-height: 44px;
+      }
+      
+      .btn {
+        padding: 10px 14px;
+        font-size: 14px;
+        min-height: 48px;
+      }
+      
+      .meta {
+        font-size: 12px;
+        margin-bottom: 8px;
+      }
+      
+      .empty {
+        padding: 24px 12px;
+        font-size: 14px;
+      }
+    }
+
+    @media (max-width: 360px) {
+      .title h1 {
+        font-size: 14px;
+      }
+      
+      .badge {
+        font-size: 10px;
+      }
+      
+      .bubble {
+        font-size: 13px;
+        padding: 8px;
+      }
+      
+      .btn {
+        font-size: 13px;
+        padding: 10px 12px;
+      }
+      
+      .section h3 {
+        font-size: 11px;
+      }
+      
+      select, textarea, input[type="text"] {
+        font-size: 15px;
+      }
+    }
+
+    @media (max-width: 768px) {
+      .app {
+        margin: 0;
+        padding: 0 0 16px;
+        display: flex;
+        flex-direction: column;
+      }
+      
+      header {
+        flex-direction: column;
+        gap: 12px;
+        padding: 12px 16px;
+        margin-bottom: 0;
+      }
+      
+      .title {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 4px;
+      }
+      
+      .title h1 {
+        font-size: 18px;
+      }
+      
+      .toolbar {
+        width: 100%;
+        justify-content: space-between;
+      }
+      
+      .sidebar {
+        padding: 12px;
+        height: auto;
+        position: static;
+        top: 0;
+        overflow: visible;
+      }
+      
+      .content {
+        height: calc(100vh - 180px);
+        min-height: 50vh;
+      }
+      
+      .chat {
+        height: calc(100vh - 280px);
+        min-height: 300px;
+        padding: 12px;
+      }
+      
+      .section h3 {
+        font-size: 12px;
+        margin-bottom: 6px;
+      }
+      
+      .btn {
+        padding: 8px 12px;
+        font-size: 14px;
+        min-height: 44px;
+        touch-action: manipulation;
+      }
+      
+      .btn-sm {
+        padding: 6px 10px;
+        font-size: 13px;
+        min-height: 40px;
+      }
+      
+      select, textarea, input[type="text"] {
+        font-size: 16px;
+        padding: 10px 12px;
+        min-height: 44px;
+      }
+      
+      textarea {
+        min-height: 80px;
+        font-size: 16px;
+      }
+      
+      .bubble {
+        max-width: 90%;
+        padding: 10px 12px;
+        font-size: 15px;
+      }
+      
+      .avatar {
+        width: 28px;
+        height: 28px;
+        font-size: 12px;
+      }
+      
+      .composer {
+        padding: 10px;
+        flex-direction: column;
+        gap: 8px;
+      }
+      
+      .composer textarea {
+        min-height: 48px;
+        width: 100%;
+      }
+      
+      .composer > div:last-child {
+        width: 100%;
+        flex-direction: row;
+        justify-content: flex-end;
+      }
+      
+      .credits-panel {
+        bottom: 10px;
+        right: 10px;
+        left: 10px;
+        min-width: auto;
+        font-size: 12px;
+        padding: 10px 12px;
+      }
+      
+      .toast {
+        bottom: 20px;
+        left: 50%;
+        width: 90%;
+        max-width: 340px;
+        font-size: 13px;
+        padding: 10px 16px;
+      }
+      
+      #loading-ocr {
+        margin: 8px;
+        padding: 10px 12px;
+        font-size: 13px;
+      }
+    }
+
+    @media (max-width: 480px) {
+      .app {
+        padding: 0 0 12px;
+      }
+      
+      header {
+        padding: 10px 12px;
+      }
+      
+      .title h1 {
+        font-size: 16px;
+      }
+      
+      .badge {
+        font-size: 11px;
+        padding: 2px 6px;
+      }
+      
+      #username {
+        font-size: 13px;
+      }
+      
+      .sidebar {
+        padding: 10px;
+      }
+      
+      .section + .section {
+        margin-top: 14px;
+      }
+      
+      .row {
+        flex-wrap: wrap;
+      }
+      
+      .row .btn {
+        flex: 1;
+        min-width: calc(50% - 4px);
+      }
+      
+      .chat {
+        padding: 8px;
+        height: calc(100vh - 260px);
+      }
+      
+      .bubble {
+        max-width: 95%;
+        padding: 8px 10px;
+        font-size: 14px;
+        border-radius: 12px;
+      }
+      
+      .bubble code {
+        font-size: 0.85em;
+      }
+      
+      .bubble pre {
+        padding: 8px;
+        font-size: 12px;
+      }
+      
+      .copy-btn {
+        padding: 4px 8px;
+        font-size: 11px;
+      }
+      
+      .avatar {
+        width: 24px;
+        height: 24px;
+        font-size: 11px;
+      }
+      
+      .composer {
+        padding: 8px;
+      }
+      
+      .composer textarea {
+        font-size: 15px;
+        min-height: 44px;
+      }
+      
+      .btn {
+        padding: 10px 14px;
+        font-size: 14px;
+        min-height: 48px;
+      }
+      
+      .meta {
+        font-size: 12px;
+        margin-bottom: 8px;
+      }
+      
+      .empty {
+        padding: 24px 12px;
+        font-size: 14px;
+      }
+    }
+
+    @media (max-width: 360px) {
+      .title h1 {
+        font-size: 14px;
+      }
+      
+      .badge {
+        font-size: 10px;
+      }
+      
+      .bubble {
+        font-size: 13px;
+        padding: 8px;
+      }
+      
+      .btn {
+        font-size: 13px;
+        padding: 10px 12px;
+      }
+      
+      .section h3 {
+        font-size: 11px;
+      }
+      
+      select, textarea, input[type="text"] {
+        font-size: 15px;
+      }
     }
 
     /* Плашка баланса OpenRouter */
