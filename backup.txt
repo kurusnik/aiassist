@@ -1,0 +1,65 @@
+🛡 Уровень 1 — Git tag (моментальный откат к версии)
+
+На сервере или на рабочем компе:
+
+git tag v1-stable
+git push origin v1-stable
+
+Теперь у тебя есть точка восстановления в GitHub.
+
+Если что-то сломается:
+
+git checkout v1-stable
+docker compose up -d --build
+🛡 Уровень 2 — Бэкап базы данных
+
+Самое важное — PostgreSQL.
+
+Сделай дамп:
+
+docker compose exec db pg_dump -U ai_user ai_assistant > backup.sql
+
+Файл появится в папке проекта:
+
+backup.sql
+
+Лучше сохранить ещё копию:
+
+cp backup.sql backup_$(date +%F).sql
+Восстановление БД
+
+Если что-то пошло не так:
+
+docker compose exec -T db psql -U ai_user ai_assistant < backup.sql
+🛡 Уровень 3 — Бэкап volumes Docker
+
+Сохраняем данные:
+
+docker compose down
+tar -czf aiassist_backup.tar.gz .
+docker compose up -d
+
+Это создаст полный архив проекта.
+
+💡 Лучшая схема
+
+Перед крупными изменениями:
+
+1 git tag
+2 backup базы
+3 архив проекта
+
+Занимает 2 минуты, а спасает часы работы.
+
+🚀 Совет на будущее
+
+Сделай папку:
+
+/backups
+
+и храни:
+
+backups/
+  db/
+  volumes/
+  releases/

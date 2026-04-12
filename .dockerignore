@@ -1,0 +1,7 @@
+certbot
+node_modules
+.git
+.gitignore
+logs
+uploads
+.env
