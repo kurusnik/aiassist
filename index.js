@@ -23,6 +23,10 @@ const PasswordManager = require('./services/passwordManager');
 const multer = require('multer');
 const fs = require('fs');
 
+// RAG сервисы
+const rag = require('./services/rag');
+const { indexFile, indexText, deleteDocument, getStats } = require('./services/rag/ingestion');
+
 const app = express();
 app.use(express.json());
 
@@ -1417,6 +1421,270 @@ app.post('/assistant', requireAuth, async (req, res) => {
     res.status(500).json({ error: 'internal_error', details: err?.message });
   } finally {
     if (pingTimer) clearInterval(pingTimer);
+  }
+});
+
+// ========== RAG ENDPOINTS ==========
+
+// Индексирование текста
+app.post('/api/rag/index', requireAuth, async (req, res) => {
+  try {
+    const { projectId, content, fileName, metadata } = req.body;
+    const userId = req.session.userId;
+
+    if (!content) {
+      return res.status(400).json({ error: 'content обязателен' });
+    }
+
+    const result = await indexText({
+      text: content,
+      userId,
+      projectId: projectId || null,
+      fileName: fileName || 'unknown',
+      metadata: metadata || {}
+    });
+
+    if (result.success) {
+      res.json(result);
+    } else {
+      res.status(400).json(result);
+    }
+  } catch (error) {
+    console.error('[RAG] Index text error:', error);
+    res.status(500).json({ error: 'internal_error', details: error.message });
+  }
+});
+
+// Индексирование файла
+app.post('/api/rag/index-file', requireAuth, upload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'file обязателен' });
+    }
+
+    const projectId = req.body.projectId ? parseInt(req.body.projectId) : null;
+    const userId = req.session.userId;
+
+    const result = await indexFile({
+      filePath: req.file.path,
+      userId,
+      projectId,
+      metadata: {
+        originalName: req.file.originalname,
+        mimeType: req.file.mimetype,
+        size: req.file.size
+      }
+    });
+
+    // Очистка временного файла
+    fs.unlinkSync(req.file.path);
+
+    if (result.success) {
+      res.json(result);
+    } else {
+      res.status(400).json(result);
+    }
+  } catch (error) {
+    console.error('[RAG] Index file error:', error);
+    
+    if (req.file && fs.existsSync(req.file.path)) {
+      fs.unlinkSync(req.file.path);
+    }
+    
+    res.status(500).json({ error: 'internal_error', details: error.message });
+  }
+});
+
+// Удаление документа из индекса
+app.delete('/api/rag/document/:id', requireAuth, async (req, res) => {
+  try {
+    const documentId = parseInt(req.params.id);
+    const userId = req.session.userId;
+
+    const result = await deleteDocument(documentId, userId);
+
+    if (result.success) {
+      res.json(result);
+    } else {
+      res.status(result.error === 'Access denied' ? 403 : 404).json(result);
+    }
+  } catch (error) {
+    console.error('[RAG] Delete error:', error);
+    res.status(500).json({ error: 'internal_error', details: error.message });
+  }
+});
+
+// Поиск по базе знаний
+app.get('/api/rag/search', requireAuth, async (req, res) => {
+  try {
+    const { q, projectId, limit, threshold, useHybrid } = req.query;
+
+    if (!q) {
+      return res.status(400).json({ error: 'Query parameter q is required' });
+    }
+
+    const searchFn = useHybrid === 'true' ? rag.search.hybridSearch : rag.search.vectorSearch;
+    
+    const results = await searchFn(q, {
+      projectId: projectId ? parseInt(projectId) : null,
+      userId: req.session.userId,
+      limit: limit ? parseInt(limit) : 5,
+      threshold: threshold ? parseFloat(threshold) : 0.7
+    });
+
+    res.json({
+      success: true,
+      query: q,
+      results,
+      count: results.length
+    });
+  } catch (error) {
+    console.error('[RAG] Search error:', error);
+    res.status(500).json({ error: 'internal_error', details: error.message });
+  }
+});
+
+// Статистика RAG
+app.get('/api/rag/stats', requireAuth, async (req, res) => {
+  try {
+    const userId = req.session.userId;
+    const result = await getStats(userId);
+    res.json(result);
+  } catch (error) {
+    console.error('[RAG] Stats error:', error);
+    res.status(500).json({ error: 'internal_error', details: error.message });
+  }
+});
+
+// ========== RAG ENDPOINTS ==========
+
+// Индексирование текста
+app.post('/api/rag/index', requireAuth, async (req, res) => {
+  try {
+    const { projectId, content, fileName, metadata } = req.body;
+    const userId = req.session.userId;
+
+    if (!content) {
+      return res.status(400).json({ error: 'content обязателен' });
+    }
+
+    const result = await indexText({
+      text: content,
+      userId,
+      projectId: projectId || null,
+      fileName: fileName || 'unknown',
+      metadata: metadata || {}
+    });
+
+    if (result.success) {
+      res.json(result);
+    } else {
+      res.status(400).json(result);
+    }
+  } catch (error) {
+    console.error('[RAG] Index text error:', error);
+    res.status(500).json({ error: 'internal_error', details: error.message });
+  }
+});
+
+// Индексирование файла
+app.post('/api/rag/index-file', requireAuth, upload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'file обязателен' });
+    }
+
+    const projectId = req.body.projectId ? parseInt(req.body.projectId) : null;
+    const userId = req.session.userId;
+
+    const result = await indexFile({
+      filePath: req.file.path,
+      userId,
+      projectId,
+      metadata: {
+        originalName: req.file.originalname,
+        mimeType: req.file.mimetype,
+        size: req.file.size
+      }
+    });
+
+    // Очистка временного файла
+    fs.unlinkSync(req.file.path);
+
+    if (result.success) {
+      res.json(result);
+    } else {
+      res.status(400).json(result);
+    }
+  } catch (error) {
+    console.error('[RAG] Index file error:', error);
+    
+    if (req.file && fs.existsSync(req.file.path)) {
+      fs.unlinkSync(req.file.path);
+    }
+    
+    res.status(500).json({ error: 'internal_error', details: error.message });
+  }
+});
+
+// Удаление документа из индекса
+app.delete('/api/rag/document/:id', requireAuth, async (req, res) => {
+  try {
+    const documentId = parseInt(req.params.id);
+    const userId = req.session.userId;
+
+    const result = await deleteDocument(documentId, userId);
+
+    if (result.success) {
+      res.json(result);
+    } else {
+      res.status(result.error === 'Access denied' ? 403 : 404).json(result);
+    }
+  } catch (error) {
+    console.error('[RAG] Delete error:', error);
+    res.status(500).json({ error: 'internal_error', details: error.message });
+  }
+});
+
+// Поиск по базе знаний
+app.get('/api/rag/search', requireAuth, async (req, res) => {
+  try {
+    const { q, projectId, limit, threshold, useHybrid } = req.query;
+
+    if (!q) {
+      return res.status(400).json({ error: 'Query parameter q is required' });
+    }
+
+    const searchFn = useHybrid === 'true' ? rag.search.hybridSearch : rag.search.vectorSearch;
+    
+    const results = await searchFn(q, {
+      projectId: projectId ? parseInt(projectId) : null,
+      userId: req.session.userId,
+      limit: limit ? parseInt(limit) : 5,
+      threshold: threshold ? parseFloat(threshold) : 0.7
+    });
+
+    res.json({
+      success: true,
+      query: q,
+      results,
+      count: results.length
+    });
+  } catch (error) {
+    console.error('[RAG] Search error:', error);
+    res.status(500).json({ error: 'internal_error', details: error.message });
+  }
+});
+
+// Статистика RAG
+app.get('/api/rag/stats', requireAuth, async (req, res) => {
+  try {
+    const userId = req.session.userId;
+    const result = await getStats(userId);
+    res.json(result);
+  } catch (error) {
+    console.error('[RAG] Stats error:', error);
+    res.status(500).json({ error: 'internal_error', details: error.message });
   }
 });
 

@@ -297,6 +297,55 @@
       background: white;
       box-sizing: border-box;
     }
+    
+    /* RAG стили */
+    .result-item {
+      background: #f8f9ff;
+      padding: 15px;
+      border-radius: 8px;
+      margin-bottom: 10px;
+      border-left: 4px solid #667eea;
+    }
+    
+    .loading {
+      text-align: center;
+      padding: 20px;
+      color: #666;
+    }
+    
+    .spinner {
+      border: 3px solid #f3f3f3;
+      border-top: 3px solid #667eea;
+      border-radius: 50%;
+      width: 30px;
+      height: 30px;
+      animation: spin 1s linear infinite;
+      margin: 0 auto 10px;
+    }
+    
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    
+    .stat-item {
+      background: #f8f9ff;
+      padding: 15px;
+      border-radius: 8px;
+      text-align: center;
+    }
+    
+    .stat-value {
+      font-size: 24px;
+      font-weight: bold;
+      color: #667eea;
+    }
+    
+    .stat-label {
+      font-size: 12px;
+      color: #666;
+      margin-top: 5px;
+    }
 
     @media (max-width: 768px) {
       body {
@@ -514,13 +563,17 @@
 <body>
   <div class="header">
     <h1>Админ-панель</h1>
-    <button class="logout-btn" onclick="logout()">Выйти</button>
+    <div style="display: flex; gap: 10px;">
+      <a href="/index.html" class="btn" style="background: #17a2b8; color: white; text-decoration: none; padding: 8px 15px; border-radius: 4px;">💬 Чат</a>
+      <button class="logout-btn" onclick="logout()">Выйти</button>
+    </div>
   </div>
   
   <div class="tabs">
     <button class="tab-btn active" onclick="showTab('users')">Пользователи</button>
     <button class="tab-btn" onclick="showTab('models')">Модели</button>
     <button class="tab-btn" onclick="showTab('passwords')">Пароли</button>
+    <button class="tab-btn" onclick="showTab('rag')">🧠 База знаний</button>
   </div>
   
   <!-- Таблица пользователей -->
@@ -703,6 +756,74 @@
     </div>
   </div>
 
+  <!-- Вкладка RAG База Знаний -->
+  <div id="rag-tab" class="tab-content">
+    <h2>🧠 RAG База Знаний</h2>
+    <div id="rag-message"></div>
+    
+    <div class="password-sections">
+      <!-- Загрузка файлов -->
+      <div class="password-section">
+        <h3>📤 Загрузка документов</h3>
+        <div class="form-group">
+          <label for="rag-project">Проект (опционально)</label>
+          <select id="rag-project"><option value="">Общая база (без привязки)</option></select>
+        </div>
+        <div class="form-group">
+          <label>Файл для индексирования</label>
+          <input type="file" id="rag-file" accept=".txt,.md,.json,.js,.ts,.py,.sql,.pdf,.docx,.doc,.html,.css,.yaml,.yml">
+          <small style="color: #666; display: block; margin-top: 5px;">Поддерживаются: TXT, MD, JSON, JS, TS, PY, SQL, PDF, DOCX</small>
+        </div>
+        <div class="form-group">
+          <label for="rag-category">Категория</label>
+          <select id="rag-category">
+            <option value="documentation">Документация</option>
+            <option value="code">Код</option>
+            <option value="faq">FAQ</option>
+            <option value="guide">Гайд</option>
+            <option value="general">Общее</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="rag-tags">Теги (через запятую)</label>
+          <input type="text" id="rag-tags" placeholder="api, auth, example">
+        </div>
+        <button class="btn btn-primary" onclick="uploadRagFile()">Загрузить и индексировать</button>
+      </div>
+
+      <!-- Поиск -->
+      <div class="password-section">
+        <h3>🔍 Поиск по базе</h3>
+        <div class="form-group">
+          <label for="rag-search-query">Поисковый запрос</label>
+          <input type="text" id="rag-search-query" placeholder="Введите запрос...">
+        </div>
+        <div class="form-group">
+          <label for="rag-search-limit">Количество результатов</label>
+          <select id="rag-search-limit">
+            <option value="3">3</option>
+            <option value="5" selected>5</option>
+            <option value="10">10</option>
+          </select>
+        </div>
+        <button class="btn btn-primary" onclick="searchRag()">Найти</button>
+        <div id="rag-search-results" style="margin-top: 15px;"></div>
+      </div>
+
+      <!-- Статистика -->
+      <div class="password-section">
+        <h3>📊 Статистика</h3>
+        <div class="stats-grid" style="margin-top: 15px;">
+          <div class="stat-item"><div class="stat-value" id="rag-stat-total">-</div><div class="stat-label">Документов</div></div>
+          <div class="stat-item"><div class="stat-value" id="rag-stat-projects">-</div><div class="stat-label">Проектов</div></div>
+          <div class="stat-item"><div class="stat-value" id="rag-stat-docs">-</div><div class="stat-label">Текстовых файлов</div></div>
+          <div class="stat-item"><div class="stat-value" id="rag-stat-code">-</div><div class="stat-label">Файлов кода</div></div>
+        </div>
+        <button class="btn btn-secondary" onclick="loadRagStats()" style="margin-top: 10px;">Обновить</button>
+      </div>
+    </div>
+  </div>
+
   <script>
     // Переключение вкладок
     function showTab(tabName) {
@@ -714,6 +835,7 @@
       
       if (tabName === 'users') loadUsers();
       if (tabName === 'models') loadModels();
+      if (tabName === 'rag') { loadRagProjects(); loadRagStats(); }
     }
     
     // Загрузка пользователей
@@ -761,6 +883,7 @@
           <td>${new Date(user.created_at).toLocaleDateString()}</td>
           <td>
             ${!user.is_approved ? `<button class="btn btn-approve" onclick="approveUser(${user.id})">Одобрить</button>` : ''}
+            ${!user.is_admin ? `<button class="btn btn-approve" onclick="makeAdmin(${user.id})" style="background: #28a745;">Админ</button>` : ''}
             <button class="btn btn-edit" onclick="editUser(${user.id}, '${escapeHtml(user.username || '')}', '${escapeHtml(user.email || '')}', '${escapeHtml(user.name || '')}')">Ред.</button>
             <button class="btn btn-delete" onclick="deleteUser(${user.id})">Удалить</button>
           </td>
@@ -784,6 +907,30 @@
         }
         
         document.getElementById('users-message').innerHTML = '<div class="success">Пользователь одобрен</div>';
+        loadUsers();
+      } catch (err) {
+        document.getElementById('users-message').innerHTML = `<div class="error">${err.message}</div>`;
+      }
+    }
+    
+    // Назначение пользователя админом
+    async function makeAdmin(userId) {
+      if (!confirm('Назначить этого пользователя администратором? Он получит полный доступ к управлению пользователями.')) return;
+      
+      try {
+        const response = await fetch(`/api/admin/users/${userId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ is_admin: true })
+        });
+        
+        if (!response.ok) {
+          const data = await response.json();
+          throw new Error(data.error || 'Ошибка назначения админом');
+        }
+        
+        document.getElementById('users-message').innerHTML = '<div class="success">Пользователь назначен администратором</div>';
         loadUsers();
       } catch (err) {
         document.getElementById('users-message').innerHTML = `<div class="error">${err.message}</div>`;
@@ -1212,6 +1359,268 @@
         loadUserLists();
       }
     };
+    
+    // ========== RAG ФУНКЦИИ ==========
+    
+    // Загрузка проектов для RAG
+    async function loadRagProjects() {
+      try {
+        const response = await fetch('/projects', { credentials: 'include' });
+        const projects = await response.json();
+        const select = document.getElementById('rag-project');
+        select.innerHTML = '<option value="">Общая база (без привязки)</option>';
+        projects.forEach(project => {
+          const option = document.createElement('option');
+          option.value = project.id;
+          option.textContent = project.name;
+          select.appendChild(option);
+        });
+      } catch (err) {
+        console.error('Error loading projects for RAG:', err);
+      }
+    }
+    
+    // Загрузка статистики RAG
+    async function loadRagStats() {
+      try {
+        const response = await fetch('/api/rag/stats', { credentials: 'include' });
+        const data = await response.json();
+        if (data.success) {
+          document.getElementById('rag-stat-total').textContent = data.stats.total_documents || 0;
+          document.getElementById('rag-stat-projects').textContent = data.stats.projects_count || 0;
+          document.getElementById('rag-stat-docs').textContent = data.stats.documents || 0;
+          document.getElementById('rag-stat-code').textContent = data.stats.code_files || 0;
+        }
+      } catch (err) {
+        console.error('Error loading RAG stats:', err);
+      }
+    }
+    
+    // Загрузка файла в RAG
+    async function uploadRagFile() {
+      const fileInput = document.getElementById('rag-file');
+      const file = fileInput.files[0];
+      
+      if (!file) {
+        document.getElementById('rag-message').innerHTML = '<div class="message error">Выберите файл</div>';
+        return;
+      }
+      
+      const messageDiv = document.getElementById('rag-message');
+      messageDiv.innerHTML = '<div class="message" style="background: #fff3cd; color: #856404;">Загрузка и индексация...</div>';
+      
+      const formData = new FormData();
+      formData.append('file', file);
+      
+      const projectId = document.getElementById('rag-project').value;
+      if (projectId) formData.append('projectId', projectId);
+      
+      const category = document.getElementById('rag-category').value;
+      const tags = document.getElementById('rag-tags').value;
+      if (category) formData.append('category', category);
+      if (tags) formData.append('tags', tags);
+      
+      try {
+        const response = await fetch('/api/rag/index-file', {
+          method: 'POST',
+          credentials: 'include',
+          body: formData
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+          messageDiv.innerHTML = '<div class="message success">✅ Файл успешно индексирован! Создано чанков: ' + result.chunksCount + '</div>';
+          loadRagStats();
+          fileInput.value = '';
+        } else {
+          messageDiv.innerHTML = '<div class="message error">❌ Ошибка: ' + result.error + '</div>';
+        }
+      } catch (err) {
+        messageDiv.innerHTML = '<div class="message error">❌ Ошибка: ' + err.message + '</div>';
+      }
+    }
+    
+    // Поиск по RAG базе
+    async function searchRag() {
+      const query = document.getElementById('rag-search-query').value.trim();
+      const limit = document.getElementById('rag-search-limit').value;
+      const resultsDiv = document.getElementById('rag-search-results');
+      
+      if (!query) {
+        resultsDiv.innerHTML = '<div class="message error">Введите запрос</div>';
+        return;
+      }
+      
+      resultsDiv.innerHTML = '<div class="loading"><div class="spinner"></div>Поиск...</div>';
+      
+      try {
+        const response = await fetch('/api/rag/search?q=' + encodeURIComponent(query) + '&limit=' + limit, { credentials: 'include' });
+        const data = await response.json();
+        
+        if (data.success && data.results.length > 0) {
+          let html = '<h4 style="margin: 15px 0 10px;">Найдено: ' + data.count + '</h4>';
+          data.results.forEach((result, i) => {
+            html += '<div class="result-item" style="background: #f8f9ff; padding: 12px; border-radius: 6px; margin-bottom: 10px; border-left: 3px solid #667eea;">';
+            html += '<div style="display: flex; justify-content: space-between; margin-bottom: 8px;">';
+            html += '<strong>Результат #' + (i + 1) + '</strong>';
+            html += '<span style="background: #667eea; color: white; padding: 2px 8px; border-radius: 4px; font-size: 12px;">' + (result.similarity * 100).toFixed(0) + '%</span>';
+            html += '</div>';
+            html += '<div style="color: #333; font-size: 14px; line-height: 1.5; max-height: 80px; overflow-y: auto;">' + escapeHtml(result.content.substring(0, 250)) + (result.content.length > 250 ? '...' : '') + '</div>';
+            if (result.metadata && result.metadata.fileName) {
+              html += '<div style="margin-top: 8px; font-size: 12px; color: #666;">📄 ' + escapeHtml(result.metadata.fileName) + (result.source && result.source.projectName ? ' | Проект: ' + escapeHtml(result.source.projectName) : '') + '</div>';
+            }
+            html += '</div>';
+          });
+          resultsDiv.innerHTML = html;
+        } else {
+          resultsDiv.innerHTML = '<div class="message" style="background: #fff3cd; color: #856404;">Ничего не найдено</div>';
+        }
+      } catch (err) {
+        resultsDiv.innerHTML = '<div class="message error">Ошибка: ' + err.message + '</div>';
+      }
+    }
+    
+    // Поиск по Enter
+    document.addEventListener('DOMContentLoaded', () => {
+      const searchInput = document.getElementById('rag-search-query');
+      if (searchInput) {
+        searchInput.addEventListener('keypress', (e) => {
+          if (e.key === 'Enter') searchRag();
+        });
+      }
+    });
+    
+    // ========== RAG ФУНКЦИИ ==========
+    
+    // Загрузка проектов для RAG
+    async function loadRagProjects() {
+      try {
+        const response = await fetch('/projects', { credentials: 'include' });
+        const projects = await response.json();
+        const select = document.getElementById('rag-project');
+        select.innerHTML = '<option value="">Общая база (без привязки)</option>';
+        projects.forEach(project => {
+          const option = document.createElement('option');
+          option.value = project.id;
+          option.textContent = project.name;
+          select.appendChild(option);
+        });
+      } catch (err) {
+        console.error('Error loading projects for RAG:', err);
+      }
+    }
+    
+    // Загрузка статистики RAG
+    async function loadRagStats() {
+      try {
+        const response = await fetch('/api/rag/stats', { credentials: 'include' });
+        const data = await response.json();
+        if (data.success) {
+          document.getElementById('rag-stat-total').textContent = data.stats.total_documents || 0;
+          document.getElementById('rag-stat-projects').textContent = data.stats.projects_count || 0;
+          document.getElementById('rag-stat-docs').textContent = data.stats.documents || 0;
+          document.getElementById('rag-stat-code').textContent = data.stats.code_files || 0;
+        }
+      } catch (err) {
+        console.error('Error loading RAG stats:', err);
+      }
+    }
+    
+    // Загрузка файла в RAG
+    async function uploadRagFile() {
+      const fileInput = document.getElementById('rag-file');
+      const file = fileInput.files[0];
+      
+      if (!file) {
+        document.getElementById('rag-message').innerHTML = '<div class="message error">Выберите файл</div>';
+        return;
+      }
+      
+      const messageDiv = document.getElementById('rag-message');
+      messageDiv.innerHTML = '<div class="message" style="background: #fff3cd; color: #856404;">Загрузка и индексация...</div>';
+      
+      const formData = new FormData();
+      formData.append('file', file);
+      
+      const projectId = document.getElementById('rag-project').value;
+      if (projectId) formData.append('projectId', projectId);
+      
+      const category = document.getElementById('rag-category').value;
+      const tags = document.getElementById('rag-tags').value;
+      if (category) formData.append('category', category);
+      if (tags) formData.append('tags', tags);
+      
+      try {
+        const response = await fetch('/api/rag/index-file', {
+          method: 'POST',
+          credentials: 'include',
+          body: formData
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+          messageDiv.innerHTML = '<div class="message success">✅ Файл успешно индексирован! Создано чанков: ' + result.chunksCount + '</div>';
+          loadRagStats();
+          fileInput.value = '';
+        } else {
+          messageDiv.innerHTML = '<div class="message error">❌ Ошибка: ' + result.error + '</div>';
+        }
+      } catch (err) {
+        messageDiv.innerHTML = '<div class="message error">❌ Ошибка: ' + err.message + '</div>';
+      }
+    }
+    
+    // Поиск по RAG базе
+    async function searchRag() {
+      const query = document.getElementById('rag-search-query').value.trim();
+      const limit = document.getElementById('rag-search-limit').value;
+      const resultsDiv = document.getElementById('rag-search-results');
+      
+      if (!query) {
+        resultsDiv.innerHTML = '<div class="message error">Введите запрос</div>';
+        return;
+      }
+      
+      resultsDiv.innerHTML = '<div class="loading"><div class="spinner"></div>Поиск...</div>';
+      
+      try {
+        const response = await fetch('/api/rag/search?q=' + encodeURIComponent(query) + '&limit=' + limit, { credentials: 'include' });
+        const data = await response.json();
+        
+        if (data.success && data.results.length > 0) {
+          let html = '<h4 style="margin: 15px 0 10px;">Найдено: ' + data.count + '</h4>';
+          data.results.forEach((result, i) => {
+            html += '<div class="result-item" style="background: #f8f9ff; padding: 12px; border-radius: 6px; margin-bottom: 10px; border-left: 3px solid #667eea;">';
+            html += '<div style="display: flex; justify-content: space-between; margin-bottom: 8px;">';
+            html += '<strong>Результат #' + (i + 1) + '</strong>';
+            html += '<span style="background: #667eea; color: white; padding: 2px 8px; border-radius: 4px; font-size: 12px;">' + (result.similarity * 100).toFixed(0) + '%</span>';
+            html += '</div>';
+            html += '<div style="color: #333; font-size: 14px; line-height: 1.5; max-height: 80px; overflow-y: auto;">' + escapeHtml(result.content.substring(0, 250)) + (result.content.length > 250 ? '...' : '') + '</div>';
+            if (result.metadata && result.metadata.fileName) {
+              html += '<div style="margin-top: 8px; font-size: 12px; color: #666;">📄 ' + escapeHtml(result.metadata.fileName) + (result.source && result.source.projectName ? ' | Проект: ' + escapeHtml(result.source.projectName) : '') + '</div>';
+            }
+            html += '</div>';
+          });
+          resultsDiv.innerHTML = html;
+        } else {
+          resultsDiv.innerHTML = '<div class="message" style="background: #fff3cd; color: #856404;">Ничего не найдено</div>';
+        }
+      } catch (err) {
+        resultsDiv.innerHTML = '<div class="message error">Ошибка: ' + err.message + '</div>';
+      }
+    }
+    
+    // Поиск по Enter
+    document.addEventListener('DOMContentLoaded', () => {
+      const searchInput = document.getElementById('rag-search-query');
+      if (searchInput) {
+        searchInput.addEventListener('keypress', (e) => {
+          if (e.key === 'Enter') searchRag();
+        });
+      }
+    });
     
     // Инициализация
     checkAuth().then(() => loadUsers());
