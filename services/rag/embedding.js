@@ -44,6 +44,8 @@ async function generateEmbedding(text) {
       throw new Error(`Invalid embedding dimension: expected ${EMBEDDING_DIMENSION}, got ${embedding?.length}`);
     }
 
+    // Преобразование в формат для pgvector (массив чисел)
+    // pgvector принимает массив PostgreSQL в формате '{val1,val2,...}'
     return embedding;
   } catch (error) {
     console.error('[EMBEDDING] Error generating embedding:', error.message);

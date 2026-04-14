@@ -26,10 +26,12 @@ async function vectorSearch(query, options = {}) {
   try {
     // Генерация embeddings для запроса
     const queryEmbedding = await generateEmbedding(query);
+    // Преобразование в формат pgvector: '[val1,val2,...]'
+    const queryEmbeddingStr = '[' + queryEmbedding.join(',') + ']';
     
     // Формирование SQL запроса
-    let whereClause = 'WHERE similarity >= $2';
-    const params = [queryEmbedding, threshold];
+    let whereClause = 'WHERE 1 - (de.embedding <-> $1) >= $2';
+    const params = [queryEmbeddingStr, threshold];
     let paramCount = 3;
 
     if (projectId) {
@@ -38,10 +40,11 @@ async function vectorSearch(query, options = {}) {
     }
 
     if (userId) {
-      whereClause += ` AND (de.user_id = $${paramCount++} OR de.project_id IN (
-        SELECT id FROM projects WHERE user_id = $${paramCount}
+      // Разрешить доступ к документам администратора (user_id=1) всем пользователям
+      whereClause += ` AND (de.user_id = $${paramCount++} OR de.user_id = 1 OR de.project_id IN (
+        SELECT id FROM projects WHERE user_id = $${paramCount++}
       ))`;
-      params.push(userId);
+      params.push(userId, userId);
     }
 
     // SQL запрос с косинусным поиском
@@ -58,12 +61,15 @@ async function vectorSearch(query, options = {}) {
         p.name as project_name,
         u.username as user_name
       FROM document_embeddings de
-      ${whereClause}
       LEFT JOIN projects p ON de.project_id = p.id
       LEFT JOIN users u ON de.user_id = u.id
+      ${whereClause}
       ORDER BY similarity DESC
       LIMIT $${paramCount}
     `;
+    
+    console.log('[RAG DEBUG] SQL query:', sql);
+    console.log('[RAG DEBUG] Params:', params);
 
     params.push(limit);
 
@@ -104,6 +110,7 @@ async function searchMessages(projectId, query, options = {}) {
 
   try {
     const queryEmbedding = await generateEmbedding(query);
+    const queryEmbeddingStr = '[' + queryEmbedding.join(',') + ']';
 
     const sql = `
       SELECT 
@@ -120,7 +127,7 @@ async function searchMessages(projectId, query, options = {}) {
       LIMIT $4
     `;
 
-    const result = await pool.query(sql, [queryEmbedding, projectId, threshold, limit]);
+    const result = await pool.query(sql, [queryEmbeddingStr, projectId, threshold, limit]);
 
     return result.rows.map(row => ({
       id: row.id,
@@ -150,9 +157,10 @@ async function searchPublicKnowledge(query, options = {}) {
 
   try {
     const queryEmbedding = await generateEmbedding(query);
+    const queryEmbeddingStr = '[' + queryEmbedding.join(',') + ']';
 
     let whereClause = '1 - (embedding <-> $1) >= $2';
-    const params = [queryEmbedding, threshold];
+    const params = [queryEmbeddingStr, threshold];
     let paramCount = 3;
 
     if (category) {
@@ -203,6 +211,7 @@ async function hybridSearch(query, options = {}) {
     projectId,
     userId,
     limit = MAX_RESULTS,
+    threshold = 0.3, // Более низкий порог для гибридного поиска
     vectorWeight = 0.7,
     textWeight = 0.3
   } = options;
@@ -215,14 +224,25 @@ async function hybridSearch(query, options = {}) {
       projectId,
       userId,
       limit: limit * 2,
-      threshold: 0.3 // Более низкий порог для гибридного поиска
+      threshold // Используем переданный порог
     });
 
-    // Полнотекстовый поиск (tsvector)
-    const textQuery = query
+    // Упрощенный текстовый поиск (LIKE)
+    const searchWords = query
       .split(' ')
       .filter(w => w.length > 2)
-      .join(' & ');
+      .map(w => w.toLowerCase());
+    
+    let textWhereClause = '1=1';
+    const textParams = [];
+    let textParamCount = 1;
+    
+    if (searchWords.length > 0) {
+      textWhereClause = searchWords.map(word => {
+        textParams.push(`%${word}%`);
+        return `LOWER(de.content) LIKE $${textParamCount++}`;
+      }).join(' AND ');
+    }
 
     const textSql = `
       SELECT 
@@ -231,13 +251,17 @@ async function hybridSearch(query, options = {}) {
         de.metadata,
         de.project_id,
         de.user_id,
-        ts_rank(to_tsvector('russian', de.content), to_tsquery('russian', $1)) as text_score
+        CASE 
+          WHEN ${searchWords.length > 0 ? searchWords.map((_, i) => `LOWER(de.content) LIKE $${i + 1}`).join(' OR ') : 'false'}
+          THEN 1.0 
+          ELSE 0.0 
+        END as text_score
       FROM document_embeddings de
-      WHERE to_tsvector('russian', de.content) @@ to_tsquery('russian', $1)
-      LIMIT $2
+      WHERE ${textWhereClause}
+      LIMIT $${textParamCount}
     `;
 
-    const textResult = await pool.query(textSql, [textQuery, limit * 2]);
+    const textResult = await pool.query(textSql, [...textParams, limit * 2]);
 
     // Комбинирование результатов
     const combinedResults = new Map();
@@ -317,7 +341,8 @@ async function getRagContext(query, options = {}) {
     results.documents = await searchFn(query, {
       projectId,
       userId,
-      limit
+      limit,
+      threshold
     });
 
     // Поиск в истории сообщений

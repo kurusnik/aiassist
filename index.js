@@ -1266,10 +1266,55 @@ app.post('/assistant', requireAuth, async (req, res) => {
 `
     };
 
-    // 5) Собираем сообщения
+    // 5) RAG контекст (если включен)
+    let ragContext = '';
+    if (process.env.RAG_ENABLED !== 'false') {
+      try {
+        const rag = require('./services/rag');
+        const ragResult = await rag.prepareRagContext(userMessageTrimmed, {
+          projectId,
+          userId,
+          limit: 5,
+          useHybrid: true, // Используем гибридный поиск
+          threshold: 0.1 // Очень низкий порог для тестирования
+        });
+        
+        if (ragResult.enabled && ragResult.context && ragResult.context.trim()) {
+          console.log('[RAG] Context prepared:', {
+            hasRelevantContext: ragResult.hasRelevantContext,
+            maxSimilarity: ragResult.maxSimilarity,
+            documentsCount: ragResult.documentsCount,
+            contextLength: ragResult.context?.length || 0
+          });
+          // Всегда добавляем контекст, если он есть, даже с низкой релевантностью
+          ragContext = ragResult.context;
+          console.log('[RAG] Context added to assistant query');
+        }
+      } catch (ragError) {
+        console.error('[RAG] Error getting context:', ragError.message);
+      }
+    }
+
+    // 6) Собираем сообщения
     const messages = [systemPrompt];
     if (summary) {
       messages.push({ role: 'system', content: 'Сводка прошлого диалога: ' + summary });
+    }
+    
+if (ragContext) {
+      messages.push({ role: 'system', content: `
+ВНИМАНИЕ: К запросу добавлен контекст из базы знаний проекта. Используй эту информацию при ответе.
+
+=== КОНТЕКСТ ИЗ БАЗЫ ЗНАНИЙ ===
+${ragContext}
+=== КОНЕЦ КОНТЕКСТА ===
+
+Правила использования контекста:
+1. Если в контексте есть релевантная информация - используй её в первую очередь
+2. Цитируй конкретные части контекста, когда это уместно
+3. Если информация в контексте противоречит твоим знаниям - предпочти контекст
+4. Не упоминай сам факт наличия контекста, просто используй информацию
+` });
     }
 
     if (attIds.length) {

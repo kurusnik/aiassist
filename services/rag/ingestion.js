@@ -52,15 +52,41 @@ async function indexText({
       ...metadata
     });
 
-    const result = await pool.query(
-      `INSERT INTO document_embeddings 
-       (user_id, project_id, chunk_index, embedding, content, metadata)
-       VALUES ($1, $2, $3, $4, $5, $6)
-       RETURNING id`,
-      [userId, projectId, i, embeddings[i], chunks[i], JSON.stringify(chunkMetadata)]
-    );
-
-    insertedIds.push(result.rows[0].id);
+    // Преобразование массива embedding в формат pgvector: '[val1,val2,...]'
+    const embeddingVector = '[' + embeddings[i].join(',') + ']';
+    
+    // Определяем, куда сохранять: если projectId пустой И есть категория, то в общую базу
+    if (!projectId && metadata.category) {
+      const result = await pool.query(
+        `INSERT INTO public_embeddings 
+         (category, title, embedding, content, metadata)
+         VALUES ($1, $2, $3, $4, $5)
+         RETURNING id`,
+        [metadata.category, fileName, embeddingVector, chunks[i], JSON.stringify(chunkMetadata)]
+      );
+      insertedIds.push(result.rows[0].id);
+    } else {
+    // Определяем, куда сохранять: если projectId пустой И есть категория, то в общую базу
+    if (!projectId && metadata.category) {
+      const result = await pool.query(
+        `INSERT INTO public_embeddings 
+         (category, title, embedding, content, metadata)
+         VALUES ($1, $2, $3, $4, $5)
+         RETURNING id`,
+        [metadata.category, fileName, embeddingVector, chunks[i], JSON.stringify(chunkMetadata)]
+      );
+      insertedIds.push(result.rows[0].id);
+    } else {
+      const result = await pool.query(
+        `INSERT INTO document_embeddings 
+         (user_id, project_id, chunk_index, embedding, content, metadata)
+         VALUES ($1, $2, $3, $4, $5, $6)
+         RETURNING id`,
+        [userId, projectId, i, embeddingVector, chunks[i], JSON.stringify(chunkMetadata)]
+      );
+      insertedIds.push(result.rows[0].id);
+    }
+    }
   }
 
   return {
@@ -141,10 +167,12 @@ async function indexFile({
     }
 
     if (!text || text.trim().length === 0) {
+      console.error('[RAG INGESTION] File empty after parsing:', fileName, 'Size:', fileSize, 'Extension:', ext);
       return {
         success: false,
-        error: 'File is empty or contains no extractable text',
-        chunksCount: 0
+        error: `File is empty or contains no extractable text (${fileName}, ${ext}, ${fileSize} bytes). Some PDFs are scanned images without text layer.`,
+        chunksCount: 0,
+        debug: { fileName, ext, fileSize }
       };
     }
 
@@ -244,13 +272,15 @@ async function indexMessage({
 }) {
   try {
     const embedding = await generateEmbedding(content);
+    // Преобразование в формат pgvector
+    const embeddingVector = '[' + embedding.join(',') + ']';
 
     const result = await pool.query(
       `INSERT INTO message_embeddings 
        (message_id, project_id, embedding, content, role)
        VALUES ($1, $2, $3, $4, $5)
        RETURNING id`,
-      [messageId, projectId, embedding, content, role]
+      [messageId, projectId, embeddingVector, content, role]
     );
 
     return {
