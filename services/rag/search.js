@@ -35,7 +35,7 @@ async function vectorSearch(query, options = {}) {
     let paramCount = 3;
 
     if (projectId) {
-      whereClause += ` AND de.project_id = $${paramCount++}`;
+      whereClause += ` AND (de.project_id = $${paramCount++} OR de.project_id IS NULL)`;
       params.push(projectId);
     }
 

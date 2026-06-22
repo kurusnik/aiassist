@@ -73,6 +73,9 @@ async function sendMessage() {
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
   let buffer = '';
+  
+  // Собираем сегменты (не используется, метки уже в content)
+  const collectedSegments = [];
 
   while (true) {
     const { done, value } = await reader.read();
@@ -87,13 +90,28 @@ async function sendMessage() {
       if (line.startsWith('data: ')) {
         try {
           const data = JSON.parse(line.slice(6));
-          if (data.content) {
-            assistantMessage.content += data.content;
-            renderChat();
-          }
-          if (data.done) {
-            setLoading(false);
-          }
+          
+if (data.content) {
+        assistantMessage.content += data.content;
+        renderChat();
+      }
+
+      if (data.done) {
+        setLoading(false);
+
+        if (data.parsed) {
+          assistantMessage.metadata = {
+            ...assistantMessage.metadata,
+            sources: {
+              segmentsCount: data.parsed.segmentsCount,
+              hasRAG: data.parsed.hasSource,
+              hasModel: data.parsed.hasModel
+            }
+          };
+        }
+
+        renderChat();
+      }
         } catch (error) {
           console.error('Error parsing SSE data:', error);
         }
@@ -167,6 +185,49 @@ document.getElementById('image-upload')?.addEventListener('change', (e) => {
     handleImageUpload(file);
   }
 });
+
+// Добавить переключатель системы меток
+function addSourceMarkersToggle() {
+  const controls = document.querySelector('.controls');
+  if (!controls || document.getElementById('toggle-markers')) return;
+  
+  const toggleContainer = document.createElement('div');
+  toggleContainer.style.cssText = `
+    margin: 10px 0;
+    padding: 8px;
+    background: #f8f9fa;
+    border-radius: 6px;
+    font-size: 13px;
+  `;
+  
+  const isEnabled = localStorage.getItem('sourceMarkersEnabled') !== 'false';
+  
+  toggleContainer.innerHTML = `
+    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+      <input type="checkbox" id="toggle-markers" ${isEnabled ? 'checked' : ''}>
+      <span>📊 Показывать источники в ответах</span>
+    </label>
+    <div style="font-size: 11px; color: #6c757d; margin-top: 4px;">
+      Выделяет RAG источники и знания модели
+    </div>
+  `;
+  
+  controls.insertBefore(toggleContainer, controls.firstChild);
+  
+  document.getElementById('toggle-markers').addEventListener('change', (e) => {
+    localStorage.setItem('sourceMarkersEnabled', e.target.checked);
+    renderChat(); // Перерендерить с новыми настройками
+  });
+}
+
+// Проверим, есть ли старый чат и перерендерим
+if (document.getElementById('chat')) {
+  setTimeout(() => {
+    if (state.messages.length > 0) {
+      renderChat();
+    }
+  }, 200);
+}
 
 // Новый проект
 async function addProject() {
@@ -259,22 +320,240 @@ async function resetChat() {
   setMessages([]);
   renderChat();
 }
+/**
+ * Парсинг меток источников
+ */
+function parseResponseMarkers(text) {
+  const segments = [];
+  let current = text;
+  
+  // Регулярные выражения для поиска меток
+  const markers = [];
+  
+  // Найти все метки [TYPE] и [/TYPE]
+  const openTags = [...current.matchAll(/\[(RAG:SOURCE|RAG:ANALYSIS|MODEL:KNOWLEDGE)\]/g)];
+  const closeTags = [...current.matchAll(/\[\/(RAG|MODEL)\]/g)];
+  
+  openTags.forEach(match => markers.push({ pos: match.index, type: match[1], isOpen: true }));
+  closeTags.forEach(match => markers.push({ pos: match.index, type: match[1], isClose: true }));
+  
+  markers.sort((a, b) => a.pos - b.pos);
+  
+  let currentType = 'MODEL:KNOWLEDGE';
+  let lastPos = 0;
+  
+  for (const marker of markers) {
+    // Сохранить текст перед меткой
+    if (marker.pos > lastPos) {
+      const content = current.substring(lastPos, marker.pos);
+      if (content.trim()) {
+        segments.push({
+          type: currentType,
+          content: content.trim(),
+          isSource: currentType.includes('RAG'),
+          isModel: currentType.includes('MODEL')
+        });
+      }
+    }
+    
+    // Обновить текущий тип
+    if (marker.isOpen) {
+      currentType = marker.type;
+    } else if (marker.isClose) {
+      currentType = 'MODEL:KNOWLEDGE';
+    }
+    
+    lastPos = marker.pos + (marker.isOpen ? marker.type.length + 2 : 5);
+  }
+  
+  // Добавить остаток
+  if (lastPos < current.length) {
+    const remaining = current.substring(lastPos);
+    if (remaining.trim()) {
+      segments.push({
+        type: currentType,
+        content: remaining.trim(),
+        isSource: currentType.includes('RAG'),
+        isModel: currentType.includes('MODEL')
+      });
+    }
+  }
+  
+  // Если нет сегментов, значит не было меток
+  if (segments.length === 0 && text.trim()) {
+    segments.push({
+      type: 'MODEL:KNOWLEDGE',
+      content: text.trim(),
+      isSource: false,
+      isModel: true
+    });
+  }
+  
+  return segments;
+}
+
+/**
+ * Форматирование сегмента с иконкой
+ */
+function formatSegment(segment) {
+  let icon = '💭';
+  let iconColor = '#9fb0c0';
+  let bgColor = 'rgba(159, 176, 192, 0.08)';
+  let borderColor = 'rgba(159, 176, 192, 0.3)';
+  let typeName = 'Знания модели';
+  
+  if (segment.type === 'RAG:SOURCE') {
+    icon = '📚';
+    iconColor = '#4ea1ff';
+    bgColor = 'rgba(78, 161, 255, 0.08)';
+    borderColor = 'rgba(78, 161, 255, 0.3)';
+    typeName = 'RAG источник';
+  } else if (segment.type === 'RAG:ANALYSIS') {
+    icon = '📊';
+    iconColor = '#16c47f';
+    bgColor = 'rgba(22, 196, 127, 0.08)';
+    borderColor = 'rgba(22, 196, 127, 0.3)';
+    typeName = 'Анализ RAG';
+  }
+  
+  return `<div class="response-segment" style="
+    margin: 8px 0;
+    padding: 10px 12px;
+    background: ${bgColor};
+    border-left: 3px solid ${borderColor};
+    border-radius: 6px;
+    position: relative;
+    padding-left: 40px;
+    min-height: 24px;
+  ">
+    <span class="segment-icon" title="${typeName}" style="
+      position: absolute;
+      left: 10px;
+      top: 10px;
+      font-size: 18px;
+      color: ${iconColor};
+      width: 24px;
+      text-align: center;
+    ">${icon}</span>
+    <span class="segment-text" style="
+      display: block;
+      line-height: 1.5;
+      color: var(--text);
+    ">${segment.content}</span>
+    <div class="source-info" style="
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 4px;
+      padding-left: 0;
+    ">${icon} ${typeName}</div>
+  </div>`;
+}
+
 // ---------- render ----------
 function renderChat() {
   const chat = document.getElementById('chat');
   chat.innerHTML = '';
 
+  const markersEnabled = localStorage.getItem('sourceMarkersEnabled') !== 'false';
+
   state.messages.forEach(m => {
     const div = document.createElement('div');
     div.className = 'msg';
-    div.innerHTML =
-  '<span class="' + m.role + '">' +
-  m.role + ':</span> ' +
-  m.content;
+
+    if (m.role === 'assistant' && markersEnabled) {
+      const segments = parseResponseMarkers(m.content);
+      div.innerHTML = segments.map(formatSegment).join('');
+    } else if (m.role === 'assistant') {
+      div.innerHTML = `<div class="bubble">${m.content}</div>`;
+    } else {
+      div.innerHTML = `<span class="${m.role}">${m.role}:</span> ${m.content}`;
+    }
+
+    div.classList.add(m.role);
     chat.appendChild(div);
   });
 
   chat.scrollTop = chat.scrollHeight;
+
+  setTimeout(updateSourceStats, 10);
+}
+
+// Показать/скрыть легенду меток (теперь есть в HTML)
+function toggleSourceLegend() {
+  const legend = document.getElementById('source-legend');
+  if (!legend) return;
+  
+  if (legend.style.display === 'none' || legend.style.display === '') {
+    legend.style.display = 'block';
+    localStorage.setItem('showSourceLegend', 'true');
+  } else {
+    legend.style.display = 'none';
+    localStorage.setItem('showSourceLegend', 'false');
+  }
+}
+
+// Добавить панель статистики источников (теперь есть в HTML)
+function initSourceStats() {
+  const resetBtn = document.getElementById('reset-stats');
+  if (resetBtn) {
+    resetBtn.addEventListener('click', () => {
+      localStorage.removeItem('sourceStats');
+      updateSourceStats();
+    });
+  }
+  
+  // Инициализация переключателя
+  const toggle = document.getElementById('toggle-markers');
+  if (toggle) {
+    const isEnabled = localStorage.getItem('sourceMarkersEnabled') !== 'false';
+    toggle.checked = isEnabled;
+    
+    toggle.addEventListener('change', (e) => {
+      localStorage.setItem('sourceMarkersEnabled', e.target.checked);
+      renderChat();
+    });
+  }
+  
+  // Инициализация видимости легенды
+  const legend = document.getElementById('source-legend');
+  if (legend) {
+    const showLegend = localStorage.getItem('showSourceLegend') !== 'false';
+legend.style.display = showLegend ? 'block' : 'none';
+  }
+}
+
+// Добавить легенду в интерфейс
+function addSourceLegend() {
+  const controls = document.getElementById('controls');
+  if (!controls || document.getElementById('source-legend')) return;
+  
+  const legend = document.createElement('div');
+  legend.id = 'source-legend';
+  legend.style.cssText = `
+    margin: 10px 0;
+    padding: 12px;
+    background: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 6px;
+    font-size: 13px;
+    display: ${localStorage.getItem('showSourceLegend') !== 'false' ? 'block' : 'none'};
+  `;
+  
+  legend.innerHTML = `
+    <strong>📊 Источники в ответах:</strong>
+    <div style="margin-top: 8px;">
+      <span style="color: #007BFF">📚</span> <strong>RAG:SOURCE</strong> - цитата из базы знаний
+      <span style="margin-left: 15px; color: #28a745">📊</span> <strong>RAG:ANALYSIS</strong> - анализ на основе RAG
+      <span style="margin-left: 15px; color: #6c757d">💭</span> <strong>MODEL:KNOWLEDGE</strong> - собственные знания модели
+    </div>
+    <button id="toggle-legend" style="margin-top: 8px; font-size: 11px; padding: 4px 8px;">
+      ${localStorage.getItem('showSourceLegend') !== 'false' ? 'Скрыть' : 'Показать'}
+    </button>
+  `;
+  
+  controls.parentNode.insertBefore(legend, controls.nextSibling);
+  
+  document.getElementById('toggle-legend')?.addEventListener('click', toggleSourceLegend);
 }
 
 // ---------- events ----------
@@ -283,6 +562,86 @@ document.getElementById('systemPrompt')
   .addEventListener('input', e => {
     updateSystemPrompt(e.target.value);
   });
+
+// Добавить панель статистики источников
+function addSourceStats() {
+  const controls = document.getElementById('controls');
+  if (!controls || document.getElementById('source-stats')) return;
+  
+  const stats = document.createElement('div');
+  stats.id = 'source-stats';
+  stats.style.cssText = `
+    margin: 10px 0;
+    padding: 8px 12px;
+    background: #fff;
+    border: 1px solid #dee2e6;
+    border-radius: 6px;
+    font-size: 12px;
+    color: #495057;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  `;
+  
+  stats.innerHTML = `
+    <div>
+      <strong>📊 Источники в ответах:</strong>
+      <span id="rag-count" style="margin-left: 10px; color: #007BFF;">📚: 0</span>
+      <span id="model-count" style="margin-left: 10px; color: #6c757d;">💭: 0</span>
+    </div>
+    <button id="reset-stats" style="font-size: 11px; padding: 2px 6px;">Сбросить</button>
+  `;
+  
+  controls.parentNode.insertBefore(stats, controls.nextSibling);
+  
+  document.getElementById('reset-stats')?.addEventListener('click', () => {
+    localStorage.removeItem('sourceStats');
+    updateSourceStats();
+  });
+}
+
+// Обновить статистику
+function updateSourceStats() {
+  const ragCount = document.getElementById('rag-count');
+  const modelCount = document.getElementById('model-count');
+  
+  if (!ragCount || !modelCount) return;
+  
+  // Подсчитать из текущих сообщений
+  let rag = 0;
+  let model = 0;
+  
+  state.messages.forEach(msg => {
+    if (msg.role === 'assistant') {
+      const segments = parseResponseMarkers(msg.content);
+      segments.forEach(seg => {
+        if (seg.isSource) rag++;
+        if (seg.isModel) model++;
+      });
+    }
+  });
+  
+  // Сохранить в localStorage
+  localStorage.setItem('sourceStats', JSON.stringify({ rag, model }));
+  
+  // Обновить UI
+  ragCount.textContent = '📚: ' + rag;
+  modelCount.textContent = '💭: ' + model;
+}
+
+// Инициализация системы меток
+function initSourceMarkersSystem() {
+  setTimeout(() => {
+    addSourceStats();
+    addSourceLegend();
+    addSourceMarkersToggle();
+    initSourceStats();
+    updateSourceStats();
+  }, 100);
+}
+
+// Запустить инициализацию при загрузке
+initSourceMarkersSystem();
 
 document.getElementById('savePrompt')
   .addEventListener('click', async () => {

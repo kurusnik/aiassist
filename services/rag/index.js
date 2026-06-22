@@ -28,23 +28,60 @@ const SIMILARITY_THRESHOLD = parseFloat(process.env.RAG_SIMILARITY_THRESHOLD) ||
  */
 const RAG_SYSTEM_PROMPT = `Ты — AI-ассистент с доступом к базе знаний проекта.
 
-Правила ответов:
+ВСЕГДА ИСПОЛЬЗУЙ МЕТКИ ДЛЯ РАЗДЕЛЕНИЯ ИСТОЧНИКОВ ИНФОРМАЦИИ:
 
-1. 🟢 Если ответ найден в базе (релевантность >= 70%):
-   - Отвечай на основе найденных документов
-   - Указывай источник: "Согласно документу [название]..."
-   - Добавляй цитаты с указанием чанка
+📋 ФОРМАТ ОТВЕТА:
+1. ИСПОЛЬЗУЙ МЕТКИ ДЛЯ КАЖДОГО ИСТОЧНИКА
+2. НИКОГДА НЕ УДАЛЯЙ МЕТКИ ИЗ ОТВЕТА
+3. МЕТКИ ОТОБРАЖАЮТСЯ ПОЛЬЗОВАТЕЛЮ
 
-2. 🟡 Если ответ не найден, но ты знаешь из общих знаний (релевантность 30-70%):
-   - Начинай с: "В базе знаний проекта нет этой информации, но из общих знаний:"
-   - Давай ответ из своих знаний
+🎯 ТИПЫ МЕТОК:
 
-3. 🔴 Если ответа нет нигде (релевантность < 30%):
-   - Честно скажи: "К сожалению, я не могу ответить на этот вопрос"
-   - В базе знаний нет релевантной информации
-   - Предложи переформулировать вопрос
+1. 📚 RAG:SOURCE - ЦИТАТЫ ИЗ БАЗЫ ЗНАНИЙ
+   Формат: [RAG:SOURCE] текст [/RAG]
+   Используй для:
+   - Прямых цитат из документов
+   - Конкретных фактов из базы знаний
+   - Точных данных из источников
+   Пример: [RAG:SOURCE] Согласно API документации: "GET /api/users возвращает JSON массив" [/RAG]
 
-Всегда указывай, откуда взята информация. Не выдумывай факты.`;
+2. 📊 RAG:ANALYSIS - АНАЛИЗ НА ОСНОВЕ RAG
+   Формат: [RAG:ANALYSIS] текст [/RAG]
+   Используй для:
+   - Выводов на основе информации из RAG
+   - Интерпретации данных из источников
+   - Рекомендаций основанных на документации
+   Пример: [RAG:ANALYSIS] На основе требований, нужно реализовать валидацию email [/RAG]
+
+3. 💭 MODEL:KNOWLEDGE - СОБСТВЕННЫЕ ЗНАНИЯ
+   Формат: [MODEL:KNOWLEDGE] текст [/MODEL]
+   Используй для:
+   - Общих знаний не из RAG
+   - Лучших практик и стандартов
+   - Объяснений концепций
+   Пример: [MODEL:KNOWLEDGE] JWT токены обычно имеют срок действия 24 часа [/MODEL]
+
+📝 ПРАВИЛА ИСПОЛЬЗОВАНИЯ:
+
+1. КАЖДЫЙ ПЕРЕХОД МЕЖДУ ИСТОЧНИКАМИ = НОВАЯ МЕТКА
+   Неправильно: [RAG:SOURCE] Цитата. А это мои знания. [/RAG]
+   Правильно: [RAG:SOURCE] Цитата. [/RAG] [MODEL:KNOWLEDGE] А это мои знания. [/MODEL]
+
+2. ДЛИННЫЕ ТЕКСТЫ = МНОГО МЕТОК
+   Если говоришь 5 предложений из RAG, оберни ВСЁ в [RAG:SOURCE]...[/RAG]
+   Если добавляешь своё мнение, используй новую метку
+
+3. СМЕШАННЫЕ ОТВЕТЫ = ЧЕТКОЕ РАЗДЕЛЕНИЕ
+   Пример хорошего ответа:
+   [RAG:SOURCE] Документ говорит: "Используйте PostgreSQL" [/RAG]
+   [MODEL:KNOWLEDGE] PostgreSQL - популярная реляционная СУБД [/MODEL]
+   [RAG:ANALYSIS] Значит нужно настроить подключение к базе [/RAG]
+
+4. ЕСЛИ НЕТ RAG ИСТОЧНИКОВ = ТОЛЬКО MODEL:KNOWLEDGE
+   Пример: [MODEL:KNOWLEDGE] Я не нашел информации в базе знаний. Обычно для этого используют... [/MODEL]
+
+⚠️ ВАЖНО: МЕТКИ ВИДНЫ ПОЛЬЗОВАТЕЛЮ - НЕ УДАЛЯЙ ИХ!
+Это помогает пользователю понять, откуда взята информация.`;
 
 /**
  * Подготовка контекста для RAG ответа
@@ -114,15 +151,21 @@ function buildSystemPrompt(basePrompt, ragContext, hasRelevantContext) {
   const parts = [basePrompt || RAG_SYSTEM_PROMPT];
 
   if (ragContext && ragContext.trim()) {
-    parts.push('\n\n=== БАЗА ЗНАНИЙ ===');
+    parts.push('\n\n📚 === БАЗА ЗНАНИЙ ===');
     parts.push(ragContext);
     parts.push('=== КОНЕЦ БАЗЫ ЗНАНИЙ ===\n');
 
     if (hasRelevantContext) {
-      parts.push('\nИспользуй приведённые выше документы для ответа. Цитируй источники.');
+      parts.push('\nИСПОЛЬЗУЙ METKU «[RAG:SOURCE]» для цитат из этих документов.');
+      parts.push('Для своих знаний используй «[MODEL:KNOWLEDGE]».');
+      parts.push('Для анализа на основе RAG используй «[RAG:ANALYSIS]».');
     } else {
-      parts.push('\nВ базе знаний нет релевантной информации. Отвечай из общих знаний с пометкой.');
+      parts.push('\n📌 В базе знаний нет релевантной информации.');
+      parts.push('Отвечай из своих знаний с меткой «[MODEL:KNOWLEDGE]».');
     }
+  } else {
+    parts.push('\n📌 База знаний не предоставлена.');
+    parts.push('Отвечай из своих знаний с меткой «[MODEL:KNOWLEDGE]».');
   }
 
   return parts.join('\n');
@@ -174,6 +217,133 @@ function extractCitations(ragContext) {
 }
 
 /**
+ * Парсинг меток источников в ответе модели
+ * @param {string} text - Текст ответа
+ * @returns {Object} Объект с разобранными сегментами
+ */
+function parseSourceMarkers(text) {
+  const segments = [];
+  let current = text;
+  let lastIndex = 0;
+
+  // Регулярные выражения для поиска меток
+  const patterns = [
+    { tag: 'RAG:SOURCE', regex: /\[RAG:SOURCE\]/g },
+    { tag: 'RAG:ANALYSIS', regex: /\[RAG:ANALYSIS\]/g },
+    { tag: 'MODEL:KNOWLEDGE', regex: /\[MODEL:KNOWLEDGE\]/g },
+    { tag: '/RAG', regex: /\[\/RAG\]/g },
+    { tag: '/MODEL', regex: /\[\/MODEL\]/g }
+  ];
+
+  // Найти все позиции меток
+  const markers = [];
+  for (const pattern of patterns) {
+    let match;
+    while ((match = pattern.regex.exec(current)) !== null) {
+      markers.push({
+        position: match.index,
+        tag: pattern.tag,
+        isClosing: pattern.tag.startsWith('/')
+      });
+    }
+  }
+
+  // Отсортировать по позиции
+  markers.sort((a, b) => a.position - b.position);
+
+  // Разбить текст на сегменты
+  let currentType = 'MODEL:KNOWLEDGE'; // По умолчанию
+  let startPos = 0;
+
+  for (const marker of markers) {
+    // Сохранить текст перед меткой
+    if (marker.position > startPos) {
+      const content = current.substring(startPos, marker.position);
+      if (content.trim()) {
+        segments.push({
+          type: currentType,
+          content: content.trim(),
+          isSource: currentType.includes('RAG'),
+          isModel: currentType.includes('MODEL')
+        });
+      }
+    }
+
+    // Обработать метку
+    if (!marker.isClosing) {
+      // Открывающая метка
+      currentType = marker.tag;
+    } else {
+      // Закрывающая метка
+      if (marker.tag === '/RAG' && currentType.includes('RAG')) {
+        currentType = 'MODEL:KNOWLEDGE';
+      } else if (marker.tag === '/MODEL' && currentType.includes('MODEL')) {
+        currentType = 'MODEL:KNOWLEDGE';
+      }
+    }
+
+    startPos = marker.position + marker.tag.length + (marker.isClosing ? 2 : 1);
+  }
+
+  // Добавить остаток текста
+  if (startPos < current.length) {
+    const remaining = current.substring(startPos);
+    if (remaining.trim()) {
+      segments.push({
+        type: currentType,
+        content: remaining.trim(),
+        isSource: currentType.includes('RAG'),
+        isModel: currentType.includes('MODEL')
+      });
+    }
+  }
+
+  // Если нет сегментов, значит не было меток
+  if (segments.length === 0 && text.trim()) {
+    segments.push({
+      type: 'MODEL:KNOWLEDGE',
+      content: text.trim(),
+      isSource: false,
+      isModel: true
+    });
+  }
+
+  return {
+    segments,
+    hasSource: segments.some(s => s.isSource),
+    hasModel: segments.some(s => s.isModel),
+    rawText: text
+  };
+}
+
+/**
+ * Форматирование ответа с подсветкой источников (HTML)
+ * @param {Object} parsed - Результат parseSourceMarkers
+ * @returns {string} HTML с CSS классами
+ */
+function formatHighlightedResponse(parsed) {
+  const parts = parsed.segments.map(segment => {
+    let cssClass = 'model-knowledge';
+    let icon = '💭';
+
+    if (segment.type === 'RAG:SOURCE') {
+      cssClass = 'rag-source';
+      icon = '📚';
+    } else if (segment.type === 'RAG:ANALYSIS') {
+      cssClass = 'rag-analysis';
+      icon = '📊';
+    }
+
+    return `<div class="response-segment ${cssClass}">
+      <span class="segment-icon">${icon}</span>
+      <span class="segment-text">${segment.content}</span>
+    </div>`;
+  });
+
+  return parts.join('\n');
+}
+
+/**
  * Логирование RAG запроса
  * @param {Object} logData - Данные для логирования
  */
@@ -213,6 +383,8 @@ module.exports = {
   buildSystemPrompt,
   extractCitations,
   logRagRequest,
+  parseSourceMarkers,
+  formatHighlightedResponse,
 
   // Экспорт подмодулей
   embedding: { generateEmbedding },

@@ -48,6 +48,79 @@ button {
 .spinner {
   width: 20px;
   height: 20px;
+}
+
+/* Стили для подсветки источников RAG */
+.response-segment {
+  margin: 8px 0;
+  padding: 8px 12px;
+  border-radius: 6px;
+  border-left: 4px solid transparent;
+  position: relative;
+  padding-left: 40px;
+  min-height: 24px;
+}
+
+.segment-icon {
+  position: absolute;
+  left: 8px;
+  top: 8px;
+  font-size: 18px;
+  width: 24px;
+  text-align: center;
+}
+
+.segment-text {
+  display: block;
+  line-height: 1.5;
+}
+
+/* Источники из RAG */
+.rag-source {
+  background-color: rgba(0, 123, 255, 0.08);
+  border-left-color: #007BFF;
+}
+
+.rag-source .segment-icon {
+  color: #007BFF;
+}
+
+/* Анализ на основе RAG */
+.rag-analysis {
+  background-color: rgba(40, 167, 69, 0.08);
+  border-left-color: #28a745;
+}
+
+.rag-analysis .segment-icon {
+  color: #28a745;
+}
+
+/* Собственные знания модели */
+.model-knowledge {
+  background-color: rgba(108, 117, 125, 0.08);
+  border-left-color: #6c757d;
+}
+
+.model-knowledge .segment-icon {
+  color: #6c757d;
+}
+
+/* Информация о метках */
+.source-info {
+  font-size: 12px;
+  color: #666;
+  margin-top: 4px;
+  padding-left: 40px;
+}
+
+.source-info span {
+  display: inline-block;
+  margin-right: 10px;
+  padding: 2px 6px;
+  border-radius: 3px;
+  background-color: #f8f9fa;
+  border: 1px solid #dee2e6;
+}
   border: 2px solid #f3f3f3;
   border-top: 2px solid #3498db;
   border-radius: 50%;

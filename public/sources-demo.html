@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Демонстрация системы выделения источников RAG</title>
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1000px;
+            margin: 40px auto;
+            padding: 0 20px;
+        }
+        
+        .demo-container {
+            display: flex;
+            gap: 30px;
+            margin-top: 20px;
+        }
+        
+        .left-panel {
+            flex: 1;
+            border-right: 1px solid #ddd;
+            padding-right: 20px;
+        }
+        
+        .right-panel {
+            flex: 2;
+        }
+        
+        .example-box {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 20px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .example-box:hover {
+            background: #e9ecef;
+            transform: translateY(-2px);
+        }
+        
+        .example-title {
+            font-weight: bold;
+            margin-bottom: 8px;
+            color: #495057;
+        }
+        
+        .example-content {
+            font-size: 14px;
+            color: #6c757d;
+            white-space: pre-wrap;
+            font-family: 'Courier New', monospace;
+        }
+        
+        .demo-response {
+            background: white;
+            border: 2px solid #dee2e6;
+            border-radius: 8px;
+            padding: 20px;
+            min-height: 300px;
+        }
+        
+        .info-box {
+            background: #e7f3ff;
+            border: 1px solid #b3d7ff;
+            border-radius: 6px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .legend {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 6px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 8px;
+            padding: 6px;
+            border-radius: 4px;
+        }
+        
+        .legend-icon {
+            font-size: 20px;
+            margin-right: 10px;
+            width: 30px;
+            text-align: center;
+        }
+        
+        .legend-text {
+            font-size: 14px;
+        }
+        
+        h1 {
+            color: #343a40;
+            margin-bottom: 10px;
+        }
+        
+        h2 {
+            color: #495057;
+            margin-top: 30px;
+            margin-bottom: 15px;
+            font-size: 18px;
+        }
+        
+        .btn {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            margin-top: 10px;
+        }
+        
+        .btn:hover {
+            background: #0056b3;
+        }
+        
+        .test-btn {
+            background: #28a745;
+        }
+        
+        .test-btn:hover {
+            background: #1e7e34;
+        }
+    </style>
+</head>
+<body>
+    <h1>📊 Демонстрация системы выделения источников RAG</h1>
+    
+    <div class="info-box">
+        <strong>Как это работает:</strong>
+        <ul style="margin: 10px 0 0 20px;">
+            <li>Модель использует специальные метки для обозначения источников информации</li>
+            <li>📚 <code>[RAG:SOURCE]</code> - цитата из базы знаний RAG</li>
+            <li>📊 <code>[RAG:ANALYSIS]</code> - анализ на основе информации из RAG</li>
+            <li>💭 <code>[MODEL:KNOWLEDGE]</code> - собственные знания модели</li>
+            <li>Фронтенд автоматически парсит эти метки и выделяет текст разными стилями</li>
+        </ul>
+    </div>
+    
+    <div class="demo-container">
+        <div class="left-panel">
+            <h2>Примеры ответов</h2>
+            
+            <div class="example-box" onclick="loadExample(0)">
+                <div class="example-title">🔀 Смешанный ответ</div>
+                <div class="example-content">[RAG:SOURCE] Согласно API Documentation... [/RAG] [MODEL:KNOWLEDGE] Обычно такие API... [/MODEL]</div>
+            </div>
+            
+            <div class="example-box" onclick="loadExample(1)">
+                <div class="example-title">📚 Только RAG источники</div>
+                <div class="example-content">[RAG:SOURCE] PostgreSQL версии 14... [/RAG] [RAG:SOURCE] Конфигурация в .env... [/RAG]</div>
+            </div>
+            
+            <div class="example-box" onclick="loadExample(2)">
+                <div class="example-title">💭 Только знания модели</div>
+                <div class="example-content">[MODEL:KNOWLEDGE] Стандартная практика... [/MODEL]</div>
+            </div>
+            
+            <div class="example-box" onclick="loadExample(3)">
+                <div class="example-title">🔄 Без меток (совместимость)</div>
+                <div class="example-content">Просто старый ответ без меток источников.</div>
+            </div>
+            
+            <button class="btn test-btn" onclick="testLiveAPI()">🔄 Протестировать с реальным API</button>
+        </div>
+        
+        <div class="right-panel">
+            <h2>📝 Визуализация ответа</h2>
+            
+            <div class="legend">
+                <strong>Легенда:</strong>
+                <div class="legend-item" style="background: rgba(0, 123, 255, 0.1);">
+                    <span class="legend-icon" style="color: #007BFF;">📚</span>
+                    <span class="legend-text"><strong>RAG:SOURCE</strong> - цитата из базы знаний</span>
+                </div>
+                <div class="legend-item" style="background: rgba(40, 167, 69, 0.1);">
+                    <span class="legend-icon" style="color: #28a745;">📊</span>
+                    <span class="legend-text"><strong>RAG:ANALYSIS</strong> - анализ на основе RAG</span>
+                </div>
+                <div class="legend-item" style="background: rgba(108, 117, 125, 0.1);">
+                    <span class="legend-icon" style="color: #6c757d;">💭</span>
+                    <span class="legend-text"><strong>MODEL:KNOWLEDGE</strong> - знания модели</span>
+                </div>
+            </div>
+            
+            <div id="demo-response" class="demo-response">
+                <p style="color: #6c757d; text-align: center; margin-top: 100px;">
+                    Выберите пример слева для демонстрации
+                </p>
+            </div>
+            
+            <div id="parsed-info" style="margin-top: 20px; font-size: 14px; color: #495057; display: none;">
+                <strong>Информация о парсинге:</strong>
+                <div id="parsed-details"></div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // Примеры ответов
+        const examples = [
+            {
+                name: "Смешанный ответ",
+                content: `[RAG:SOURCE] Согласно документу "API Documentation", endpoint /api/users возвращает список пользователей в формате JSON со следующими полями: id, username, email и created_at. Максимальное количество возвращаемых записей - 100. [/RAG] 
+                
+[MODEL:KNOWLEDGE] Обычно такие API требуют аутентификации через Bearer токен или API ключ. Рекомендуется использовать пагинацию для больших наборов данных. [/MODEL]
+
+[RAG:ANALYSIS] На основе документации проекта, для доступа к этому endpoint нужна роль администратора или менеджера. Обычные пользователи могут видеть только свою информацию. [/RAG] 
+                
+[MODEL:KNOWLEDGE] Стандартный HTTP статус код для успешного ответа - 200 OK, для ошибок авторизации - 401 Unauthorized. [/MODEL]`
+            },
+            {
+                name: "Только RAG источники",
+                content: `[RAG:SOURCE] В проекте используется PostgreSQL версии 14.5. Все таблицы должны иметь первичные ключи типа SERIAL или UUID. Рекомендуется использовать индексы для часто запрашиваемых полей. [/RAG]
+
+[RAG:SOURCE] Конфигурация базы данных находится в файле .env под ключом DATABASE_URL. Формат: postgresql://user:password@localhost:5432/database. [/RAG]
+
+[RAG:SOURCE] Для управления миграциями используется инструмент node-pg-migrate. Все миграции хранятся в папке migrations/. [/RAG]`
+            },
+            {
+                name: "Только знания модели",
+                content: `[MODEL:KNOWLEDGE] Это стандартная практика в веб-разработке - использовать миграции базы данных для управления изменениями схемы. Миграции позволяют отслеживать историю изменений и применять их в разных окружениях. [/MODEL]
+
+[MODEL:KNOWLEDGE] Для обеспечения безопасности рекомендуется использовать prepared statements для всех SQL запросов, чтобы предотвратить SQL инъекции. Также важно валидировать все входные данные. [/MODEL]`
+            },
+            {
+                name: "Без меток",
+                content: `Для реализации этой функции нужно создать новый endpoint в контроллере пользователей. Сначала проверьте права доступа, затем выполните запрос к базе данных. Ответ должен быть в формате JSON. Не забудьте добавить обработку ошибок и логирование.`
+            }
+        ];
+
+        // Функция парсинга меток
+        function parseResponseMarkers(text) {
+            const segments = [];
+            let current = text;
+            
+            const markers = [];
+            
+            const openTags = [...current.matchAll(/\[(RAG:SOURCE|RAG:ANALYSIS|MODEL:KNOWLEDGE)\]/g)];
+            const closeTags = [...current.matchAll(/\[\/(RAG|MODEL)\]/g)];
+            
+            openTags.forEach(match => markers.push({ 
+                pos: match.index, 
+                type: match[1], 
+                isOpen: true,
+                length: match[0].length 
+            }));
+            closeTags.forEach(match => markers.push({ 
+                pos: match.index, 
+                type: match[1], 
+                isClose: true,
+                length: match[0].length 
+            }));
+            
+            markers.sort((a, b) => a.pos - b.pos);
+            
+            let currentType = 'MODEL:KNOWLEDGE';
+            let lastPos = 0;
+            
+            for (const marker of markers) {
+                if (marker.pos > lastPos) {
+                    const content = current.substring(lastPos, marker.pos);
+                    if (content.trim()) {
+                        segments.push({
+                            type: currentType,
+                            content: content.trim(),
+                            isSource: currentType.includes('RAG'),
+                            isModel: currentType.includes('MODEL')
+                        });
+                    }
+                }
+                
+                if (marker.isOpen) {
+                    currentType = marker.type;
+                } else if (marker.isClose) {
+                    currentType = 'MODEL:KNOWLEDGE';
+                }
+                
+                lastPos = marker.pos + marker.length;
+            }
+            
+            if (lastPos < current.length) {
+                const remaining = current.substring(lastPos);
+                if (remaining.trim()) {
+                    segments.push({
+                        type: currentType,
+                        content: remaining.trim(),
+                        isSource: currentType.includes('RAG'),
+                        isModel: currentType.includes('MODEL')
+                    });
+                }
+            }
+            
+            if (segments.length === 0 && text.trim()) {
+                segments.push({
+                    type: 'MODEL:KNOWLEDGE',
+                    content: text.trim(),
+                    isSource: false,
+                    isModel: true
+                });
+            }
+            
+            return segments;
+        }
+
+        // Функция форматирования сегмента
+        function formatSegment(segment) {
+            let icon = '💭';
+            let cssClass = 'model-knowledge';
+            
+            if (segment.type === 'RAG:SOURCE') {
+                icon = '📚';
+                cssClass = 'rag-source';
+            } else if (segment.type === 'RAG:ANALYSIS') {
+                icon = '📊';
+                cssClass = 'rag-analysis';
+            }
+            
+            return `<div class="response-segment ${cssClass}">
+                <span class="segment-icon" title="${segment.type}">${icon}</span>
+                <span class="segment-text">${segment.content}</span>
+            </div>`;
+        }
+
+        // Загрузка примера
+        function loadExample(index) {
+            const example = examples[index];
+            const segments = parseResponseMarkers(example.content);
+            
+            const demoResponse = document.getElementById('demo-response');
+            demoResponse.innerHTML = `
+                <div style="margin-bottom: 15px; color: #495057;">
+                    <strong>Пример: ${example.name}</strong>
+                </div>
+                ${segments.map(formatSegment).join('')}
+            `;
+            
+            // Показать информацию о парсинге
+            const parsedInfo = document.getElementById('parsed-info');
+            const parsedDetails = document.getElementById('parsed-details');
+            
+            parsedInfo.style.display = 'block';
+            parsedDetails.innerHTML = `
+                <div style="margin-top: 10px;">
+                    <div>Найдено сегментов: <strong>${segments.length}</strong></div>
+                    <div>Содержит RAG источники: <strong>${segments.some(s => s.isSource) ? 'Да' : 'Нет'}</strong></div>
+                    <div>Содержит знания модели: <strong>${segments.some(s => s.isModel) ? 'Да' : 'Нет'}</strong></div>
+                </div>
+            `;
+        }
+
+        // Тестирование реального API (работает только при запуске через localhost)
+        async function testLiveAPI() {
+            try {
+                // Проверяем, что мы на localhost, а не открываем файл напрямую
+                const isLocalhost = window.location.hostname === 'localhost' || 
+                                   window.location.hostname === '127.0.0.1' ||
+                                   window.location.protocol === 'http:' || 
+                                   window.location.protocol === 'https:';
+                
+                if (!isLocalhost) {
+                    alert('❗ Этот тест работает только при запуске через localhost:3000\n\nОткройте http://localhost:3000/sources-demo.html');
+                    return;
+                }
+                
+                const apiUrl = '/api/test/source-markers';
+                console.log('Fetching:', apiUrl);
+                
+                const response = await fetch(apiUrl);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+                
+                const demoResponse = document.getElementById('demo-response');
+                demoResponse.innerHTML = `
+                    <div style="margin-bottom: 15px; color: #28a745;">
+                        <strong>✅ Реальный API ответ</strong>
+                    </div>
+                    <div style="margin-bottom: 15px; font-size: 14px; color: #6c757d;">
+                        Примеры загружены с сервера. Выберите пример слева.
+                    </div>
+                    <div style="font-size: 13px; color: #495057; background: #f8f9fa; padding: 10px; border-radius: 4px;">
+                        <strong>Инструкции с сервера:</strong><br>
+                        ${data.instructions}
+                    </div>
+                `;
+                
+                console.log('API Response:', data);
+                alert('✅ API успешно протестирован!\n\nПроверьте консоль для деталей.');
+                
+            } catch (error) {
+                console.error('API Error:', error);
+                alert('❌ Ошибка при тестировании API:\n' + error.message + 
+                      '\n\nУбедитесь что:\n1. Сервер запущен (npm run dev)\n2. Открыто http://localhost:3000/sources-demo.html');
+            }
+        }
+
+        // Загрузить первый пример по умолчанию
+        loadExample(0);
+    </script>
+</body>
+</html>

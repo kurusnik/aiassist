@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Быстрый тест системы меток</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            background: #0f1216;
+            color: #e6edf3;
+        }
+        
+        .test-box {
+            background: #141a22;
+            border: 1px solid #243041;
+            border-radius: 10px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        
+        .response {
+            background: #1a2330;
+            border: 1px solid #263243;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 10px 0;
+            white-space: pre-wrap;
+            font-family: monospace;
+        }
+        
+        .segment {
+            margin: 10px 0;
+            padding: 10px 15px;
+            border-radius: 8px;
+            border-left: 4px solid transparent;
+            position: relative;
+            padding-left: 40px;
+        }
+        
+        .rag-source {
+            background: rgba(78, 161, 255, 0.08);
+            border-left-color: rgba(78, 161, 255, 0.3);
+        }
+        
+        .rag-analysis {
+            background: rgba(22, 196, 127, 0.08);
+            border-left-color: rgba(22, 196, 127, 0.3);
+        }
+        
+        .model-knowledge {
+            background: rgba(159, 176, 192, 0.08);
+            border-left-color: rgba(159, 176, 192, 0.3);
+        }
+        
+        .segment-icon {
+            position: absolute;
+            left: 10px;
+            top: 10px;
+            font-size: 18px;
+            width: 24px;
+            text-align: center;
+        }
+        
+        .rag-source .segment-icon { color: #4ea1ff; }
+        .rag-analysis .segment-icon { color: #16c47f; }
+        .model-knowledge .segment-icon { color: #9fb0c0; }
+        
+        button {
+            background: linear-gradient(135deg, #3a7bd9, #7f5af0);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            margin: 10px 5px;
+        }
+        
+        .result {
+            margin-top: 20px;
+            padding: 15px;
+            background: #18202a;
+            border-radius: 8px;
+            border: 1px solid #2d3a4d;
+        }
+    </style>
+</head>
+<body>
+    <h1>⚡ Быстрый тест системы меток RAG</h1>
+    
+    <div class="test-box">
+        <h3>1. Тестовый ответ с метками:</h3>
+        <div class="response" id="test-response">
+[RAG:SOURCE] Согласно документации проекта, все API endpoints должны возвращать JSON. Стандартный формат: { "success": boolean, "data": any, "error": string }. [/RAG] [MODEL:KNOWLEDGE] Это соответствует общепринятым практикам REST API разработки. [/MODEL] [RAG:ANALYSIS] Значит нужно обновить существующие endpoints для соответствия стандарту. [/RAG]
+        </div>
+        
+        <button onclick="testParser()">🧪 Протестировать парсер</button>
+        <button onclick="clearTest()">🗑️ Очистить</button>
+    </div>
+    
+    <div class="test-box">
+        <h3>2. Создать свой тест:</h3>
+        <textarea id="custom-text" style="width: 100%; height: 100px; background: #0f141b; color: #e6edf3; border: 1px solid #243041; border-radius: 8px; padding: 10px; margin: 10px 0;">
+[MODEL:KNOWLEDGE] Введите свой текст с метками здесь. [/MODEL]</textarea>
+        <button onclick="testCustom()">🧪 Тестировать свой текст</button>
+    </div>
+    
+    <div class="result" id="test-result">
+        <h3>📊 Результат:</h3>
+        <p>Нажмите "Протестировать парсер" чтобы увидеть результат</p>
+    </div>
+    
+    <script>
+        function parseResponseMarkers(text) {
+            const segments = [];
+            let current = text;
+            
+            const markers = [];
+            
+            const openTags = [...current.matchAll(/\[(RAG:SOURCE|RAG:ANALYSIS|MODEL:KNOWLEDGE)\]/g)];
+            const closeTags = [...current.matchAll(/\[\/(RAG|MODEL)\]/g)];
+            
+            openTags.forEach(match => markers.push({ 
+                pos: match.index, 
+                type: match[1], 
+                isOpen: true,
+                length: match[0].length 
+            }));
+            closeTags.forEach(match => markers.push({ 
+                pos: match.index, 
+                type: match[1], 
+                isClose: true,
+                length: match[0].length 
+            }));
+            
+            markers.sort((a, b) => a.pos - b.pos);
+            
+            let currentType = 'MODEL:KNOWLEDGE';
+            let lastPos = 0;
+            
+            for (const marker of markers) {
+                if (marker.pos > lastPos) {
+                    const content = current.substring(lastPos, marker.pos);
+                    if (content.trim()) {
+                        segments.push({
+                            type: currentType,
+                            content: content.trim(),
+                            isSource: currentType.includes('RAG'),
+                            isModel: currentType.includes('MODEL')
+                        });
+                    }
+                }
+                
+                if (marker.isOpen) {
+                    currentType = marker.type;
+                } else if (marker.isClose) {
+                    currentType = 'MODEL:KNOWLEDGE';
+                }
+                
+                lastPos = marker.pos + marker.length;
+            }
+            
+            if (lastPos < current.length) {
+                const remaining = current.substring(lastPos);
+                if (remaining.trim()) {
+                    segments.push({
+                        type: currentType,
+                        content: remaining.trim(),
+                        isSource: currentType.includes('RAG'),
+                        isModel: currentType.includes('MODEL')
+                    });
+                }
+            }
+            
+            if (segments.length === 0 && text.trim()) {
+                segments.push({
+                    type: 'MODEL:KNOWLEDGE',
+                    content: text.trim(),
+                    isSource: false,
+                    isModel: true
+                });
+            }
+            
+            return segments;
+        }
+        
+        function formatSegment(segment) {
+            let icon = '💭';
+            let cssClass = 'model-knowledge';
+            let typeName = 'Знания модели';
+            
+            if (segment.type === 'RAG:SOURCE') {
+                icon = '📚';
+                cssClass = 'rag-source';
+                typeName = 'RAG источник';
+            } else if (segment.type === 'RAG:ANALYSIS') {
+                icon = '📊';
+                cssClass = 'rag-analysis';
+                typeName = 'Анализ RAG';
+            }
+            
+            return `<div class="segment ${cssClass}">
+                <span class="segment-icon" title="${typeName}">${icon}</span>
+                <span class="segment-text">${segment.content}</span>
+            </div>`;
+        }
+        
+        function testParser() {
+            const text = document.getElementById('test-response').textContent;
+            const segments = parseResponseMarkers(text);
+            const resultDiv = document.getElementById('test-result');
+            
+            let html = `<h3>✅ Парсер работает!</h3>`;
+            html += `<p>Найдено <strong>${segments.length}</strong> сегментов:</p>`;
+            html += segments.map(formatSegment).join('');
+            html += `<div style="margin-top: 15px; padding: 10px; background: #0e131a; border-radius: 6px;">
+                <strong>Статистика:</strong><br>
+                📚 RAG источников: ${segments.filter(s => s.isSource).length}<br>
+                💭 Знаний модели: ${segments.filter(s => s.isModel).length}
+            </div>`;
+            
+            resultDiv.innerHTML = html;
+        }
+        
+        function testCustom() {
+            const text = document.getElementById('custom-text').value;
+            const segments = parseResponseMarkers(text);
+            const resultDiv = document.getElementById('test-result');
+            
+            let html = `<h3>🧪 Результат парсинга:</h3>`;
+            html += `<div class="response">${text}</div>`;
+            html += `<p>Найдено <strong>${segments.length}</strong> сегментов:</p>`;
+            
+            if (segments.length > 0) {
+                html += segments.map(formatSegment).join('');
+                html += `<div style="margin-top: 15px; padding: 10px; background: #0e131a; border-radius: 6px;">
+                    <strong>Статистика:</strong><br>
+                    📚 RAG источников: ${segments.filter(s => s.isSource).length}<br>
+                    💭 Знаний модели: ${segments.filter(s => s.isModel).length}
+                </div>`;
+            } else {
+                html += `<p style="color: #ff6b6b;">⚠️ Сегменты не найдены. Проверьте синтаксис меток.</p>`;
+            }
+            
+            resultDiv.innerHTML = html;
+        }
+        
+        function clearTest() {
+            document.getElementById('test-result').innerHTML = `
+                <h3>📊 Результат:</h3>
+                <p>Нажмите "Протестировать парсер" чтобы увидеть результат</p>
+            `;
+        }
+        
+        // Автоматически протестировать при загрузке
+        window.addEventListener('DOMContentLoaded', testParser);
+    </script>
+</body>
+</html>

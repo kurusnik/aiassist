@@ -1,63 +1,59 @@
 // services/rag/embedding.js
-// Генерация векторных представлений (embeddings) через OpenAI
-
-const { OpenAI } = require('openai');
-
-// Инициализация клиента OpenAI для embeddings
-// Используем тот же API ключ, что и для OpenRouter (OpenAI совместимый)
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_EMBEDDING_API_KEY || process.env.OPENROUTER_API_KEY,
-  baseURL: 'https://openrouter.ai/api/v1' // Или 'https://api.openai.com/v1' для нативного OpenAI
-});
+// Генерация векторных представлений (embeddings) локально через Transformers.js
 
 // Конфигурация
-const EMBEDDING_MODEL = process.env.RAG_EMBEDDING_MODEL || 'text-embedding-3-small';
-const EMBEDDING_DIMENSION = 1536; // Размерность для text-embedding-3-small
+const EMBEDDING_MODEL = 'Xenova/multilingual-e5-small';
+const EMBEDDING_DIMENSION = 384;
+
+let extractorPromise = null;
+
+async function initExtractor() {
+  console.log('[EMBEDDING] Loading model:', EMBEDDING_MODEL);
+  const start = Date.now();
+  const { pipeline } = await import('@xenova/transformers');
+  const instance = await pipeline('feature-extraction', EMBEDDING_MODEL);
+  console.log(`[EMBEDDING] Model loaded in ${Date.now() - start}ms`);
+  return instance;
+}
+
+function getExtractor() {
+  if (!extractorPromise) {
+    extractorPromise = initExtractor();
+  }
+  return extractorPromise;
+}
+
+function tensorToArray(tensor) {
+  return Array.from(tensor.data);
+}
 
 /**
  * Генерирует векторное представление для текста
  * @param {string} text - Текст для генерации embeddings
- * @returns {Promise<number[]>} Вектор размерности 1536
+ * @returns {Promise<number[]>} Вектор размерности 384
  */
 async function generateEmbedding(text) {
   try {
-    // Очистка и нормализация текста
-    const normalizedText = text
-      .replace(/\s+/g, ' ')  // Замена множественных пробелов
+    const normalizedText = 'query: ' + text
+      .replace(/\s+/g, ' ')
       .trim()
-      .slice(0, 8191);       // Ограничение по токенам (безопасный лимит)
+      .slice(0, 8191);
 
     if (!normalizedText) {
       throw new Error('Empty text provided for embedding');
     }
 
-    const response = await openai.embeddings.create({
-      model: EMBEDDING_MODEL,
-      input: normalizedText,
-      encoding_format: 'float'
-    });
+    const fn = await getExtractor();
+    const result = await fn(normalizedText, { pooling: 'mean', normalize: true });
+    const embedding = tensorToArray(result);
 
-    const embedding = response.data[0].embedding;
-
-    // Валидация размерности
-    if (!Array.isArray(embedding) || embedding.length !== EMBEDDING_DIMENSION) {
-      throw new Error(`Invalid embedding dimension: expected ${EMBEDDING_DIMENSION}, got ${embedding?.length}`);
+    if (embedding.length !== EMBEDDING_DIMENSION) {
+      throw new Error(`Invalid embedding dimension: expected ${EMBEDDING_DIMENSION}, got ${embedding.length}`);
     }
 
-    // Преобразование в формат для pgvector (массив чисел)
-    // pgvector принимает массив PostgreSQL в формате '{val1,val2,...}'
     return embedding;
   } catch (error) {
     console.error('[EMBEDDING] Error generating embedding:', error.message);
-    
-    // Обработка специфичных ошибок
-    if (error.status === 429) {
-      throw new Error('Rate limit exceeded for embeddings API');
-    }
-    if (error.status === 401) {
-      throw new Error('Invalid API key for embeddings');
-    }
-    
     throw error;
   }
 }
@@ -67,40 +63,34 @@ async function generateEmbedding(text) {
  * @param {string[]} texts - Массив текстов
  * @returns {Promise<number[][]>} Массив векторов
  */
-async function generateEmbeddingsBatch(texts, batchSize = 100) {
+async function generateEmbeddingsBatch(texts, batchSize = 10) {
   try {
     if (!Array.isArray(texts) || texts.length === 0) {
       return [];
     }
 
-    // Нормализация текстов
-    const normalizedTexts = texts.map(text => 
-      text
+    const normalizedTexts = texts.map(text =>
+      'passage: ' + text
         .replace(/\s+/g, ' ')
         .trim()
         .slice(0, 8191)
     );
 
     const embeddings = [];
-    
-    // Обработка батчами
+    const fn = await getExtractor();
+
     for (let i = 0; i < normalizedTexts.length; i += batchSize) {
       const batch = normalizedTexts.slice(i, i + batchSize);
-      
-      const response = await openai.embeddings.create({
-        model: EMBEDDING_MODEL,
-        input: batch,
-        encoding_format: 'float'
-      });
 
-      // Сортировка по индексу (API может вернуть в другом порядке)
-      const batchEmbeddings = response.data
-        .sort((a, b) => a.index - b.index)
-        .map(d => d.embedding);
+      const result = await fn(batch, { pooling: 'mean', normalize: true });
+      const data = tensorToArray(result);
 
-      embeddings.push(...batchEmbeddings);
-      
-      // Логирование прогресса для больших объёмов
+      // Разбиваем плоский массив на векторы по размерности
+      for (let j = 0; j < batch.length; j++) {
+        const start = j * EMBEDDING_DIMENSION;
+        embeddings.push(data.slice(start, start + EMBEDDING_DIMENSION));
+      }
+
       if (normalizedTexts.length > batchSize) {
         console.log(`[EMBEDDING] Processed ${Math.min(i + batchSize, normalizedTexts.length)}/${normalizedTexts.length}`);
       }
@@ -135,7 +125,7 @@ function cosineSimilarity(vec1, vec2) {
   }
 
   const denominator = Math.sqrt(norm1) * Math.sqrt(norm2);
-  
+
   if (denominator === 0) {
     return 0;
   }
@@ -144,24 +134,11 @@ function cosineSimilarity(vec1, vec2) {
 }
 
 /**
- * Оценивает стоимость генерации embeddings
- * @param {number} tokenCount - Количество токенов
- * @returns {number} Стоимость в USD
- */
-function estimateCost(tokenCount) {
-  // Цены для text-embedding-3-small: $0.02 / 1M токенов
-  const PRICE_PER_MILLION = 0.02;
-  return (tokenCount / 1_000_000) * PRICE_PER_MILLION;
-}
-
-/**
  * Подсчитывает приблизительное количество токенов в тексте
  * @param {string} text - Текст
  * @returns {number} Примерное количество токенов
  */
 function estimateTokens(text) {
-  // Грубая оценка: 1 токен ≈ 4 символа для английского
-  // Для русского языка коэффициент может отличаться
   return Math.ceil(text.length / 4);
 }
 
@@ -169,10 +146,9 @@ module.exports = {
   generateEmbedding,
   generateEmbeddingsBatch,
   cosineSimilarity,
-  estimateCost,
   estimateTokens,
-  
-  // Константы
+  getExtractor,
+
   EMBEDDING_MODEL,
   EMBEDDING_DIMENSION
 };

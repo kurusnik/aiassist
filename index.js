@@ -26,6 +26,7 @@ const fs = require('fs');
 // RAG сервисы
 const rag = require('./services/rag');
 const { indexFile, indexText, deleteDocument, getStats } = require('./services/rag/ingestion');
+const { parseSourceMarkers, formatHighlightedResponse } = require('./services/rag');
 
 const app = express();
 app.use(express.json());
@@ -1072,10 +1073,37 @@ app.post('/projects/:id/attachments', requireAuth, upload.single('file'), async 
     );
 
     const row = insert.rows[0];
-    // URL для доступа к файлу
     const url = `/uploads/${row.filename}`;
 
-    res.json({ attachment: { id: row.id, filename: row.filename, original_name: row.original_name, mime: row.mime, size: row.size, url, created_at: row.created_at } });
+    // RAG индексация файла
+    let ragIndex = null;
+    if (isProbablyTextFile(row.mime, row.original_name)) {
+      try {
+        ragIndex = await indexFile({
+          filePath: row.path,
+          userId,
+          projectId: parseInt(projectId),
+          metadata: { attachmentId: row.id }
+        });
+        console.log(`[RAG] Indexed attachment ${row.id}: ${ragIndex.chunksCount} chunks`);
+      } catch (e) {
+        console.error(`[RAG] Index error for attachment ${row.id}:`, e.message);
+        ragIndex = { success: false, error: e.message, chunksCount: 0 };
+      }
+    }
+
+    res.json({
+      attachment: {
+        id: row.id,
+        filename: row.filename,
+        original_name: row.original_name,
+        mime: row.mime,
+        size: row.size,
+        url,
+        created_at: row.created_at
+      },
+      ragIndex
+    });
   } catch (err) {
     console.error('POST /projects/:id/attachments error:', err);
     res.status(500).json({ error: 'internal_error' });
@@ -1220,58 +1248,41 @@ app.post('/assistant', requireAuth, async (req, res) => {
     );
     const summary = projectResult.rows?.[0]?.summary;
 
-    // 4) System prompt
+// 4) System prompt
+    const basePrompt = rag.RAG_SYSTEM_PROMPT + `
+
+Дополнительные инструкции:
+
+Ты — senior AI-ассистент и практический наставник.
+Твоя задача — помогать пользователю эффективно решать прикладные задачи.
+
+**Области знаний:**
+1) Программирование как хобби: JavaScript, Node.js, Telegram-боты
+2) Низкотехнологичное умное домостроение: ESPHome, Home Assistant
+3) Ремонт бытовой техники: диагностика, инструкции
+4) Починка, доработка, кастомизация
+
+**Стиль ответов:**
+- Практичный, конкретный, пошаговый
+- Примеры кода и команд
+- Без воды, без лишней теории
+- Честно говори если не знаешь
+
+**ВАЖНО: ВСЕГДА ИСПОЛЬЗУЙ МЕТКИ ИСТОЧНИКОВ как описано выше!**`;
+
     const systemPrompt = {
       role: "system",
-      content: `
-Ты — senior AI-ассистент и практический наставник.
-
-Твоя задача — помогать пользователю эффективно решать прикладные задачи
-в следующих областях:
-
-1) Программирование как хобби:
-- JavaScript, Node.js, Telegram-боты
-- Объяснять с нуля и до среднего уровня
-- Давать рабочий код, готовый к использованию
-- Комментировать код
-- Объяснять ошибки и архитектурные решения
-- Не усложнять без необходимости
-
-2) Управление оптово-розничной компанией и торговлей на маркетплейсах:
-- Помогать с управлением процессами, аналитикой, автоматизацией
-- Подсказывать по логике учёта, KPI, юнит-экономике, складу, закупкам
-- Давать практичные советы, а не общие бизнес-цитаты
-- Допускать, что данные могут быть неполными — задавать уточняющие вопросы
-
-3) DeFi-инвестирование (долгосрок и доход):
-- Объяснять DeFi простым языком
-- Помогать разбираться в стратегиях дохода, рисках, механиках протоколов
-- Не давать финансовых гарантий
-- Всегда указывать риски и допущения
-- Не выдумывать доходности и не придумывать несуществующие протоколы
-
-Общие правила:
-- Отвечай кратко, структурировано, по делу
-- Если используешь термин — коротко объясни его
-- Не выдумывай API, цифры, источники и факты
-- Если не уверен — прямо скажи об этом
-- Если есть несколько вариантов — предложи лучший и объясни почему
-- Избегай флуда, философии и воды
-- Ориентируйся на практическую пользу
-
-Формат ответов:
-- Короткие абзацы или списки
-- Пошаговое объяснение
-- Код — сразу готовый к использованию
-`
+      content: basePrompt
     };
 
     // 5) RAG контекст (если включен)
     let ragContext = '';
+    let ragResult = null;
+    
     if (process.env.RAG_ENABLED !== 'false') {
       try {
         const rag = require('./services/rag');
-        const ragResult = await rag.prepareRagContext(userMessageTrimmed, {
+        ragResult = await rag.prepareRagContext(userMessageTrimmed, {
           projectId,
           userId,
           limit: 5,
@@ -1290,31 +1301,21 @@ app.post('/assistant', requireAuth, async (req, res) => {
           ragContext = ragResult.context;
           console.log('[RAG] Context added to assistant query');
         }
-      } catch (ragError) {
+} catch (ragError) {
         console.error('[RAG] Error getting context:', ragError.message);
       }
     }
 
     // 6) Собираем сообщения
-    const messages = [systemPrompt];
+    const finalSystemPrompt = rag.buildSystemPrompt(
+      systemPrompt.content,
+      ragContext,
+      ragResult?.hasRelevantContext || false
+    );
+
+    const messages = [{ role: 'system', content: finalSystemPrompt }];
     if (summary) {
       messages.push({ role: 'system', content: 'Сводка прошлого диалога: ' + summary });
-    }
-    
-if (ragContext) {
-      messages.push({ role: 'system', content: `
-ВНИМАНИЕ: К запросу добавлен контекст из базы знаний проекта. Используй эту информацию при ответе.
-
-=== КОНТЕКСТ ИЗ БАЗЫ ЗНАНИЙ ===
-${ragContext}
-=== КОНЕЦ КОНТЕКСТА ===
-
-Правила использования контекста:
-1. Если в контексте есть релевантная информация - используй её в первую очередь
-2. Цитируй конкретные части контекста, когда это уместно
-3. Если информация в контексте противоречит твоим знаниям - предпочти контекст
-4. Не упоминай сам факт наличия контекста, просто используй информацию
-` });
     }
 
     if (attIds.length) {
@@ -1424,13 +1425,44 @@ ${ragContext}
     }
 
     let fullReply = '';
+    let buffer = '';
+    let segmentsHistory = [];
 
     for await (const chunk of stream) {
       const content = chunk?.choices?.[0]?.delta?.content || '';
       if (!content) continue;
       fullReply += content;
+      buffer += content;
+      
       if (wantsStream) {
+        // Отправляем контент как есть для совместимости
         res.write(`data: ${JSON.stringify({ content })}\n\n`);
+        
+        // Каждые 100 символов проверяем и отправляем сегменты
+        if (buffer.length > 100) {
+          try {
+            const parsedBuffer = parseSourceMarkers(buffer);
+            if (parsedBuffer.segments.length > segmentsHistory.length) {
+              // Отправляем новые сегменты
+              const newSegments = parsedBuffer.segments.slice(segmentsHistory.length);
+              for (const segment of newSegments) {
+                res.write(`data: ${JSON.stringify({ 
+                  segment: {
+                    type: segment.type,
+                    content: segment.content,
+                    isSource: segment.isSource,
+                    isModel: segment.isModel
+                  }
+                })}\n\n`);
+              }
+              segmentsHistory = parsedBuffer.segments;
+            }
+            buffer = ''; // Сбрасываем буфер после анализа
+          } catch (e) {
+            // Игнорируем ошибки парсинга частичных данных
+          }
+        }
+        
         // Если включен какой-то middleware, добавляющий flush(), выталкиваем данные.
         if (typeof res.flush === 'function') res.flush();
       }
@@ -1443,12 +1475,42 @@ ${ragContext}
     );
 
     if (wantsStream) {
-      // Завершаем поток
-      res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
+      // Отправляем финальные сегменты и завершаем
+      const finalParsed = parseSourceMarkers(fullReply);
+      if (finalParsed.segments.length > segmentsHistory.length) {
+        const remainingSegments = finalParsed.segments.slice(segmentsHistory.length);
+        for (const segment of remainingSegments) {
+          res.write(`data: ${JSON.stringify({ 
+            segment: {
+              type: segment.type,
+              content: segment.content,
+              isSource: segment.isSource,
+              isModel: segment.isModel
+            }
+          })}\n\n`);
+        }
+      }
+      
+      // Отправляем финальные данные
+      res.write(`data: ${JSON.stringify({ 
+        done: true,
+        parsed: {
+          segmentsCount: finalParsed.segments.length,
+          hasSource: finalParsed.hasSource,
+          hasModel: finalParsed.hasModel
+        }
+      })}\n\n`);
       res.end();
     } else {
       // Backward compatible: обычный JSON
-      res.json({ reply: fullReply });
+      const parsedResponse = parseSourceMarkers(fullReply);
+      res.json({ 
+        reply: fullReply,
+        parsed: parsedResponse,
+        hasSource: parsedResponse.hasSource,
+        hasModel: parsedResponse.hasModel,
+        formatted: formatHighlightedResponse(parsedResponse)
+      });
     }
   } catch (err) {
     console.error('POST /assistant error:', err);
@@ -1467,6 +1529,36 @@ ${ragContext}
   } finally {
     if (pingTimer) clearInterval(pingTimer);
   }
+});
+
+/**
+ * Тестирование меток источников
+ */
+app.get('/api/test/source-markers', (req, res) => {
+  const testResponses = [
+    {
+      name: "Смешанный ответ с RAG",
+      content: `[RAG:SOURCE] Согласно документу API Documentation, endpoint /api/users возвращает список пользователей в формате JSON. [/RAG] [MODEL:KNOWLEDGE] Обычно такие API требуют аутентификации через токен. [/MODEL] [RAG:ANALYSIS] На основе документации, для этого нужна роль администратора. [/RAG]`
+    },
+    {
+      name: "Только RAG источники",
+      content: `[RAG:SOURCE] В проекте используется PostgreSQL версии 14. Все таблицы должны иметь первичные ключи. [/RAG] [RAG:SOURCE] Конфигурация базы находится в файле .env под ключом DATABASE_URL. [/RAG]`
+    },
+    {
+      name: "Только знания модели",
+      content: `[MODEL:KNOWLEDGE] Это стандартная практика в веб-разработке - использовать миграции базы данных для управления изменениями схемы. [/MODEL]`
+    },
+    {
+      name: "Без меток (обратная совместимость)",
+      content: `Просто старый ответ без меток источников.`
+    }
+  ];
+
+  res.json({
+    examples: testResponses,
+    instructions: "Метки автоматически обрабатываются на фронтенде",
+    parseExample: parseSourceMarkers(testResponses[0].content)
+  });
 });
 
 // ========== RAG ENDPOINTS ==========
@@ -1801,15 +1893,11 @@ async function processAiRequest({ text, projectId, userId }) {
     }
     
     const projectData = project.rows[0];
-    const systemPrompt = projectData.systemPrompt || '';
+    const basePrompt = rag.RAG_SYSTEM_PROMPT;
     const model = projectData.model || 'default';
 
     // Формирование контекста
-    const messages = [];
-    
-    if (systemPrompt) {
-      messages.push({ role: 'system', content: systemPrompt });
-    }
+    const messages = [{ role: 'system', content: basePrompt }];
 
     // История сообщений проекта
     const history = await pool.query(

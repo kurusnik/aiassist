@@ -123,6 +123,47 @@
     .btn.danger { background: #2a1518; border-color: #542127; color:#ffb3b3; }
     .btn.ghost { background: #0e131a; }
 
+    /* Toggle switch */
+    .toggle {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      cursor: pointer;
+      user-select: none;
+      font-size: 14px;
+    }
+    .toggle input {
+      display: none;
+    }
+    .toggle-slider {
+      width: 42px;
+      height: 22px;
+      background: #0e131a;
+      border: 1px solid var(--border);
+      border-radius: 11px;
+      position: relative;
+      transition: 0.3s;
+    }
+    .toggle-slider:before {
+      content: '';
+      position: absolute;
+      width: 18px;
+      height: 18px;
+      background: var(--muted);
+      border-radius: 50%;
+      top: 1px;
+      left: 2px;
+      transition: 0.3s;
+    }
+    .toggle input:checked + .toggle-slider {
+      background: linear-gradient(135deg, #3a7bd9, #7f5af0);
+      border-color: transparent;
+    }
+    .toggle input:checked + .toggle-slider:before {
+      background: white;
+      transform: translateX(20px);
+    }
+
     /* Chat */
     .chat {
       flex:1;
@@ -1615,6 +1656,56 @@
         <div class="row" style="margin-top:8px;">
           <button class="btn" id="savePrompt">Сохранить</button>
           <button class="btn ghost" id="clearPrompt">Сбросить</button>
+        </div>
+      </div>
+
+      <div class="section">
+        <h3>Источники ответов</h3>
+        <div style="color:var(--muted); font-size:14px; margin-bottom:12px;">
+          Визуальное выделение источников информации в ответах AI
+        </div>
+        
+        <div class="row" style="margin-bottom:10px;">
+          <label class="toggle" title="Включить/выключить выделение источников">
+            <input type="checkbox" id="toggle-markers" checked>
+            <span class="toggle-slider"></span>
+            <span>Показывать источники</span>
+          </label>
+        </div>
+
+        <div id="source-stats" style="background:var(--panel-2); border-radius:8px; padding:10px; font-size:13px;">
+          <div style="color:var(--muted); margin-bottom:6px;">Статистика:</div>
+          <div class="row" style="gap:15px;">
+            <div>
+              <span style="color:#4ea1ff">📚</span>
+              <span style="margin-left:5px;" id="rag-count">0</span>
+              <span style="color:var(--muted); font-size:11px;">RAG</span>
+            </div>
+            <div>
+              <span style="color:#9fb0c0">💭</span>
+              <span style="margin-left:5px;" id="model-count">0</span>
+              <span style="color:var(--muted); font-size:11px;">Модель</span>
+            </div>
+          </div>
+          <button id="reset-stats" class="btn ghost" style="margin-top:8px; width:100%; font-size:11px; padding:4px;">Сбросить статистику</button>
+        </div>
+
+        <div id="source-legend" style="margin-top:12px; padding:10px; background:var(--panel-2); border-radius:8px; font-size:13px;">
+          <div style="color:var(--muted); margin-bottom:6px;">Легенда:</div>
+          <div style="display:flex; flex-direction:column; gap:6px;">
+            <div class="row" style="align-items:center;">
+              <span style="color:#4ea1ff">📚</span>
+              <span style="margin-left:8px;">RAG источник</span>
+            </div>
+            <div class="row" style="align-items:center;">
+              <span style="color:#16c47f">📊</span>
+              <span style="margin-left:8px;">Анализ RAG</span>
+            </div>
+            <div class="row" style="align-items:center;">
+              <span style="color:#9fb0c0">💭</span>
+              <span style="margin-left:8px;">Знания модели</span>
+            </div>
+          </div>
         </div>
       </div>
 

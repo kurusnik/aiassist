@@ -1,10 +1,11 @@
-FROM node:18-alpine
+FROM node:18-slim
 
 # Установка системных зависимостей
-RUN apk add --no-cache \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     postgresql-client \
-    && rm -rf /var/cache/apk/*
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
 
 # Создание директорий
 WORKDIR /app
@@ -24,6 +25,9 @@ RUN mkdir -p uploads logs
 # Устанавливаем права доступа
 RUN chown -R node:node /app
 USER node
+
+# Предзагрузка модели эмбеддингов в кэш (от имени node)
+RUN node scripts/preload-model.mjs 2>&1 || echo "Preload skipped"
 
 # Открываем порт
 EXPOSE 3000
