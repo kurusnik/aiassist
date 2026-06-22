@@ -177,30 +177,22 @@ aiassist/
 │
 ├── services/
 │   ├── passwordManager.js   # Управление паролями
-│   └── ocr.js               # OCR сервис (Tesseract)
-│
-├── migrations/
-│   ├── 000_initial_schema.sql
-│   ├── 001_add_auth.sql
-│   ├── 002_add_attachments.sql
-│   ├── 003_add_admin_fields.sql
-│   ├── 004_password_change_logs.sql
-│   └── README.md
-│
-├── public/
-│   ├── index.html           # Главная страница (чат)
-│   ├── login.html           # Страница входа/регистрации
-│   ├── admin.html           # Админ-панель
-│   ├── app.js               # Логика приложения
-│   ├── state.js             # Управление состоянием
-│   └── stateActions.js      # Действия со состоянием
+│   ├── ocr.js               # OCR сервис (Tesseract)
+│   └── rag/                 # RAG семантический поиск
+│       ├── index.js         # Точка входа RAG
+│       ├── embedding.js     # Локальный эмбеддер (Transformers.js)
+│       ├── search.js        # Векторный + гибридный поиск
+│       ├── ingestion.js     # Индексация документов
+│       └── chunking.js      # Разбивка текста на чанки
 │
 ├── scripts/
 │   ├── build.js             # Скрипт сборки
 │   ├── deploy.js            # Скрипт деплоя
 │   ├── migrate.js           # Миграции БД
+│   ├── run-migrations.js    # Исполнитель миграций
 │   ├── backup.js            # Резервное копирование
-│   └── update.js            # Обновление проекта
+│   ├── update.js            # Обновление проекта
+│   └── preload-model.mjs    # Предзагрузка модели эмбеддингов
 │
 ├── uploads/                 # Загруженные файлы (volume)
 └── logs/                    # Логи приложения (volume)
@@ -382,6 +374,7 @@ docker compose up -d --build
 4. `003_add_admin_fields.sql` — поля администратора (is_admin, is_approved)
 5. `004_password_change_logs.sql` — логирование изменений паролей
 6. `005_add_rag_embeddings.sql` — векторные представления для RAG
+7. `006_embedding_dimension_384.sql` — переход на 384d (multilingual-e5-small)
 
 ## 🧠 RAG (Semantic Search)
 
@@ -439,93 +432,32 @@ curl "http://localhost:3000/api/rag/search?q=авторизация&limit=5"
 
 ## 📝 История изменений
 
-### 2026-04-13
+### 2026-06-22 — Локальный эмбеддер Transformers.js + RAG исправления
 
-#### RAG Система (Semantic Search)
-- ✅ Добавлена поддержка pgvector для векторного поиска
-- ✅ Созданы таблицы: `document_embeddings`, `message_embeddings`, `public_embeddings`
-- ✅ Реализовано индексирование файлов и текста
-- ✅ Семантический поиск по базе знаний
-- ✅ UI для управления RAG в админ-панели
-- ✅ Автоматическое определение релевантности ответов
+#### Локальный эмбеддер
+- ✅ Замена API-эмбеддингов (OpenRouter/OpenAI) на локальный `@xenova/transformers`
+- ✅ Модель `Xenova/multilingual-e5-small` (384d) с поддержкой русского языка
+- ✅ Модель кэшируется в образе Docker при сборке
+- ✅ Автоматическая предзагрузка при старте сервера
 
-#### Админ-панель
-- ✅ Вкладка "База знаний" для управления RAG
-- ✅ Кнопка назначения пользователя админом
-- ✅ Статистика индексированных документов
+#### RAG: исправление поиска
+- 🐛 **Критический баг**: `buildSystemPrompt` получал объект `{role, content}` вместо строки → system prompt превращался в `"[object Object]"`, инструкции по маркерам терялись
+- 🐛 **Критический баг**: SQL поиск отфильтровывал документы с `project_id IS NULL` (загруженные из админ-панели) из-за строгого `de.project_id = $X` — исправлено на `de.project_id = $X OR de.project_id IS NULL`
+- 🐛 **База**: образ `node:18-alpine` несовместим с ONNX Runtime (Ort::Exception) — смена на `node:18-slim`
+- 🐛 **Миграция**: создана `006_embedding_dimension_384.sql` для перехода с 1536→384
+- 🐛 **Миграция**: `005_add_rag_embeddings.sql` не была в списке `run-migrations.js` — добавлена
+- ✅ Индексация файлов при загрузке через `/projects/:id/attachments`
 
-#### Документация
-- ✅ `docs/RAG_IMPLEMENTATION.md` — полная спецификация
-- ✅ `docs/RAG_GETTING_STARTED.md` — руководство по запуску
-- ✅ `docs/RAG_SUMMARY.md` — обзор реализации
-
-#### Обновления
-- 🔄 Образ PostgreSQL заменён на `pgvector/pgvector:pg15`
-- 🔄 Docker Compose обновлён (убран атрибут version)
-
----
-
-**Последнее обновление:** 2026-04-13
-
-## 📝 История изменений
-
-### 2026-04-13
-
-#### RAG Система (Semantic Search)
-- ✅ Добавлена поддержка pgvector для векторного поиска
-- ✅ Созданы таблицы: `document_embeddings`, `message_embeddings`, `public_embeddings`
-- ✅ Реализовано индексирование файлов и текста
-- ✅ Семантический поиск по базе знаний
-- ✅ UI для управления RAG в админ-панели
-- ✅ Автоматическое определение релевантности ответов
-
-#### Админ-панель
-- ✅ Вкладка "База знаний" для управления RAG
-- ✅ Кнопка назначения пользователя админом
-- ✅ Статистика индексированных документов
-
-#### Документация
-- ✅ `docs/RAG_IMPLEMENTATION.md` — полная спецификация
-- ✅ `docs/RAG_GETTING_STARTED.md` — руководство по запуску
-- ✅ `docs/RAG_SUMMARY.md` — обзор реализации
-
-#### Обновления
-- 🔄 Образ PostgreSQL заменён на `pgvector/pgvector:pg15`
-- 🔄 Docker Compose обновлён (убран атрибут version)
+#### Маркеры источников в UI
+- 🐛 **SSE коррупция**: обработчик `data.segment` перезаписывал контент, смешивая сегменты с сырыми токенами — удалён
+- 🐛 Дубликат `renderChat` (override + declaration) — удалён override
+- 🐛 Лишняя `}` в `initSourceStats()` — удалена
+- 🐛 Статистика: `textContent = rag` терял эмодзи — исправлен формат
+- 🐛 `addSourceStats()`, `addSourceLegend()` не вызывались при инициализации — добавлены
 
 ---
 
-**Последнее обновление:** 2026-04-13
-
-## 📝 История изменений
-
-### 2026-04-13
-
-#### RAG Система (Semantic Search)
-- ✅ Добавлена поддержка pgvector для векторного поиска
-- ✅ Созданы таблицы: `document_embeddings`, `message_embeddings`, `public_embeddings`
-- ✅ Реализовано индексирование файлов и текста
-- ✅ Семантический поиск по базе знаний
-- ✅ UI для управления RAG в админ-панели
-- ✅ Автоматическое определение релевантности ответов
-
-#### Админ-панель
-- ✅ Вкладка "База знаний" для управления RAG
-- ✅ Кнопка назначения пользователя админом
-- ✅ Статистика индексированных документов
-
-#### Документация
-- ✅ `docs/RAG_IMPLEMENTATION.md` — полная спецификация
-- ✅ `docs/RAG_GETTING_STARTED.md` — руководство по запуску
-- ✅ `docs/RAG_SUMMARY.md` — обзор реализации
-
-#### Обновления
-- 🔄 Образ PostgreSQL заменён на `pgvector/pgvector:pg15`
-- 🔄 Docker Compose обновлён (убран атрибут version)
-
----
-
-**Последнее обновление:** 2026-04-13
+**Последнее обновление:** 2026-06-22
 
 ## 📄 Лицензия
 
