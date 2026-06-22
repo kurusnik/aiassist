@@ -1,5 +1,3 @@
-version: "3.9"
-
 services:
   app:
     build: .
@@ -69,7 +67,10 @@ services:
       - ./certbot/conf:/etc/letsencrypt
       - /var/run/docker.sock:/var/run/docker.sock:ro
     entrypoint: >
-      sh -c "while :; do
+      sh -c "
+      apt-get update -qq &&
+      apt-get install -y -qq --no-install-recommends curl &&
+      while :; do
       certbot renew --webroot -w /var/www/certbot \
       --deploy-hook 'curl -s -X POST --unix-socket /var/run/docker.sock http://localhost/containers/nginx/kill?signal=HUP -o /dev/null';
       sleep 12h;
