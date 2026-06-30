@@ -1960,6 +1960,32 @@ app.get('/admin.html', requireAdmin, (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'admin.html'));
 });
 
+// ========== PROGRAMMING ENGINE ==========
+
+const programmingService = require('./services/programming');
+
+app.get('/api/programming/status', (req, res) => {
+  res.json(programmingService.getStatus());
+});
+
+app.post('/api/programming/analyze', requireAuth, (req, res) => {
+  const { text } = req.body;
+  if (!text || typeof text !== 'string') {
+    return res.status(400).json({ error: 'text is required' });
+  }
+  const task = programmingService.analyzeTask(text);
+  res.json(task);
+});
+
+app.post('/api/programming/plan', requireAuth, (req, res) => {
+  const { task } = req.body;
+  if (!task || !task.type) {
+    return res.status(400).json({ error: 'task with type is required' });
+  }
+  const plan = programmingService.planTask(task);
+  res.json(plan);
+});
+
 // Статика
 app.use('/uploads', express.static(UPLOAD_DIR));
 app.use(express.static(path.join(__dirname, 'public')));

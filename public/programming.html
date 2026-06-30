@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Programming Engine</title>
+  <link rel="icon" type="image/svg+xml" href="/icons/favicon.svg" />
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(135deg, #0f1216 0%, #141a22 100%);
+      min-height: 100vh;
+      padding: 20px;
+      color: #e6edf3;
+    }
+    .container { max-width: 900px; margin: 0 auto; }
+    .header {
+      background: linear-gradient(180deg, #141a22, #18202a);
+      padding: 24px 30px;
+      border-radius: 14px;
+      margin-bottom: 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border: 1px solid #243041;
+    }
+    .header h1 { margin: 0; font-size: 24px; }
+    .header-actions { display: flex; gap: 10px; }
+    .btn {
+      padding: 10px 20px;
+      border: 1px solid #243041;
+      border-radius: 10px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 500;
+      background: #101722;
+      color: #e6edf3;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .btn:hover { border-color: #4ea1ff; }
+    .btn-danger { background: #2a1518; border-color: #542127; color: #ffb3b3; }
+    .card {
+      background: linear-gradient(180deg, #141a22, #18202a);
+      border-radius: 14px;
+      padding: 30px;
+      border: 1px solid #243041;
+      text-align: center;
+    }
+    .card h2 {
+      font-size: 28px;
+      margin-bottom: 10px;
+      background: linear-gradient(135deg, #4ea1ff, #7f5af0);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .card .version {
+      color: #9fb0c0;
+      font-size: 16px;
+      margin-bottom: 24px;
+    }
+    .card .status {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 16px;
+      background: #0f141b;
+      border: 1px solid #243041;
+      border-radius: 8px;
+      font-size: 14px;
+      color: #16c47f;
+    }
+    .card .status .dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: #16c47f;
+      box-shadow: 0 0 10px rgba(22,196,127,.6);
+    }
+    .modules {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+      margin-top: 24px;
+    }
+    .module {
+      background: #0f141b;
+      border: 1px solid #243041;
+      border-radius: 10px;
+      padding: 16px;
+      text-align: center;
+    }
+    .module .name {
+      color: #4ea1ff;
+      font-weight: 600;
+      font-size: 14px;
+    }
+    .module .desc {
+      color: #9fb0c0;
+      font-size: 12px;
+      margin-top: 4px;
+    }
+    @media (max-width: 768px) {
+      .header { flex-direction: column; gap: 12px; text-align: center; }
+      .modules { grid-template-columns: repeat(2, 1fr); }
+    }
+    @media (max-width: 480px) {
+      .modules { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>Programming Engine</h1>
+      <div class="header-actions">
+        <button class="btn" onclick="window.location.href='/index.html'">Чат</button>
+        <button class="btn" onclick="window.location.href='/rag.html'">RAG</button>
+        <button class="btn" onclick="window.location.href='/admin.html'">Админка</button>
+        <button class="btn btn-danger" onclick="logout()">Выход</button>
+      </div>
+    </div>
+    <div class="card">
+      <h2 id="engine-title">Programming Engine v0</h2>
+      <div class="version" id="engine-subtitle">Архитектурный каркас</div>
+      <div class="status">
+        <span class="dot"></span>
+        <span id="engine-status">Загрузка...</span>
+      </div>
+      <div class="modules">
+        <div class="module">
+          <div class="name">Task</div>
+          <div class="desc">Управление задачами</div>
+        </div>
+        <div class="module">
+          <div class="name">Context</div>
+          <div class="desc">Контекст выполнения</div>
+        </div>
+        <div class="module">
+          <div class="name">Result</div>
+          <div class="desc">Результаты работы</div>
+        </div>
+        <div class="module">
+          <div class="name">Provider</div>
+          <div class="desc">Провайдеры кода</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <script>
+    async function checkAuth() {
+      try {
+        const response = await fetch('/auth/check', { credentials: 'include' });
+        const data = await response.json();
+        if (!data.authenticated) { window.location.href = '/login.html'; return null; }
+        return data.user;
+      } catch (err) { window.location.href = '/login.html'; return null; }
+    }
+    async function logout() {
+      await fetch('/logout', { method: 'POST', credentials: 'include' });
+      window.location.href = '/login.html';
+    }
+    async function loadStatus() {
+      try {
+        const res = await fetch('/api/programming/status', { credentials: 'include' });
+        const data = await res.json();
+        document.getElementById('engine-title').textContent = data.engine;
+        document.getElementById('engine-status').textContent = data.initialized ? 'Инициализирован' : 'Ожидание';
+      } catch (err) {
+        document.getElementById('engine-status').textContent = 'Ошибка загрузки';
+      }
+    }
+    checkAuth().then(() => loadStatus());
+  </script>
+</body>
+</html>
