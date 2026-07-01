@@ -15,27 +15,37 @@
 
 Сбор контекста для задачи: файлы проекта, RAG-результаты, документация, импорты. Интеграция с ProgrammingContext.
 
-## v0.4 — Prompt Builder
+## v0.4 — Provider Framework
+**Статус:** ✅ completed
+
+Создан Provider Framework: ProviderManager, базовый класс BaseProvider, 5 встроенных провайдеров (Internal, Filesystem, MCP, RAG, OpenRouter). Все внешние интеграции работают через Provider Framework.
+
+## v0.5 — Execution Context
+**Статус:** ✅ completed
+
+Создан ExecutionContext — единый контейнер состояния выполнения через весь pipeline. Содержит task, plan, collectedData, prompt, result, metadata.
+
+## v0.6 — Prompt Builder
 **Статус:** 🔄 planned
 
 Построение промпта для LLM на основе ProgrammingTask и ProgrammingContext. Шаблоны для каждого типа задачи.
 
-## v0.5 — OpenRouter Integration
+## v0.6 — OpenRouter Integration
 **Статус:** 🔄 planned
 
 Подключение OpenRouter к Programming Engine. Отправка промпта, получение ответа, обработка ошибок и таймаутов.
 
-## v0.6 — MCP RSV Data
+## v0.7 — MCP RSV Data
 **Статус:** 🔄 planned
 
 Подключение MCP-провайдера для доступа к данным РСВ (расчёт страховых взносов). Интеграция с Context Collector.
 
-## v0.7 — RAG Integration
+## v0.8 — RAG Integration
 **Статус:** 🔄 planned
 
 Интеграция существующей RAG-системы в Programming Engine. Контекст из базы знаний для задач 1С, SQL, backend.
 
-## v0.8 — Reviewer
+## v0.9 — Reviewer
 **Статус:** 🔄 planned
 
 Модуль проверки результата: синтаксический анализ, соответствие задаче, проверка безопасности. Локальный анализатор без LLM.

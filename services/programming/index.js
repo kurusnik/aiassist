@@ -4,14 +4,32 @@ const ProgrammingResult = require('./Result');
 const ProgrammingProvider = require('./Provider');
 const TaskAnalyzer = require('./taskAnalyzer');
 const ExecutionPlanner = require('./executionPlanner');
+const ExecutionContext = require('./executionContext');
+const ProviderManager = require('./providerManager');
+
+const InternalProvider = require('./providers/InternalProvider');
+const FilesystemProvider = require('./providers/FilesystemProvider');
+const McpProvider = require('./providers/McpProvider');
+const RagProvider = require('./providers/RagProvider');
+const OpenRouterProvider = require('./providers/OpenRouterProvider');
 
 class ProgrammingService {
   constructor() {
     this.version = '0';
-    this.providers = new Map();
+    this.providersLegacy = new Map();
     this.initialized = false;
     this.analyzer = new TaskAnalyzer();
-    this.planner = new ExecutionPlanner();
+    this.providerManager = new ProviderManager();
+    this._registerBuiltinProviders();
+    this.planner = new ExecutionPlanner(this.providerManager);
+  }
+
+  _registerBuiltinProviders() {
+    this.providerManager.register(new InternalProvider());
+    this.providerManager.register(new FilesystemProvider());
+    this.providerManager.register(new McpProvider());
+    this.providerManager.register(new RagProvider());
+    this.providerManager.register(new OpenRouterProvider());
   }
 
   async init() {
@@ -23,7 +41,7 @@ class ProgrammingService {
     return {
       version: this.version,
       initialized: this.initialized,
-      providers: Array.from(this.providers.keys()),
+      providers: this.providerManager.list().map(p => p.name),
       engine: `Programming Engine v${this.version}`
     };
   }
@@ -36,11 +54,20 @@ class ProgrammingService {
     return this.planner.plan(task);
   }
 
+  createExecutionContext(text) {
+    const task = this.analyzer.analyze(text);
+    const plan = this.planner.plan(task);
+    const context = new ExecutionContext();
+    context.setTask(task);
+    context.setPlan(plan);
+    return { task, plan, context: context.toJSON() };
+  }
+
   registerProvider(name, provider) {
     if (!(provider instanceof ProgrammingProvider)) {
       throw new Error('Provider must extend ProgrammingProvider');
     }
-    this.providers.set(name, provider);
+    this.providersLegacy.set(name, provider);
   }
 }
 

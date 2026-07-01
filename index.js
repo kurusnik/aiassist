@@ -1986,6 +1986,15 @@ app.post('/api/programming/plan', requireAuth, (req, res) => {
   res.json(plan);
 });
 
+app.post('/api/programming/context', requireAuth, (req, res) => {
+  const { text } = req.body;
+  if (!text || typeof text !== 'string') {
+    return res.status(400).json({ error: 'text is required' });
+  }
+  const result = programmingService.createExecutionContext(text);
+  res.json(result);
+});
+
 // Статика
 app.use('/uploads', express.static(UPLOAD_DIR));
 app.use(express.static(path.join(__dirname, 'public')));
