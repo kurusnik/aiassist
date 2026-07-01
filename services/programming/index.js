@@ -5,6 +5,7 @@ const ProgrammingProvider = require('./Provider');
 const TaskAnalyzer = require('./taskAnalyzer');
 const ExecutionPlanner = require('./executionPlanner');
 const ExecutionContext = require('./executionContext');
+const ExecutionPipeline = require('./executionPipeline');
 const ProviderManager = require('./providerManager');
 
 const InternalProvider = require('./providers/InternalProvider');
@@ -22,6 +23,7 @@ class ProgrammingService {
     this.providerManager = new ProviderManager();
     this._registerBuiltinProviders();
     this.planner = new ExecutionPlanner(this.providerManager);
+    this.pipeline = new ExecutionPipeline(this.providerManager);
   }
 
   _registerBuiltinProviders() {
@@ -61,6 +63,16 @@ class ProgrammingService {
     context.setTask(task);
     context.setPlan(plan);
     return { task, plan, context: context.toJSON() };
+  }
+
+  async executePipeline(text) {
+    const task = this.analyzer.analyze(text);
+    const plan = this.planner.plan(task);
+    const context = new ExecutionContext();
+    context.setTask(task);
+    context.setPlan(plan);
+    const updatedContext = await this.pipeline.execute(context);
+    return { task, plan, context: updatedContext.toJSON() };
   }
 
   registerProvider(name, provider) {

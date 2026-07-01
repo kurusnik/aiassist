@@ -1995,6 +1995,19 @@ app.post('/api/programming/context', requireAuth, (req, res) => {
   res.json(result);
 });
 
+app.post('/api/programming/execute', requireAuth, async (req, res) => {
+  const { text } = req.body;
+  if (!text || typeof text !== 'string') {
+    return res.status(400).json({ error: 'text is required' });
+  }
+  try {
+    const result = await programmingService.executePipeline(text);
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Статика
 app.use('/uploads', express.static(UPLOAD_DIR));
 app.use(express.static(path.join(__dirname, 'public')));

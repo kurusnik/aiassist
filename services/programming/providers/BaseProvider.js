@@ -6,8 +6,14 @@ class BaseProvider {
     this.enabled = true;
   }
 
-  async execute(action, context) {
-    throw new Error('Not implemented');
+  async execute(step, context) {
+    return {
+      success: true,
+      provider: this.name,
+      capability: step ? step.action : null,
+      data: {},
+      message: 'Not implemented'
+    };
   }
 }
 

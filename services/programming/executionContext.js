@@ -12,6 +12,7 @@ class ExecutionContext {
     this.prompt = null;
     this.result = null;
     this.metadata = {};
+    this.executionLog = [];
   }
 
   setTask(task) {
@@ -38,6 +39,17 @@ class ExecutionContext {
     this.result = result;
   }
 
+  addLogEntry(entry) {
+    this.executionLog.push({
+      timestamp: new Date().toISOString(),
+      step: entry.step,
+      provider: entry.provider,
+      status: entry.status,
+      duration: entry.duration || null,
+      message: entry.message || ''
+    });
+  }
+
   toJSON() {
     return {
       id: this.id,
@@ -46,7 +58,8 @@ class ExecutionContext {
       collectedData: this.collectedData,
       prompt: this.prompt,
       result: this.result && typeof this.result.toJSON === 'function' ? this.result.toJSON() : this.result,
-      metadata: this.metadata
+      metadata: this.metadata,
+      executionLog: this.executionLog
     };
   }
 
@@ -59,6 +72,7 @@ class ExecutionContext {
     ctx.prompt = data.prompt || null;
     ctx.result = data.result || null;
     ctx.metadata = data.metadata || {};
+    ctx.executionLog = data.executionLog || [];
     return ctx;
   }
 }
