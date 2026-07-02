@@ -401,6 +401,7 @@ function formatSegment(segment) {
   let bgColor = 'rgba(159, 176, 192, 0.08)';
   let borderColor = 'rgba(159, 176, 192, 0.3)';
   let typeName = 'Знания модели';
+  let cssClass = 'model-knowledge';
   
   if (segment.type === 'RAG:SOURCE') {
     icon = '📚';
@@ -408,15 +409,17 @@ function formatSegment(segment) {
     bgColor = 'rgba(78, 161, 255, 0.08)';
     borderColor = 'rgba(78, 161, 255, 0.3)';
     typeName = 'RAG источник';
+    cssClass = 'rag-source';
   } else if (segment.type === 'RAG:ANALYSIS') {
     icon = '📊';
     iconColor = '#16c47f';
     bgColor = 'rgba(22, 196, 127, 0.08)';
     borderColor = 'rgba(22, 196, 127, 0.3)';
     typeName = 'Анализ RAG';
+    cssClass = 'rag-analysis';
   }
   
-  return `<div class="response-segment" style="
+  return `<div class="response-segment ${cssClass}" style="
     margin: 8px 0;
     padding: 10px 12px;
     background: ${bgColor};
@@ -430,22 +433,25 @@ function formatSegment(segment) {
       position: absolute;
       left: 10px;
       top: 10px;
-      font-size: 18px;
-      color: ${iconColor};
+      font-size: 22px;
       width: 24px;
+      height: 24px;
       text-align: center;
+      line-height: 24px;
+      font-weight: normal;
+      display: inline-block;
     ">${icon}</span>
     <span class="segment-text" style="
       display: block;
       line-height: 1.5;
-      color: var(--text);
+      color: #1a1a1a;
     ">${segment.content}</span>
     <div class="source-info" style="
       font-size: 11px;
-      color: var(--muted);
+      color: #666;
       margin-top: 4px;
       padding-left: 0;
-    ">${icon} ${typeName}</div>
+    ">${typeName}</div>
   </div>`;
 }
 

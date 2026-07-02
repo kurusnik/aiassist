@@ -1,40 +1,44 @@
-FROM node:18-slim
+# Этап 1: Загрузка модели
+FROM node:18-slim AS model-stage
+WORKDIR /app
+COPY package*.json ./
+RUN npm install --omit=dev
+COPY . .
+RUN mkdir -p .cache/transformers && timeout 600 node scripts/preload-model.mjs || echo "Preload completed or timed out"
 
-# РЈСЃС‚Р°РЅРѕРІРєР° СЃРёСЃС‚РµРјРЅС‹С… Р·Р°РІРёСЃРёРјРѕСЃС‚РµР№
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    curl \
-    postgresql-client \
-    ca-certificates \
-    && rm -rf /var/lib/apt/lists/*
+# Этап 2: Основной образ
+FROM node:18-slim AS stage-1
 
-# РЎРѕР·РґР°РЅРёРµ РґРёСЂРµРєС‚РѕСЂРёР№
+# Установка системных зависимостей
+RUN apt-get update && apt-get install -y --no-install-recommends curl postgresql-client ca-certificates && rm -rf /var/lib/apt/lists/*
+
+# Создание директорий
 WORKDIR /app
 
-# РљРѕРїРёСЂСѓРµРј package.json Рё package-lock.json
+# Копируем package.json и package-lock.json
 COPY package*.json ./
 
-# РЈСЃС‚Р°РЅРѕРІРєР° Р·Р°РІРёСЃРёРјРѕСЃС‚РµР№
-RUN npm install --omit=dev && npm cache clean --force
+# Установка зависимостей
+RUN npm install --omit=dev
 
-# РљРѕРїРёСЂСѓРµРј РёСЃС…РѕРґРЅС‹Р№ РєРѕРґ
+# Копируем кэш модели из предыдущего этапа
+COPY --from=model-stage /app/.cache/transformers /app/.cache/transformers
+
+# Копируем исходный код
 COPY . .
 
-# РЎРѕР·РґР°РµРј РґРёСЂРµРєС‚РѕСЂРёРё РґР»СЏ Р»РѕРіРѕРІ Рё Р·Р°РіСЂСѓР·РѕРє
+# Создаем директории для логов и загрузок
 RUN mkdir -p uploads logs
 
-# РЈСЃС‚Р°РЅР°РІР»РёРІР°РµРј РїСЂР°РІР° РґРѕСЃС‚СѓРїР°
+# Устанавливаем права доступа
 RUN chown -R node:node /app
 USER node
 
-# РџСЂРµРґР·Р°РіСЂСѓР·РєР° РјРѕРґРµР»Рё СЌРјР±РµРґРґРёРЅРіРѕРІ РІ РєСЌС€ (РѕС‚ РёРјРµРЅРё node)
-RUN node scripts/preload-model.mjs 2>&1 || echo "Preload skipped"
-
-# РћС‚РєСЂС‹РІР°РµРј РїРѕСЂС‚
+# Открываем порт
 EXPOSE 3000
 
 # Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-  CMD curl -f http://localhost:3000/health || exit 1
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 CMD curl -f http://localhost:3000/health || exit 1
 
-# Р—Р°РїСѓСЃРє РїСЂРёР»РѕР¶РµРЅРёСЏ
+# Запуск приложения
 CMD ["node", "index.js"]

@@ -204,6 +204,18 @@
     .msg.assistant .bubble { background: linear-gradient(180deg, #1a2330, #141c26); border-color:#263243; }
     .msg.system .bubble { background: #151b22; color: var(--muted); border-style:dashed; }
 
+    /* RAG сегменты */
+    .response-segment { margin:8px 0; padding:8px 12px; border-radius:6px; border-left:4px solid transparent; position:relative; padding-left:40px; min-height:24px; }
+    .segment-icon { position:absolute; left:8px; top:8px; font-size:18px; width:24px; text-align:center; }
+    .segment-text { display:block; line-height:1.5; }
+    .rag-source { background:rgba(78,161,255,0.08); border-left-color:#4ea1ff; }
+    .rag-source .segment-icon { color:#4ea1ff; }
+    .rag-analysis { background:rgba(22,196,127,0.08); border-left-color:#16c47f; }
+    .rag-analysis .segment-icon { color:#16c47f; }
+    .model-knowledge { background:rgba(159,176,192,0.08); border-left-color:#9fb0c0; }
+    .model-knowledge .segment-icon { color:#9fb0c0; }
+    .source-info { font-size:12px; color:var(--muted); margin-top:4px; padding-left:40px; }
+
     .avatar {
       width:34px; height:34px; border-radius:50%;
       display:flex; align-items:center; justify-content:center;
@@ -1825,6 +1837,54 @@
       return html;
     }
 
+    function parseResponseMarkers(text) {
+      const segments = [];
+      let current = text;
+      const markers = [];
+      const openTags = [...current.matchAll(/\[(RAG:SOURCE|RAG:ANALYSIS|MODEL:KNOWLEDGE)\]/g)];
+      const closeTags = [...current.matchAll(/\[\/(RAG|MODEL)\]/g)];
+      openTags.forEach(match => markers.push({ pos: match.index, type: match[1], isOpen: true }));
+      closeTags.forEach(match => markers.push({ pos: match.index, type: match[1], isClose: true }));
+      markers.sort((a, b) => a.pos - b.pos);
+      let currentType = 'MODEL:KNOWLEDGE';
+      let lastPos = 0;
+      for (const marker of markers) {
+        if (marker.pos > lastPos) {
+          const content = current.substring(lastPos, marker.pos);
+          if (content.trim()) {
+            segments.push({ type: currentType, content: content.trim(), isSource: currentType.includes('RAG'), isModel: currentType.includes('MODEL') });
+          }
+        }
+        if (marker.isOpen) { currentType = marker.type; }
+        else if (marker.isClose) { currentType = 'MODEL:KNOWLEDGE'; }
+        lastPos = marker.pos + (marker.isOpen ? marker.type.length + 2 : marker.type === 'RAG' ? 6 : 8);
+      }
+      if (lastPos < current.length) {
+        const remaining = current.substring(lastPos);
+        if (remaining.trim()) {
+          segments.push({ type: currentType, content: remaining.trim(), isSource: currentType.includes('RAG'), isModel: currentType.includes('MODEL') });
+        }
+      }
+      if (segments.length === 0 && text.trim()) {
+        segments.push({ type: 'MODEL:KNOWLEDGE', content: text.trim(), isSource: false, isModel: true });
+      }
+      return segments;
+    }
+
+    function formatSegment(segment) {
+      let icon = '💭', iconColor = '#9fb0c0', bgColor = 'rgba(159, 176, 192, 0.08)', borderColor = 'rgba(159, 176, 192, 0.3)', typeName = 'Знания модели', cssClass = 'model-knowledge';
+      if (segment.type === 'RAG:SOURCE') {
+        icon = '📚'; iconColor = '#4ea1ff'; bgColor = 'rgba(78, 161, 255, 0.08)'; borderColor = 'rgba(78, 161, 255, 0.3)'; typeName = 'RAG источник'; cssClass = 'rag-source';
+      } else if (segment.type === 'RAG:ANALYSIS') {
+        icon = '📊'; iconColor = '#16c47f'; bgColor = 'rgba(22, 196, 127, 0.08)'; borderColor = 'rgba(22, 196, 127, 0.3)'; typeName = 'Анализ RAG'; cssClass = 'rag-analysis';
+      }
+      return `<div class="response-segment ${cssClass}" style="margin:8px 0;padding:10px 12px;background:${bgColor};border-left:3px solid ${borderColor};border-radius:6px;position:relative;padding-left:40px;min-height:24px">
+        <span class="segment-icon" title="${typeName}" style="position:absolute;left:10px;top:10px;font-size:22px;width:24px;height:24px;text-align:center;line-height:24px;font-weight:normal;display:inline-block">${icon}</span>
+        <span class="segment-text" style="display:block;line-height:1.5;color:#e6edf3">${segment.content}</span>
+        <div class="source-info" style="font-size:11px;color:#9fb0c0;margin-top:4px;padding-left:0">${typeName}</div>
+      </div>`;
+    }
+
     function bubble({ role, content, created_at }) {
       const side = role === 'user' ? 'user' : role === 'assistant' ? 'assistant' : 'system';
       const avatar = role === 'user' ? 'Вы' : role === 'assistant' ? 'AI' : 'S';
@@ -1842,7 +1902,12 @@
 
       const contentEl = document.createElement('div');
       contentEl.className = 'bubble-content';
-      contentEl.innerHTML = renderRichText(content);
+      if (role === 'assistant') {
+        const segments = parseResponseMarkers(content || '');
+        contentEl.innerHTML = segments.map(formatSegment).join('');
+      } else {
+        contentEl.innerHTML = renderRichText(content);
+      }
       b.appendChild(contentEl);
 
       const ts = document.createElement('div');
@@ -1882,7 +1947,8 @@
     function setBubbleText(wrapper, text) {
       const contentEl = wrapper?.querySelector?.('.bubble-content');
       if (!contentEl) return;
-      contentEl.innerHTML = renderRichText(text || '');
+      const segments = parseResponseMarkers(text || '');
+      contentEl.innerHTML = segments.map(formatSegment).join('');
     }
 
     // ---------- Copy to clipboard ----------
