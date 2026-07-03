@@ -11,8 +11,9 @@ class OpenRouterProvider extends BaseProvider {
   }
 
   async execute(step, context) {
-    const prompt = context.prompt
+    const promptObj = context.prompt
       || (context.getData('build_prompt') && context.getData('build_prompt').prompt);
+    const prompt = (promptObj && promptObj.prompt) || promptObj;
 
     if (!prompt) {
       return {

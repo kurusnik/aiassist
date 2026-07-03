@@ -80,7 +80,7 @@ Provider Manager    — реестр и маршрутизация к прова
 Providers           — InternalProvider, FilesystemProvider, McpProvider, RagProvider, OpenRouterProvider
   │
   ▼
-Prompt Builder      — строит промпт на основе Task + Context + шаблона для типа задачи
+Prompt Builder      — собирает единый Prompt из ExecutionContext: секции SYSTEM, TASK, PROJECT FILES, EXAMPLES, RAG, OUTPUT
   │
   ▼
 LLM                 — отправляет запрос в OpenRouter, получает код/объяснение
@@ -101,7 +101,7 @@ Result              — возвращает итоговый ProgrammingResult 
 | **Execution Context** | Единый контейнер состояния выполнения. Хранит task, plan, collectedData, prompt, result. | ✅ Реализован |
 | **Execution Pipeline** | Оркестратор выполнения. Проходит по шагам плана, получает провайдера через ProviderManager, вызывает его, сохраняет результат в ExecutionContext. Не содержит бизнес-логики. | ✅ Реализован |
 | **Context Collector** | Собирает релевантный контекст: файлы проекта, RAG-результаты, документацию. | 🔄 Запланирован |
-| **Prompt Builder** | Строит промпт для LLM на основе структуры задачи и собранного контекста. | 🔄 Запланирован |
+| **Prompt Builder** | Собирает единый Prompt из ExecutionContext по независимым секциям. Возвращает объект { sections, prompt, statistics }. | ✅ Реализован |
 | **LLM** | Отправляет промпт в OpenRouter, обрабатывает ответ. | 🔄 Запланирован |
 | **Reviewer** | Проверяет корректность результата: синтаксис, соответствие типу задачи, безопасность. | 🔄 Запланирован |
 | **Result** | Форматирует и возвращает результат пользователю. | 🔄 Запланирован |
@@ -153,7 +153,7 @@ ExecutionContext содержит:
 | `task` | Исходная ProgrammingTask |
 | `executionPlan` | ExecutionPlan с последовательностью шагов |
 | `collectedData` | Словарь данных, собранных провайдерами (metadata, projectFiles, examples, rag) |
-| `prompt` | Промпт, переданный в LLM |
+| `prompt` | Объект промпта вида `{ sections, prompt, statistics }`, построенный PromptBuilder. `prompt.prompt` содержит итоговую строку для LLM. |
 | `result` | ProgrammingResult, полученный после выполнения |
 | `metadata` | Дополнительные метаданные выполнения |
 
