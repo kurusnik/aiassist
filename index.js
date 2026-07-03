@@ -1995,7 +1995,7 @@ app.post('/api/programming/context', requireAuth, (req, res) => {
   res.json(result);
 });
 
-app.post('/api/programming/execute', requireAuth, async (req, res) => {
+app.post('/api/programming/execute', async (req, res) => {
   const { text } = req.body;
   if (!text || typeof text !== 'string') {
     return res.status(400).json({ error: 'text is required' });

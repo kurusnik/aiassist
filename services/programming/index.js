@@ -72,7 +72,16 @@ class ProgrammingService {
     context.setTask(task);
     context.setPlan(plan);
     const updatedContext = await this.pipeline.execute(context);
-    return { task, plan, context: updatedContext.toJSON() };
+
+    if (updatedContext.result && updatedContext.result instanceof ProgrammingResult) {
+      return updatedContext.result;
+    }
+
+    const fallback = new ProgrammingResult();
+    fallback.success = false;
+    fallback.errors = [{ message: 'Pipeline did not produce a result' }];
+    fallback.metadata = { contextId: updatedContext.id, executionLog: updatedContext.executionLog };
+    return fallback;
   }
 
   registerProvider(name, provider) {
