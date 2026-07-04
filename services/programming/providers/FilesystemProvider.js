@@ -136,11 +136,38 @@ class FilesystemProvider extends BaseProvider {
   }
 
   async _collectProjectFiles(context) {
+    const filesData = context.getData('files');
+    if (filesData && Array.isArray(filesData) && filesData.length > 0) {
+      context.addLogEntry({
+        step: 'collect_project_files',
+        provider: this.name,
+        status: 'started',
+        message: 'Using project files from ContextCollector'
+      });
+
+      context.collectedData.projectFiles = filesData;
+
+      context.addLogEntry({
+        step: 'collect_project_files',
+        provider: this.name,
+        status: 'completed',
+        message: `${filesData.length} files from ContextCollector`
+      });
+
+      return {
+        success: true,
+        provider: this.name,
+        capability: 'collect_project_files',
+        data: { files: filesData },
+        message: 'Using project files from ContextCollector'
+      };
+    }
+
     context.addLogEntry({
       step: 'collect_project_files',
       provider: this.name,
       status: 'started',
-      message: 'Scanning project...'
+      message: 'Fallback to filesystem scan'
     });
 
     try {

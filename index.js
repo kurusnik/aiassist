@@ -306,6 +306,20 @@ app.get('/projects', requireAuth, async (req, res) => {
   }
 });
 
+app.get('/api/projects', requireAuth, async (req, res) => {
+  try {
+    const userId = req.session.userId;
+    const result = await pool.query(
+      'SELECT id, name FROM projects WHERE user_id = $1 ORDER BY id DESC',
+      [userId]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error('GET /api/projects error:', err);
+    res.status(500).json({ error: 'internal_error' });
+  }
+});
+
 // Получить всех пользователей
 app.get('/users', requireAuth, async (req, res) => {
   try {
@@ -1996,12 +2010,12 @@ app.post('/api/programming/context', requireAuth, (req, res) => {
 });
 
 app.post('/api/programming/execute', async (req, res) => {
-  const { text } = req.body;
+  const { text, projectId } = req.body;
   if (!text || typeof text !== 'string') {
     return res.status(400).json({ error: 'text is required' });
   }
   try {
-    const result = await programmingService.executePipeline(text);
+    const result = await programmingService.executePipeline(text, projectId);
     res.json(result);
   } catch (err) {
     res.status(500).json({ error: err.message });

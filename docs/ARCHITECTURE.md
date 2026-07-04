@@ -31,6 +31,10 @@ AiAssist — модульная AI-платформа, построенная в
 
 8. **Единый ExecutionContext.** Все этапы pipeline работают через единый контейнер состояния. Каждый этап читает данные из контекста и записывает результат в контекст.
 
+9. **Project Context.** Все приложения (Chat, Programming, Academy) работают только через ProjectContextService. Project является единственным владельцем данных. Ни один модуль не обращается напрямую к RAG, History, OCR, Attachments или Filesystem — только через ProjectContextService.
+
+10. **Providers работают только с ExecutionContext.** Получение данных выполняется исключительно ContextCollector. Provider'ы не выполняют SQL-запросы, не вызывают RAG, не обращаются к файловой системе. Все данные уже находятся в `executionContext.collectedData`.
+
 ### Будущие архитектурные правила
 
 *— будут добавлены по мере развития проекта*
@@ -68,6 +72,12 @@ Task Analyzer       — классифицирует запрос (тип, яз�
 Execution Planner   — составляет последовательность действий для выполнения задачи
   │
   ▼
+Project Context
+  │
+  ▼
+Context Collector   — заполняет collectedData из projectContext
+  │
+  ▼
 Execution Context   — единый контейнер состояния выполнения через весь pipeline
   │
   ▼
@@ -80,7 +90,7 @@ Provider Manager    — реестр и маршрутизация к прова
 Providers           — InternalProvider, FilesystemProvider, McpProvider, RagProvider, OpenRouterProvider
   │
   ▼
-Prompt Builder      — собирает единый Prompt из ExecutionContext: секции SYSTEM, TASK, PROJECT FILES, EXAMPLES, RAG, OUTPUT
+Prompt Builder      — собирает единый Prompt из ExecutionContext: секции SYSTEM, PROJECT, TASK, PROJECT FILES, EXAMPLES, RAG, OUTPUT
   │
   ▼
 LLM                 — отправляет запрос в OpenRouter, получает код/объяснение
@@ -100,7 +110,7 @@ Result              — возвращает итоговый ProgrammingResult 
 | **Execution Planner** | Составляет последовательность действий для выполнения задачи. Не выполняет действия. | ✅ Реализован |
 | **Execution Context** | Единый контейнер состояния выполнения. Хранит task, plan, collectedData, prompt, result. | ✅ Реализован |
 | **Execution Pipeline** | Оркестратор выполнения. Проходит по шагам плана, получает провайдера через ProviderManager, вызывает его, сохраняет результат в ExecutionContext. Не содержит бизнес-логики. | ✅ Реализован |
-| **Context Collector** | Собирает релевантный контекст: файлы проекта, RAG-результаты, документацию. | 🔄 Запланирован |
+| **Context Collector** | Заполняет executionContext.collectedData из projectContext. Не выполняет SQL, не вызывает RAG, не обращается к файловой системе. | ✅ Реализован |
 | **Prompt Builder** | Собирает единый Prompt из ExecutionContext по независимым секциям. Возвращает объект { sections, prompt, statistics }. | ✅ Реализован |
 | **LLM** | Отправляет промпт в OpenRouter, обрабатывает ответ. | 🔄 Запланирован |
 | **Reviewer** | Проверяет корректность результата: синтаксис, соответствие типу задачи, безопасность. | 🔄 Запланирован |
@@ -128,9 +138,9 @@ Programming Engine
 | **ProviderManager** | Реестр провайдеров. Отвечает за регистрацию, поиск и получение провайдера по имени. Не содержит бизнес-логики. |
 | **BaseProvider** | Базовый класс для всех провайдеров. Содержит `name`, `description`, `capabilities`, метод `execute()`. |
 | **InternalProvider** | Встроенные операции: сборка промпта, проверка результата. |
-| **FilesystemProvider** | Доступ к файловой системе проекта: чтение файлов, поиск примеров. |
-| **McpProvider** | Доступ к данным через MCP-протокол (например, данные РСВ). |
-| **RagProvider** | Поиск в базе знаний через существующую RAG-систему. |
+| **FilesystemProvider** | Доступ к файловой системе проекта: чтение файлов, поиск примеров. При наличии collectedData.files использует готовые данные. | ✅ Переведён |
+| **McpProvider** | Доступ к данным через MCP-протокол (например, данные РСВ). | 🟡 Не изменён |
+| **RagProvider** | Поиск в базе знаний через существующую RAG-систему. При наличии collectedData.rag использует кешированные данные. | ✅ Переведён |
 | **OpenRouterProvider** | Отправка запросов в LLM через OpenRouter. |
 
 ---
@@ -152,7 +162,7 @@ ExecutionContext содержит:
 | `id` | Уникальный идентификатор контекста |
 | `task` | Исходная ProgrammingTask |
 | `executionPlan` | ExecutionPlan с последовательностью шагов |
-| `collectedData` | Словарь данных, собранных провайдерами (metadata, projectFiles, examples, rag) |
+| `collectedData` | Словарь данных, собранных ContextCollector и провайдерами (project, history, files, attachments, rag, metadata, projectFiles, examples, collect_rag) |
 | `prompt` | Объект промпта вида `{ sections, prompt, statistics }`, построенный PromptBuilder. `prompt.prompt` содержит итоговую строку для LLM. |
 | `result` | ProgrammingResult, полученный после выполнения |
 | `metadata` | Дополнительные метаданные выполнения |
@@ -174,3 +184,109 @@ ExecutionContext является **сериализуемым объектом*
 • **Все этапы работают через единый ExecutionContext.** Каждый этап читает данные из контекста и записывает результат в контекст. Это делает pipeline предсказуемым и тестируемым.
 
 • **Компоненты должны быть максимально независимыми.** Task Analyzer не знает о провайдерах. Execution Planner не знает о реализации провайдеров. ProviderManager не содержит бизнес-логики.
+
+---
+
+## Project Context
+
+ProjectContextService — единый фасад для получения контекста проекта. Все модули платформы работают только через него, не обращаясь напрямую к RAG, History, OCR, Attachments или Filesystem.
+
+```
+    Project
+        │
+        ▼
+ProjectContextService
+        │
+  ┌─────┼────────┐
+  │     │        │
+Chat Programming Academy
+```
+
+### Интерфейс
+
+```js
+class ProjectContextService {
+  async load(projectId) {
+    return {
+      projectId,
+      project: {},
+      history: [],
+      files: [],
+      rag: null,
+      metadata: {}
+    };
+  }
+}
+```
+
+### ExecutionContext
+
+| Поле | Назначение |
+|------|-----------|
+| `projectId` | ID текущего проекта |
+| `projectContext` | Объект контекста, загруженный через ProjectContextService |
+
+### Правила
+
+1. **Project владеет данными.** Ни один модуль не обращается напрямую к внешним сервисам.
+2. **ProjectContextService — фасад.** Агрегирует данные из всех источников в единый объект.
+3. **Programming Engine знает только projectId.** Он не знает, откуда пришёл RAG или где лежат файлы.
+4. **Обратная совместимость.** Если projectId не передан — используется null, проект не загружается.
+
+### Схема платформы
+
+```
+User
+  │
+  ▼
+Project
+  │
+  ▼
+ProjectContextService
+  │
+  ├── Programming
+  ├── Academy
+  ├── Chat
+  └── Future Apps
+```
+
+### Источники данных ProjectContextService
+
+| Поле | Источник |
+|------|----------|
+| `project` | `projects` таблица (id, name, summary) |
+| `history` | `messages` таблица (последние 20 сообщений) |
+| `files` | `attachments` таблица (метаданные, без содержимого) |
+| `rag` | `document_embeddings` / `message_embeddings` (статистика, без поиска) |
+| `metadata` | `projects` таблица (createdAt, ownerId) |
+
+### Полный поток данных
+
+```
+Project
+  │
+  ▼
+ProjectContextService.load(projectId)
+  │
+  ▼
+ProjectContext — единый объект контекста
+  │
+  ▼
+ContextCollector.collect(context) — копирует в collectedData
+  │
+  ▼
+ExecutionContext.collectedData
+  │
+  ├── project
+  ├── history
+  ├── files
+  ├── attachments
+  ├── rag
+  └── metadata
+  │
+  ▼
+Providers — читают collectedData, не выполняют внешних вызовов
+  │
+  ▼
+Pipeline — выполнение шагов
+```

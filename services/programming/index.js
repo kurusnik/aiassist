@@ -7,6 +7,8 @@ const ExecutionPlanner = require('./executionPlanner');
 const ExecutionContext = require('./executionContext');
 const ExecutionPipeline = require('./executionPipeline');
 const ProviderManager = require('./providerManager');
+const ProjectContextService = require('../projectContext/ProjectContextService');
+const ContextCollector = require('../projectContext/ContextCollector');
 
 const InternalProvider = require('./providers/InternalProvider');
 const FilesystemProvider = require('./providers/FilesystemProvider');
@@ -24,6 +26,8 @@ class ProgrammingService {
     this._registerBuiltinProviders();
     this.planner = new ExecutionPlanner(this.providerManager);
     this.pipeline = new ExecutionPipeline(this.providerManager);
+    this.projectContextService = new ProjectContextService();
+    this.contextCollector = new ContextCollector();
   }
 
   _registerBuiltinProviders() {
@@ -65,12 +69,32 @@ class ProgrammingService {
     return { task, plan, context: context.toJSON() };
   }
 
-  async executePipeline(text) {
+  async createExecutionContextWithProject(text, projectId) {
     const task = this.analyzer.analyze(text);
     const plan = this.planner.plan(task);
     const context = new ExecutionContext();
     context.setTask(task);
     context.setPlan(plan);
+    if (projectId != null) {
+      context.setProjectId(projectId);
+      const projectContext = await this.projectContextService.load(projectId);
+      context.setProjectContext(projectContext);
+    }
+    return { task, plan, context: context.toJSON() };
+  }
+
+  async executePipeline(text, projectId) {
+    const task = this.analyzer.analyze(text);
+    const plan = this.planner.plan(task);
+    const context = new ExecutionContext();
+    context.setTask(task);
+    context.setPlan(plan);
+    if (projectId != null) {
+      context.setProjectId(projectId);
+      const projectContext = await this.projectContextService.load(projectId);
+      context.setProjectContext(projectContext);
+    }
+    await this.contextCollector.collect(context);
     const updatedContext = await this.pipeline.execute(context);
 
     if (updatedContext.result && updatedContext.result instanceof ProgrammingResult) {

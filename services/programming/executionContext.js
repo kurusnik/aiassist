@@ -13,6 +13,8 @@ class ExecutionContext {
     this.result = null;
     this.metadata = {};
     this.executionLog = [];
+    this.projectId = null;
+    this.projectContext = null;
   }
 
   setTask(task) {
@@ -39,6 +41,18 @@ class ExecutionContext {
     this.result = result;
   }
 
+  setProjectId(id) {
+    this.projectId = id;
+  }
+
+  setProjectContext(context) {
+    this.projectContext = context;
+  }
+
+  getProjectContext() {
+    return this.projectContext;
+  }
+
   addLogEntry(entry) {
     this.executionLog.push({
       timestamp: new Date().toISOString(),
@@ -59,7 +73,9 @@ class ExecutionContext {
       prompt: this.prompt,
       result: this.result && typeof this.result.toJSON === 'function' ? this.result.toJSON() : this.result,
       metadata: this.metadata,
-      executionLog: this.executionLog
+      executionLog: this.executionLog,
+      projectId: this.projectId,
+      projectContext: this.projectContext
     };
   }
 
@@ -73,6 +89,8 @@ class ExecutionContext {
     ctx.result = data.result || null;
     ctx.metadata = data.metadata || {};
     ctx.executionLog = data.executionLog || [];
+    ctx.projectId = data.projectId || null;
+    ctx.projectContext = data.projectContext || null;
     return ctx;
   }
 }

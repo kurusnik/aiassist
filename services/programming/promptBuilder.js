@@ -6,6 +6,7 @@ class PromptBuilder {
 
     const builders = [
       this._buildSystemSection,
+      this._buildProjectSection,
       this._buildTaskSection,
       this._buildProjectContextSection,
       this._buildProjectFilesSection,
@@ -32,6 +33,35 @@ class PromptBuilder {
         characters: prompt.length
       }
     };
+  }
+
+  _buildProjectSection(context) {
+    const fromCollected = context.collectedData && context.collectedData.project;
+    const pc = context.projectContext;
+
+    const fromPC = pc && pc.project;
+    const projectInfo = (fromCollected && fromCollected.name) ? fromCollected : fromPC;
+    if (!projectInfo || !projectInfo.name) return null;
+
+    const lines = ['[PROJECT]'];
+    lines.push(`Название: ${projectInfo.name}`);
+    if (projectInfo.summary) {
+      lines.push(`Описание: ${projectInfo.summary}`);
+    }
+    const files = (context.collectedData && context.collectedData.files) || (pc && pc.files);
+    if (files) {
+      lines.push(`Файлов: ${files.length}`);
+    }
+    const history = (context.collectedData && context.collectedData.history) || (pc && pc.history);
+    if (history) {
+      lines.push(`Сообщений: ${history.length}`);
+    }
+    const rag = (context.collectedData && context.collectedData.rag) || (pc && pc.rag);
+    if (rag) {
+      lines.push(`Документов RAG: ${rag.indexedDocuments}`);
+    }
+
+    return { name: 'PROJECT', content: lines.join('\n') };
   }
 
   _buildSystemSection(context) {
