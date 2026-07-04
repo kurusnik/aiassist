@@ -62,7 +62,7 @@ class ExecutionPlanner {
         action,
         provider: provider ? provider.name : providerName,
         providerDescription: provider ? provider.description : null,
-        required: action !== 'collect_rag'
+        required: action !== 'collect_rag' && action !== 'collect_metadata'
       };
     });
 

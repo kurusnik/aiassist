@@ -91,6 +91,19 @@ ProviderManager
   ▼
 Providers
   │
+  ├── InternalProvider
+  ├── FilesystemProvider
+  ├── RagProvider
+  ├── MCP Provider ─── Infrastructure Layer
+  │                           │
+  │                    McpConnectionManager
+  │                           │
+  │                    McpClientFactory
+  │                           │
+  │                    http / stdio 🔜 / tcp 🔜 / sse 🔜
+  │
+  ├── OpenRouterProvider ─── ModelManager ─── OpenRouter
+  │
   ▼
 ProgrammingResult
 ```
@@ -112,7 +125,7 @@ ProgrammingResult
 | **OpenRouterProvider** | Отправка запросов в LLM через OpenRouter. | ✅ Реализован |
 | **Prompt Builder** | Собирает единый Prompt из ExecutionContext по независимым секциям. | ✅ Реализован |
 | **Reviewer** | Проверяет корректность результата: синтаксис, соответствие типу задачи, безопасность. | ✅ Реализован |
-| **McpProvider** | Доступ к данным через MCP-протокол. | 🔄 Запланирован |
+| **McpProvider** | Доступ к данным через MCP-протокол. Получает клиент через McpConnectionManager. | ✅ Реализован |
 
 ---
 
@@ -158,6 +171,34 @@ Programming Engine
         ▼
     Providers      — конкретные реализации для каждого внешнего сервиса
         │
+        ├── MCP Provider ─── Infrastructure Layer
+        │                           │
+        │                    McpConnectionManager
+        │                           │
+        │                    McpClientFactory
+        │                           │
+│                    http / stdio 🔜 / tcp 🔜 / sse 🔜
+│
+├── OpenRouterProvider ─── ModelManager ─── OpenRouter
+        │
+        └── Internal / Filesystem / RAG ─── collectedData
+
+| Provider | Статус | Источник данных |
+|---|---|---|
+| **InternalProvider** | ✅ Реализован | `executionContext` (prompt, result) |
+| **FilesystemProvider** | ✅ Переведён | `collectedData.files` (или fallback: файловая система) |
+| **RagProvider** | ✅ Переведён | `collectedData.rag` (или fallback: RAG-сервис) |
+| **MCP Provider** | ✅ Реализован | `McpConnectionManager.getClient()` → `collectedData.collect_metadata` |
+| **OpenRouterProvider** | ✅ Реализован | `executionContext` (prompt) |
+```
+Programming Engine
+        │
+        ▼
+ ProviderManager  — реестр провайдеров: регистрация, поиск, получение по имени
+        │
+        ▼
+    Providers      — конкретные реализации для каждого внешнего сервиса
+        │
         ▼
   ModelManager    — единая точка доступа к моделям (выбор модели по роли)
         │
@@ -169,7 +210,7 @@ Programming Engine
 | **InternalProvider** | ✅ Реализован | `executionContext` (prompt, result) |
 | **FilesystemProvider** | ✅ Переведён | `collectedData.files` (или fallback: файловая система) |
 | **RagProvider** | ✅ Переведён | `collectedData.rag` (или fallback: RAG-сервис) |
-| **MCP Provider** | 🔄 Запланирован | TBD |
+| **MCP Provider** | ✅ Реализован | `collectedData.collect_metadata` (или MCP client) |
 | **OpenRouterProvider** | ✅ Реализован | `executionContext` (prompt) |
 
 ---
@@ -191,7 +232,7 @@ ExecutionContext содержит:
 | `id` | Уникальный идентификатор контекста |
 | `task` | Исходная ProgrammingTask |
 | `executionPlan` | ExecutionPlan с последовательностью шагов |
-| `collectedData` | Словарь данных, собранных ContextCollector и провайдерами (project, history, files, attachments, rag, metadata, projectFiles, examples, collect_rag) |
+| `collectedData` | Словарь данных, собранных ContextCollector и провайдерами (project, history, files, attachments, rag, metadata, projectFiles, examples, collect_rag, collect_metadata) |
 | `prompt` | Объект промпта вида `{ sections, prompt, statistics }`, построенный PromptBuilder. `prompt.prompt` содержит итоговую строку для LLM. |
 | `result` | ProgrammingResult, полученный после выполнения |
 | `metadata` | Дополнительные метаданные выполнения |

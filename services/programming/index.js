@@ -15,6 +15,7 @@ const FilesystemProvider = require('./providers/FilesystemProvider');
 const McpProvider = require('./providers/McpProvider');
 const RagProvider = require('./providers/RagProvider');
 const OpenRouterProvider = require('./providers/OpenRouterProvider');
+const { connectionManager } = require('../mcp');
 
 class ProgrammingService {
   constructor() {
@@ -40,6 +41,7 @@ class ProgrammingService {
 
   async init() {
     if (this.initialized) return;
+    await connectionManager.connect();
     this.initialized = true;
   }
 
@@ -48,6 +50,7 @@ class ProgrammingService {
       version: this.version,
       initialized: this.initialized,
       providers: this.providerManager.list().map(p => p.name),
+      mcp: connectionManager.getStatus(),
       engine: `Programming Engine v${this.version}`
     };
   }

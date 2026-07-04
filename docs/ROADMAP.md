@@ -60,17 +60,27 @@ ProjectContextService использует реальные источники: 
 
 Создан ModelManager — единая точка доступа к моделям. Модели хранятся в БД (таблицы `models` и `model_assignments`). Администратор управляет моделями через Admin UI: синхронизация каталога с OpenRouter, назначение моделей по ролям (chat, programming, reviewer, academy, summarizer, vision). OpenRouterProvider получает модель через ModelManager. Ни один модуль не знает конкретного имени модели. Полная обратная совместимость сохранена.
 
-## Sprint 016 — MCP Integration
-**Статус:** 🔄 planned
+## Sprint 016 — MCP Provider Foundation
+**Статус:** ✅ completed
 
-Подключение MCP-провайдера для доступа к внешним данным.
+Реализован McpProvider с действием `collect_metadata`. Provider возвращает `{ available, metadata }`, не выбрасывает исключений при недоступности MCP. Данные сохраняются в `collectedData.collect_metadata`. Предусмотрен интерфейс для будущего MCP-клиента через конструктор. `collect_metadata` помечен как необязательный шаг плана (required: false). Pipeline продолжается при любой недоступности MCP. Полная обратная совместимость сохранена.
 
-## Sprint 017 — Conversation Memory
+## Sprint 017 — Infrastructure Layer: MCP Connection Manager
+**Статус:** ✅ completed
+
+Создан инфраструктурный слой `services/mcp/`: `McpConnectionManager`, `McpClientFactory`, `config.js`. McpProvider переведён на использование `McpConnectionManager.getClient()`. Provider не знает о конфигурации, транспорте или местоположении MCP-сервера. Поддерживается архитектура транспортов (HTTP/stdio/TCP/SSE) через реестр фабрики. При `enabled: false` никаких ошибок не возникает. Programming Engine инициализирует MCP-соединение при старте. Полная обратная совместимость сохранена.
+
+## Sprint 018 — Real MCP Connection (RSV Data)
+**Статус:** ✅ completed
+
+Создан `HttpMcpClient` в `services/mcp/transports/httpTransport.js` — полноценный HTTP-клиент на встроенном `fetch()`. URL строится полностью из config. McpClientFactory использует новый модуль без изменения публичного API. Добавлены admin endpoints: `GET /api/admin/mcp/status` и `POST /api/admin/mcp/reload`. Все ошибки сети обрабатываются безопасно (available=false). Подготовлена почва для подключения реального RSV Data MCP-сервера. McpProvider, Programming Engine, Chat, RAG не изменены.
+
+## Sprint 019 — Conversation Memory
 **Статус:** 🔄 planned
 
 Использование истории диалогов для контекста задач.
 
-## Sprint 018 — Prompt Templates
+## Sprint 020 — Prompt Templates
 **Статус:** 🔄 planned
 
 Шаблоны промптов для разных типов задач.

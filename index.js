@@ -23,6 +23,7 @@ const PasswordManager = require('./services/passwordManager');
 const modelManager = require('./services/models/ModelManager');
 const multer = require('multer');
 const fs = require('fs');
+const { connectionManager } = require('./services/mcp');
 
 // Авто-миграция таблиц ModelManager при старте
 (async () => {
@@ -1115,6 +1116,31 @@ app.put('/api/admin/models/assignments', requireAdmin, async (req, res) => {
     res.json({ success: true, assignment: result });
   } catch (err) {
     console.error('PUT /api/admin/models/assignments error:', err);
+    res.status(500).json({ error: err.message || 'internal_error' });
+  }
+});
+
+// ========== MCP MANAGEMENT (Sprint 018) ==========
+
+// Статус MCP-подключения
+app.get('/api/admin/mcp/status', requireAdmin, async (req, res) => {
+  try {
+    const status = connectionManager.getStatus();
+    res.json({ success: true, ...status });
+  } catch (err) {
+    console.error('GET /api/admin/mcp/status error:', err);
+    res.status(500).json({ error: 'internal_error' });
+  }
+});
+
+// Перезагрузка MCP-подключения
+app.post('/api/admin/mcp/reload', requireAdmin, async (req, res) => {
+  try {
+    const result = await connectionManager.reload();
+    const status = connectionManager.getStatus();
+    res.json({ success: true, reloaded: result, ...status });
+  } catch (err) {
+    console.error('POST /api/admin/mcp/reload error:', err);
     res.status(500).json({ error: err.message || 'internal_error' });
   }
 });
