@@ -1,5 +1,6 @@
 const BaseProvider = require('./BaseProvider');
 const openrouter = require('../../../openrouter');
+const modelManager = require('../../models/ModelManager');
 
 class OpenRouterProvider extends BaseProvider {
   constructor() {
@@ -26,8 +27,9 @@ class OpenRouterProvider extends BaseProvider {
     }
 
     try {
+      const model = await modelManager.getModel('programming');
       const completion = await openrouter.chat.completions.create({
-        model: process.env.OPENROUTER_MODEL || 'openai/gpt-4o-mini',
+        model: model,
         messages: [{ role: 'user', content: prompt }],
         temperature: 0.3,
         max_tokens: 4096

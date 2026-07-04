@@ -55,10 +55,10 @@ ProjectContextService использует реальные источники: 
 
 Модуль проверки результата: эвристический анализ кода (наличие, языковые конструкции, соответствие запросу), оценка score 0–100, warnings/errors/recommendations. ProgrammingReview и Reviewer. Полностью локальный, без LLM. Результат ревью сохраняется в metadata.review. Обратная совместимость ProgrammingResult сохранена.
 
-## Sprint 015 — Model Configuration
-**Статус:** 🔄 planned
+## Sprint 015 — Model Management Platform
+**Статус:** ✅ completed
 
-Настройка и переключение LLM-моделей в Programming Engine.
+Создан ModelManager — единая точка доступа к моделям. Модели хранятся в БД (таблицы `models` и `model_assignments`). Администратор управляет моделями через Admin UI: синхронизация каталога с OpenRouter, назначение моделей по ролям (chat, programming, reviewer, academy, summarizer, vision). OpenRouterProvider получает модель через ModelManager. Ни один модуль не знает конкретного имени модели. Полная обратная совместимость сохранена.
 
 ## Sprint 016 — MCP Integration
 **Статус:** 🔄 planned

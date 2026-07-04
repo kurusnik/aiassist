@@ -20,8 +20,19 @@ if (process.env.NODE_ENV === 'production') {
 const openrouter = require('./openrouter');
 const { requireAuth, requireAdmin } = require('./middleware/auth');
 const PasswordManager = require('./services/passwordManager');
+const modelManager = require('./services/models/ModelManager');
 const multer = require('multer');
 const fs = require('fs');
+
+// Авто-миграция таблиц ModelManager при старте
+(async () => {
+  try {
+    await modelManager.ensureTables();
+    console.log('[ModelManager] Tables ready');
+  } catch (err) {
+    console.error('[ModelManager] Table init error:', err.message);
+  }
+})();
 
 // RAG сервисы
 const rag = require('./services/rag');
@@ -1054,6 +1065,57 @@ app.delete('/api/admin/models/:id', requireAdmin, (req, res) => {
   } catch (err) {
     console.error('DELETE /api/admin/models/:id error:', err);
     res.status(500).json({ error: 'internal_error' });
+  }
+});
+
+// ========== MODEL MANAGEMENT (Sprint 015) ==========
+
+// Получить каталог моделей из БД
+app.get('/api/admin/models/catalog', requireAdmin, async (req, res) => {
+  try {
+    const models = await modelManager.getAvailableModels();
+    res.json({ success: true, models });
+  } catch (err) {
+    console.error('GET /api/admin/models/catalog error:', err);
+    res.status(500).json({ error: 'internal_error' });
+  }
+});
+
+// Синхронизация каталога с OpenRouter
+app.post('/api/admin/models/sync', requireAdmin, async (req, res) => {
+  try {
+    const result = await modelManager.syncFromOpenRouter();
+    res.json({ success: true, synced: result.synced, message: `Синхронизировано ${result.synced} моделей` });
+  } catch (err) {
+    console.error('POST /api/admin/models/sync error:', err);
+    res.status(500).json({ error: err.message || 'internal_error' });
+  }
+});
+
+// Получить назначения моделей
+app.get('/api/admin/models/assignments', requireAdmin, async (req, res) => {
+  try {
+    const assignments = await modelManager.getAssignments();
+    const roles = modelManager.getRoles();
+    res.json({ success: true, assignments, roles });
+  } catch (err) {
+    console.error('GET /api/admin/models/assignments error:', err);
+    res.status(500).json({ error: 'internal_error' });
+  }
+});
+
+// Назначить модель роли
+app.put('/api/admin/models/assignments', requireAdmin, async (req, res) => {
+  try {
+    const { role, modelId } = req.body;
+    if (!role || !modelId) {
+      return res.status(400).json({ error: 'role и modelId обязательны' });
+    }
+    const result = await modelManager.setModel(role, modelId);
+    res.json({ success: true, assignment: result });
+  } catch (err) {
+    console.error('PUT /api/admin/models/assignments error:', err);
+    res.status(500).json({ error: err.message || 'internal_error' });
   }
 });
 

@@ -603,11 +603,52 @@
   <div id="models-tab" class="tab-content">
     <h2>Управление моделями</h2>
     <div id="models-message"></div>
-    
-    <button class="btn btn-add" onclick="showAddModelModal()">+ Добавить модель</button>
-    
-    <div id="models-list">
-      <div class="model-item">Загрузка...</div>
+
+    <div class="tabs" style="margin-bottom: 15px;">
+      <button class="tab-btn active" onclick="showModelsSubTab('catalog')">Каталог моделей</button>
+      <button class="tab-btn" onclick="showModelsSubTab('assignments')">Назначение моделей</button>
+    </div>
+
+    <!-- Каталог моделей -->
+    <div id="models-catalog" style="display: block;">
+      <button class="btn btn-primary" onclick="syncModels()" style="margin-bottom: 15px;">Обновить каталог</button>
+      <div style="overflow-x: auto;">
+        <table>
+          <thead>
+            <tr>
+              <th>Название</th>
+              <th>Provider</th>
+              <th>Context</th>
+              <th>Prompt</th>
+              <th>Completion</th>
+              <th>Vision</th>
+              <th>Reasoning</th>
+              <th>Tools</th>
+              <th>Статус</th>
+            </tr>
+          </thead>
+          <tbody id="models-catalog-table">
+            <tr><td colspan="9">Загрузка...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Назначение моделей -->
+    <div id="models-assignments" style="display: none;">
+      <div id="assignments-message"></div>
+      <table>
+        <thead>
+          <tr>
+            <th>Роль</th>
+            <th>Модель</th>
+          </tr>
+        </thead>
+        <tbody id="models-assignments-table">
+          <tr><td colspan="2">Загрузка...</td></tr>
+        </tbody>
+      </table>
+      <button class="btn btn-primary" onclick="saveAssignments()" style="margin-top: 15px;">Сохранить</button>
     </div>
   </div>
   
@@ -735,27 +776,6 @@
     </div>
   </div>
   
-  <!-- Модальное окно добавления модели -->
-  <div id="add-model-modal" class="modal">
-    <div class="modal-content">
-      <h2>Добавить модель</h2>
-      <form id="add-model-form">
-        <div class="form-group">
-          <label>ID модели:</label>
-          <input type="text" id="model-id" placeholder="например: openai/gpt-5.2" required>
-        </div>
-        <div class="form-group">
-          <label>Название:</label>
-          <input type="text" id="model-name" placeholder="например: GPT-5.2" required>
-        </div>
-        <div class="modal-buttons">
-          <button type="button" class="btn" onclick="closeAddModelModal()">Отмена</button>
-          <button type="submit" class="btn btn-add">Добавить</button>
-        </div>
-      </form>
-    </div>
-  </div>
-
   <!-- Вкладка RAG База Знаний -->
   <div id="rag-tab" class="tab-content">
     <h2>🧠 RAG База Знаний</h2>
@@ -834,7 +854,7 @@
       document.getElementById(`${tabName}-tab`).classList.add('active');
       
       if (tabName === 'users') loadUsers();
-      if (tabName === 'models') loadModels();
+      if (tabName === 'models') { loadModelsCatalog(); loadModelsAssignments(); }
       if (tabName === 'rag') { loadRagProjects(); loadRagStats(); }
     }
     
@@ -1000,103 +1020,159 @@
       }
     }
     
-    // Загрузка моделей
-    async function loadModels() {
+    // Переключение подвкладок моделей
+    function showModelsSubTab(subTab) {
+      document.querySelectorAll('#models-tab .tab-btn').forEach(btn => btn.classList.remove('active'));
+      document.getElementById('models-catalog').style.display = subTab === 'catalog' ? 'block' : 'none';
+      document.getElementById('models-assignments').style.display = subTab === 'assignments' ? 'block' : 'none';
+      document.querySelector(`#models-tab .tab-btn[onclick*='${subTab}']`).classList.add('active');
+      if (subTab === 'catalog') loadModelsCatalog();
+      if (subTab === 'assignments') loadModelsAssignments();
+    }
+
+    // Загрузка каталога моделей
+    async function loadModelsCatalog() {
       try {
-        const response = await fetch('/api/admin/models', { credentials: 'include' });
+        const response = await fetch('/api/admin/models/catalog', { credentials: 'include' });
         if (!response.ok) {
-          if (response.status === 401 || response.status === 403) {
-            window.location.href = '/login.html';
-            return;
-          }
-          throw new Error('Ошибка загрузки моделей');
+          if (response.status === 401 || response.status === 403) { window.location.href = '/login.html'; return; }
+          throw new Error('Ошибка загрузки каталога');
         }
-        const models = await response.json();
-        renderModels(models);
+        const data = await response.json();
+        renderModelsCatalog(data.models);
       } catch (err) {
         document.getElementById('models-message').innerHTML = `<div class="error">${err.message}</div>`;
       }
     }
-    
-    // Отображение моделей
-    function renderModels(models) {
-      const container = document.getElementById('models-list');
-      if (models.length === 0) {
-        container.innerHTML = '<div class="model-item">Нет моделей</div>';
+
+    function renderModelsCatalog(models) {
+      const tbody = document.getElementById('models-catalog-table');
+      if (!models || models.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="9">Нет моделей. Нажмите "Обновить каталог" для синхронизации с OpenRouter.</td></tr>';
         return;
       }
-      
-      container.innerHTML = models.map(model => `
-        <div class="model-item">
-          <div>
-            <strong>${escapeHtml(model.name)}</strong>
-            <br><small>${escapeHtml(model.id)}</small>
-          </div>
-          <button class="btn btn-delete" onclick="deleteModel('${escapeHtml(model.id)}')">Удалить</button>
-        </div>
+      tbody.innerHTML = models.map(m => `
+        <tr>
+          <td>${escapeHtml(m.name || m.id)}<br><small>${escapeHtml(m.id)}</small></td>
+          <td>${escapeHtml(m.provider || '-')}</td>
+          <td>${m.context_length ? (m.context_length / 1000).toFixed(0) + 'K' : '-'}</td>
+          <td>${m.pricing_prompt ? '$' + parseFloat(m.pricing_prompt).toFixed(6) : '-'}</td>
+          <td>${m.pricing_completion ? '$' + parseFloat(m.pricing_completion).toFixed(6) : '-'}</td>
+          <td>${m.supports_vision ? '✅' : '-'}</td>
+          <td>${m.supports_reasoning ? '✅' : '-'}</td>
+          <td>${m.supports_tools ? '✅' : '-'}</td>
+          <td><span class="${m.active ? 'status-approved' : 'status-pending'}">${m.active ? 'Активна' : 'Неактивна'}</span></td>
+        </tr>
       `).join('');
     }
-    
-    // Показать модальное окно добавления модели
-    function showAddModelModal() {
-      document.getElementById('model-id').value = '';
-      document.getElementById('model-name').value = '';
-      document.getElementById('add-model-modal').classList.add('active');
-    }
-    
-    function closeAddModelModal() {
-      document.getElementById('add-model-modal').classList.remove('active');
-    }
-    
-    // Добавление модели
-    document.getElementById('add-model-form').onsubmit = async (e) => {
-      e.preventDefault();
-      const id = document.getElementById('model-id').value;
-      const name = document.getElementById('model-name').value;
-      
+
+    // Синхронизация с OpenRouter
+    async function syncModels() {
+      const msgDiv = document.getElementById('models-message');
+      msgDiv.innerHTML = '<div class="loading">Синхронизация с OpenRouter...</div>';
       try {
-        const response = await fetch('/api/admin/models', {
+        const response = await fetch('/api/admin/models/sync', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({ id, name })
-        });
-        
-        if (!response.ok) {
-          const data = await response.json();
-          throw new Error(data.error || 'Ошибка добавления');
-        }
-        
-        closeAddModelModal();
-        document.getElementById('models-message').innerHTML = '<div class="success">Модель добавлена</div>';
-        loadModels();
-      } catch (err) {
-        document.getElementById('models-message').innerHTML = `<div class="error">${err.message}</div>`;
-      }
-    };
-    
-    // Удаление модели
-    async function deleteModel(modelId) {
-      if (!confirm('Вы уверены, что хотите удалить эту модель?')) return;
-      
-      try {
-        const response = await fetch(`/api/admin/models/${encodeURIComponent(modelId)}`, {
-          method: 'DELETE',
           credentials: 'include'
         });
-        
-        if (!response.ok) {
-          const data = await response.json();
-          throw new Error(data.error || 'Ошибка удаления');
+        const data = await response.json();
+        if (data.success) {
+          msgDiv.innerHTML = `<div class="success">${data.message}</div>`;
+          loadModelsCatalog();
+        } else {
+          msgDiv.innerHTML = `<div class="error">${data.error || 'Ошибка синхронизации'}</div>`;
         }
-        
-        document.getElementById('models-message').innerHTML = '<div class="success">Модель удалена</div>';
-        loadModels();
       } catch (err) {
-        document.getElementById('models-message').innerHTML = `<div class="error">${err.message}</div>`;
+        msgDiv.innerHTML = `<div class="error">${err.message}</div>`;
       }
     }
-    
+
+    // Загрузка назначений моделей
+    let allModels = [];
+    let currentAssignments = [];
+
+    async function loadModelsAssignments() {
+      try {
+        const [catRes, assignRes] = await Promise.all([
+          fetch('/api/admin/models/catalog', { credentials: 'include' }),
+          fetch('/api/admin/models/assignments', { credentials: 'include' })
+        ]);
+        if (!catRes.ok || !assignRes.ok) {
+          if (catRes.status === 401 || assignRes.status === 401 || catRes.status === 403 || assignRes.status === 403) {
+            window.location.href = '/login.html'; return;
+          }
+          throw new Error('Ошибка загрузки');
+        }
+        const catData = await catRes.json();
+        const assignData = await assignRes.json();
+        allModels = catData.models || [];
+        currentAssignments = assignData.assignments || [];
+        const roles = assignData.roles || [];
+        renderModelsAssignments(roles);
+      } catch (err) {
+        document.getElementById('assignments-message').innerHTML = `<div class="error">${err.message}</div>`;
+      }
+    }
+
+    function renderModelsAssignments(roles) {
+      const tbody = document.getElementById('models-assignments-table');
+      const assignMap = {};
+      currentAssignments.forEach(a => { assignMap[a.role] = a.model_id; });
+
+      if (!roles || roles.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="2">Нет ролей</td></tr>';
+        return;
+      }
+
+      const roleLabels = { chat: 'Chat', programming: 'Programming', reviewer: 'Reviewer', academy: 'Academy', summarizer: 'Summarizer', vision: 'Vision' };
+
+      tbody.innerHTML = roles.map(role => `
+        <tr>
+          <td><strong>${roleLabels[role] || role}</strong></td>
+          <td>
+            <select id="assign-${role}" style="width: 100%;">
+              <option value="">— Не назначена —</option>
+              ${allModels.map(m => `
+                <option value="${escapeHtml(m.id)}" ${(assignMap[role] === m.id) ? 'selected' : ''}>
+                  ${escapeHtml(m.name || m.id)}
+                </option>
+              `).join('')}
+            </select>
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    // Сохранение назначений
+    async function saveAssignments() {
+      const roles = ['chat', 'programming', 'reviewer', 'academy', 'summarizer', 'vision'];
+      const msgDiv = document.getElementById('assignments-message');
+      msgDiv.innerHTML = '<div class="loading">Сохранение...</div>';
+
+      try {
+        for (const role of roles) {
+          const select = document.getElementById(`assign-${role}`);
+          if (!select) continue;
+          const modelId = select.value;
+          if (!modelId) continue;
+          const response = await fetch('/api/admin/models/assignments', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ role, modelId })
+          });
+          if (!response.ok) {
+            const data = await response.json();
+            throw new Error(data.error || `Ошибка назначения ${role}`);
+          }
+        }
+        msgDiv.innerHTML = '<div class="success">Назначения сохранены</div>';
+        loadModelsAssignments();
+      } catch (err) {
+        msgDiv.innerHTML = `<div class="error">${err.message}</div>`;
+      }
+    }
+
     // Выход
     async function logout() {
       try {
