@@ -30,40 +30,55 @@
 
 Создан ExecutionPipeline — оркестратор выполнения. Последовательно проходит по шагам ExecutionPlan, получает провайдера через ProviderManager, вызывает его, сохраняет результат в ExecutionContext. Добавлен executionLog.
 
-## v0.7 — Filesystem Provider
+## Sprint 010 — RAG Integration
+**Статус:** ✅ completed
+
+Интеграция существующей RAG-системы в Programming Engine через RagProvider. RagProvider.execute() вызывает `rag.prepareRagContext()`.
+
+## Sprint 011 — Project Context Foundation
+**Статус:** ✅ completed
+
+Создан ProjectContextService, ExecutionContext расширен полями projectId и projectContext. API принимает projectId, UI показывает селектор проекта.
+
+## Sprint 012 — Project Context Integration
+**Статус:** ✅ completed
+
+ProjectContextService использует реальные источники: projects, messages, attachments, document_embeddings. В PromptBuilder добавлена секция [PROJECT].
+
+## Sprint 013 — Context Collector
+**Статус:** ✅ completed
+
+Создан ContextCollector — единый слой подготовки данных перед Pipeline. Providers переведены на collectedData с сохранением fallback.
+
+## Sprint 014 — Reviewer Engine
+**Статус:** ✅ completed
+
+Модуль проверки результата: эвристический анализ кода (наличие, языковые конструкции, соответствие запросу), оценка score 0–100, warnings/errors/recommendations. ProgrammingReview и Reviewer. Полностью локальный, без LLM. Результат ревью сохраняется в metadata.review. Обратная совместимость ProgrammingResult сохранена.
+
+## Sprint 015 — Model Configuration
 **Статус:** 🔄 planned
 
-Реализация FilesystemProvider: чтение файлов проекта, поиск примеров, интеграция с ExecutionContext.
+Настройка и переключение LLM-моделей в Programming Engine.
 
-## v0.8 — Prompt Builder
+## Sprint 016 — MCP Integration
 **Статус:** 🔄 planned
 
-Построение промпта для LLM на основе ProgrammingTask и ProgrammingContext. Шаблоны для каждого типа задачи.
+Подключение MCP-провайдера для доступа к внешним данным.
 
-## v0.9 — OpenRouter Integration
+## Sprint 017 — Conversation Memory
 **Статус:** 🔄 planned
 
-Подключение OpenRouter к Programming Engine. Отправка промпта, получение ответа, обработка ошибок и таймаутов.
+Использование истории диалогов для контекста задач.
 
-## v0.10 — MCP RSV Data
+## Sprint 018 — Prompt Templates
 **Статус:** 🔄 planned
 
-Подключение MCP-провайдера для доступа к данным РСВ (расчёт страховых взносов). Интеграция с Context Collector.
+Шаблоны промптов для разных типов задач.
 
-## v0.11 — RAG Integration
+## v1.0 — AI Programming Assistant
 **Статус:** 🔄 planned
 
-Интеграция существующей RAG-системы в Programming Engine. Контекст из базы знаний для задач 1С, SQL, backend.
-
-## v0.12 — Reviewer
-**Статус:** 🔄 planned
-
-Модуль проверки результата: синтаксический анализ, соответствие задаче, проверка безопасности. Локальный анализатор без LLM.
-
-## v1.0 — AI 1C Developer
-**Статус:** 🔄 planned
-
-Полноценный AI-ассистент для разработчика 1С. Pipeline: запрос → анализ → контекст → промпт → LLM → ревью → результат.
+Полноценный AI-ассистент для разработчика. Pipeline: запрос → анализ → контекст → промпт → LLM → ревью → результат.
 
 ---
 

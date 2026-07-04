@@ -11,6 +11,7 @@
 - ✅ **Выбор моделей** — GPT-5.2, Claude Opus 4.5, Claude Sonnet 4.5 и другие через OpenRouter
 - ✅ **Автоматическая суммаризация** — при >20 сообщений история сжимается с сохранением контекста
 - ✅ **Кастомный system prompt** — настройка поведения ассистента для каждого проекта
+- ✅ **Programming Engine** — модуль для инженерных задач: написание кода, ревью, поиск багов, отчёты
 - ✅ **Современный UI** — тёмная тема, адаптивный дизайн
 
 ### Безопасность
@@ -178,6 +179,29 @@ aiassist/
 ├── services/
 │   ├── passwordManager.js   # Управление паролями
 │   ├── ocr.js               # OCR сервис (Tesseract)
+│   ├── projectContext/       # Project Context система
+│   │   ├── ProjectContextService.js  # Фасад контекста проекта
+│   │   └── ContextCollector.js       # Сбор данных в collectedData
+│   ├── programming/          # Programming Engine
+│   │   ├── index.js          # ProgrammingService (фасад)
+│   │   ├── executionContext.js
+│   │   ├── executionPipeline.js
+│   │   ├── executionPlanner.js
+│   │   ├── promptBuilder.js
+│   │   ├── taskAnalyzer.js
+│   │   ├── providerManager.js
+│   │   ├── providers/        # Provider Framework
+│   │   │   ├── BaseProvider.js
+│   │   │   ├── InternalProvider.js
+│   │   │   ├── FilesystemProvider.js
+│   │   │   ├── RagProvider.js
+│   │   │   ├── McpProvider.js
+│   │   │   └── OpenRouterProvider.js
+│   │   ├── Task.js
+│   │   ├── Context.js
+│   │   ├── Result.js
+│   │   ├── ExecutionPlan.js
+│   │   └── rules/
 │   └── rag/                 # RAG семантический поиск
 │       ├── index.js         # Точка входа RAG
 │       ├── embedding.js     # Локальный эмбеддер (Transformers.js)

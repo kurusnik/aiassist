@@ -45,7 +45,7 @@ AiAssist — модульная AI-платформа, построенная в
 Основной модуль общения с AI. Принимает сообщение пользователя, собирает контекст (RAG, файлы проекта), отправляет запрос в OpenRouter и возвращает ответ. Реализован как поток (SSE) для стриминга токенов.
 
 ### Programming
-Модуль для инженерных задач: написание кода, ревью, поиск багов, формирование отчётов. Использует собственный pipeline (Task Analyzer → Context Collector → Prompt Builder → LLM → Reviewer → Result).
+Модуль для инженерных задач: написание кода, ревью, поиск багов, формирование отчётов. Использует собственный pipeline (Task Analyzer → Execution Planner → ProjectContextService → ContextCollector → ExecutionPipeline → ProviderManager → Providers → ProgrammingResult).
 
 ### Knowledge (RAG)
 Модуль управления базой знаний. Индексирует документы, файлы и справочники, предоставляет семантический поиск и контекст для Chat и Programming.
@@ -66,40 +66,31 @@ Programming Engine реализует сквозной pipeline обработк
 User
   │
   ▼
-Task Analyzer       — классифицирует запрос (тип, язык, домен), возвращает ProgrammingTask
+Task Analyzer
   │
   ▼
-Execution Planner   — составляет последовательность действий для выполнения задачи
+Execution Planner
   │
   ▼
-Project Context
+ProjectContextService
   │
   ▼
-Context Collector   — заполняет collectedData из projectContext
+ContextCollector
   │
   ▼
-Execution Context   — единый контейнер состояния выполнения через весь pipeline
+ExecutionContext
   │
   ▼
-Execution Pipeline  — оркестратор: проходит по шагам плана, вызывает провайдеров
+ExecutionPipeline
   │
   ▼
-Provider Manager    — реестр и маршрутизация к провайдерам
+ProviderManager
   │
   ▼
-Providers           — InternalProvider, FilesystemProvider, McpProvider, RagProvider, OpenRouterProvider
+Providers
   │
   ▼
-Prompt Builder      — собирает единый Prompt из ExecutionContext: секции SYSTEM, PROJECT, TASK, PROJECT FILES, EXAMPLES, RAG, OUTPUT
-  │
-  ▼
-LLM                 — отправляет запрос в OpenRouter, получает код/объяснение
-  │
-  ▼
-Reviewer            — проверяет результат на корректность, синтаксис, соответствие задаче
-  │
-  ▼
-Result              — возвращает итоговый ProgrammingResult пользователю
+ProgrammingResult
 ```
 
 ### Блоки pipeline
@@ -108,13 +99,47 @@ Result              — возвращает итоговый ProgrammingResult 
 |---|---|---|
 | **Task Analyzer** | Классифицирует текстовый запрос в структурированную ProgrammingTask. Не генерирует код. Не использует LLM. | ✅ Реализован |
 | **Execution Planner** | Составляет последовательность действий для выполнения задачи. Не выполняет действия. | ✅ Реализован |
-| **Execution Context** | Единый контейнер состояния выполнения. Хранит task, plan, collectedData, prompt, result. | ✅ Реализован |
-| **Execution Pipeline** | Оркестратор выполнения. Проходит по шагам плана, получает провайдера через ProviderManager, вызывает его, сохраняет результат в ExecutionContext. Не содержит бизнес-логики. | ✅ Реализован |
-| **Context Collector** | Заполняет executionContext.collectedData из projectContext. Не выполняет SQL, не вызывает RAG, не обращается к файловой системе. | ✅ Реализован |
-| **Prompt Builder** | Собирает единый Prompt из ExecutionContext по независимым секциям. Возвращает объект { sections, prompt, statistics }. | ✅ Реализован |
-| **LLM** | Отправляет промпт в OpenRouter, обрабатывает ответ. | 🔄 Запланирован |
-| **Reviewer** | Проверяет корректность результата: синтаксис, соответствие типу задачи, безопасность. | 🔄 Запланирован |
-| **Result** | Форматирует и возвращает результат пользователю. | 🔄 Запланирован |
+| **ProjectContextService** | Загружает контекст проекта из существующих сервисов (БД, RAG, attachments). | ✅ Реализован |
+| **ContextCollector** | Копирует данные из projectContext в collectedData. Не выполняет SQL, не вызывает RAG, не обращается к файловой системе. | ✅ Реализован |
+| **ExecutionContext** | Единый контейнер состояния выполнения. Хранит task, plan, collectedData, prompt, result. | ✅ Реализован |
+| **ExecutionPipeline** | Оркестратор выполнения. Проходит по шагам плана, получает провайдера через ProviderManager, вызывает его, сохраняет результат в ExecutionContext. | ✅ Реализован |
+| **ProviderManager** | Реестр и маршрутизация к провайдерам. | ✅ Реализован |
+| **InternalProvider** | Встроенные операции: сборка промпта, проверка результата, ревью. | ✅ Реализован |
+| **FilesystemProvider** | Доступ к файловой системе. При наличии collectedData.files использует готовые данные. | ✅ Реализован |
+| **RagProvider** | Поиск в базе знаний. При наличии collectedData.rag использует кешированные данные. | ✅ Реализован |
+| **OpenRouterProvider** | Отправка запросов в LLM через OpenRouter. | ✅ Реализован |
+| **Prompt Builder** | Собирает единый Prompt из ExecutionContext по независимым секциям. | ✅ Реализован |
+| **Reviewer** | Проверяет корректность результата: синтаксис, соответствие типу задачи, безопасность. | ✅ Реализован |
+| **McpProvider** | Доступ к данным через MCP-протокол. | 🔄 Запланирован |
+
+---
+
+## Источники данных
+
+Все данные проекта проходят через единый конвейер: внешний источник → ProjectContext → ContextCollector → collectedData → Providers.
+
+```
+Project
+  │
+  ▼
+ProjectContextService
+  │
+  ├── project       ← projects table (id, name, summary)
+  ├── history       ← messages table (последние 20 записей)
+  ├── files         ← attachments table (метаданные, без содержимого)
+  ├── rag           ← document_embeddings / message_embeddings (статистика)
+  └── metadata      ← projects table (createdAt, ownerId)
+  │
+  ▼
+ContextCollector → collectedData
+  │
+  ▼
+Providers ← читают collectedData, не выполняют внешних вызовов
+```
+
+### Правило
+
+Providers никогда не обращаются напрямую к БД или HTTP. Provider получает только ExecutionContext. Получение данных выполняется исключительно ContextCollector.
 
 ---
 
@@ -132,16 +157,13 @@ Programming Engine
     Providers      — конкретные реализации для каждого внешнего сервиса
 ```
 
-| Слой | Ответственность |
-|---|---|
-| **Programming Engine** | Не имеет прямых импортов внешних сервисов. Обращается к провайдерам только через ProviderManager. |
-| **ProviderManager** | Реестр провайдеров. Отвечает за регистрацию, поиск и получение провайдера по имени. Не содержит бизнес-логики. |
-| **BaseProvider** | Базовый класс для всех провайдеров. Содержит `name`, `description`, `capabilities`, метод `execute()`. |
-| **InternalProvider** | Встроенные операции: сборка промпта, проверка результата. |
-| **FilesystemProvider** | Доступ к файловой системе проекта: чтение файлов, поиск примеров. При наличии collectedData.files использует готовые данные. | ✅ Переведён |
-| **McpProvider** | Доступ к данным через MCP-протокол (например, данные РСВ). | 🟡 Не изменён |
-| **RagProvider** | Поиск в базе знаний через существующую RAG-систему. При наличии collectedData.rag использует кешированные данные. | ✅ Переведён |
-| **OpenRouterProvider** | Отправка запросов в LLM через OpenRouter. |
+| Provider | Статус | Источник данных |
+|---|---|---|---|
+| **InternalProvider** | ✅ Реализован | `executionContext` (prompt, result) |
+| **FilesystemProvider** | ✅ Переведён | `collectedData.files` (или fallback: файловая система) |
+| **RagProvider** | ✅ Переведён | `collectedData.rag` (или fallback: RAG-сервис) |
+| **MCP Provider** | 🔄 Запланирован | TBD |
+| **OpenRouterProvider** | ✅ Реализован | `executionContext` (prompt) |
 
 ---
 

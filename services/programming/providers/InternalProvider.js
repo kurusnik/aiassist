@@ -1,6 +1,7 @@
 const BaseProvider = require('./BaseProvider');
 const PromptBuilder = require('../promptBuilder');
 const ProgrammingResult = require('../Result');
+const Reviewer = require('../reviewer');
 
 class InternalProvider extends BaseProvider {
   constructor() {
@@ -36,6 +37,18 @@ class InternalProvider extends BaseProvider {
       } else {
         result.success = false;
         result.errors = [{ message: llmData.message || 'No code generated from LLM' }];
+      }
+
+      const reviewer = new Reviewer();
+      const review = reviewer.review(context);
+      result.metadata.review = review.toJSON();
+
+      if (!result.success && review.errors.length > 0) {
+        for (const err of review.errors) {
+          if (!result.errors.some(e => e.message === err)) {
+            result.errors.push({ message: err });
+          }
+        }
       }
 
       context.setResult(result);
