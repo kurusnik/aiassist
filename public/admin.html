@@ -574,6 +574,7 @@
     <button class="tab-btn" onclick="showTab('models')">Модели</button>
     <button class="tab-btn" onclick="showTab('passwords')">Пароли</button>
     <button class="tab-btn" onclick="showTab('rag')">🧠 База знаний</button>
+    <button class="tab-btn" onclick="showTab('llm')">AI &gt; LLM Provider</button>
   </div>
   
   <!-- Таблица пользователей -->
@@ -840,6 +841,62 @@
           <div class="stat-item"><div class="stat-value" id="rag-stat-code">-</div><div class="stat-label">Файлов кода</div></div>
         </div>
         <button class="btn btn-secondary" onclick="loadRagStats()" style="margin-top: 10px;">Обновить</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Вкладка LLM Provider -->
+  <div id="llm-tab" class="tab-content">
+    <h2>AI &gt; LLM Provider</h2>
+    <div id="llm-message"></div>
+
+    <div class="password-sections">
+      <div class="password-section">
+        <h3>Выбор провайдера</h3>
+        <div class="form-group">
+          <label>Активный провайдер</label>
+          <div id="llm-providers-list"></div>
+        </div>
+      </div>
+
+      <div class="password-section" id="llm-lmstudio-config" style="display: none;">
+        <h3>Настройки LM Studio</h3>
+        <div class="form-group">
+          <label for="llm-lmstudio-url">Base URL</label>
+          <input type="text" id="llm-lmstudio-url" value="http://localhost:1234/v1" placeholder="http://localhost:1234/v1">
+        </div>
+        <div class="form-group">
+          <label for="llm-lmstudio-model">Model</label>
+          <input type="text" id="llm-lmstudio-model" placeholder="Оставьте пустым для автоопределения">
+        </div>
+        <div class="form-group">
+          <button class="btn btn-primary" onclick="testLlmConnection('lmstudio')">Test Connection</button>
+        </div>
+        <div id="llm-test-result"></div>
+      </div>
+
+      <div class="password-section" id="llm-openai-config" style="display: none;">
+        <h3>Настройки OpenAI</h3>
+        <div class="form-group">
+          <label for="llm-openai-key">API Key</label>
+          <input type="password" id="llm-openai-key" placeholder="sk-...">
+        </div>
+        <div class="form-group">
+          <label for="llm-openai-url">Base URL</label>
+          <input type="text" id="llm-openai-url" value="https://api.openai.com/v1" placeholder="https://api.openai.com/v1">
+        </div>
+        <div class="form-group">
+          <label for="llm-openai-model">Model</label>
+          <input type="text" id="llm-openai-model" value="gpt-4o" placeholder="gpt-4o">
+        </div>
+        <div class="form-group">
+          <button class="btn btn-primary" onclick="testLlmConnection('openai')">Test Connection</button>
+        </div>
+        <div id="llm-openai-test-result"></div>
+      </div>
+
+      <div class="password-section">
+        <button class="btn btn-primary" onclick="saveLlmSettings()">Сохранить настройки</button>
       </div>
     </div>
   </div>
@@ -1567,6 +1624,157 @@
       }
     });
     
+    // ========== LLM PROVIDER FUNCTIONS ==========
+
+    let llmSettingsData = null;
+
+    async function loadLlmSettings() {
+      try {
+        const response = await fetch('/api/settings/llm', { credentials: 'include' });
+        if (!response.ok) {
+          if (response.status === 401 || response.status === 403) { window.location.href = '/login.html'; return; }
+          throw new Error('Ошибка загрузки настроек LLM');
+        }
+        const data = await response.json();
+        llmSettingsData = data;
+        renderLlmProviders(data);
+      } catch (err) {
+        document.getElementById('llm-message').innerHTML = `<div class="error">${err.message}</div>`;
+      }
+    }
+
+    function renderLlmProviders(data) {
+      const container = document.getElementById('llm-providers-list');
+      const providers = data.availableProviders || ['openai', 'openrouter', 'lmstudio'];
+      const activeProvider = data.activeProvider || 'openrouter';
+      const config = data.config || {};
+
+      const labels = { openai: 'OpenAI', openrouter: 'OpenRouter', lmstudio: 'LM Studio' };
+
+      container.innerHTML = providers.map(name => `
+        <label style="display: block; padding: 10px; margin: 5px 0; background: #f8f9fa; border-radius: 4px; cursor: pointer; border: 2px solid ${activeProvider === name ? '#007bff' : 'transparent'};">
+          <input type="radio" name="llm-provider" value="${name}" ${activeProvider === name ? 'checked' : ''} onchange="onLlmProviderChange('${name}')" style="margin-right: 10px;">
+          <strong>${labels[name] || name}</strong>
+        </label>
+      `).join('');
+
+      onLlmProviderChange(activeProvider);
+    }
+
+    function onLlmProviderChange(provider) {
+      document.getElementById('llm-lmstudio-config').style.display = provider === 'lmstudio' ? 'block' : 'none';
+      document.getElementById('llm-openai-config').style.display = provider === 'openai' ? 'block' : 'none';
+
+      if (llmSettingsData && llmSettingsData.config) {
+        const cfg = llmSettingsData.config;
+        if (cfg.lmstudio) {
+          document.getElementById('llm-lmstudio-url').value = cfg.lmstudio.baseURL || 'http://localhost:1234/v1';
+          document.getElementById('llm-lmstudio-model').value = cfg.lmstudio.model || '';
+        }
+        if (cfg.openai) {
+          document.getElementById('llm-openai-key').value = cfg.openai.apiKey || '';
+          document.getElementById('llm-openai-url').value = cfg.openai.baseURL || 'https://api.openai.com/v1';
+          document.getElementById('llm-openai-model').value = cfg.openai.model || 'gpt-4o';
+        }
+      }
+    }
+
+    async function saveLlmSettings() {
+      const msgDiv = document.getElementById('llm-message');
+      msgDiv.innerHTML = '<div class="loading">Сохранение...</div>';
+
+      const selectedRadio = document.querySelector('input[name="llm-provider"]:checked');
+      if (!selectedRadio) {
+        msgDiv.innerHTML = '<div class="error">Выберите провайдера</div>';
+        return;
+      }
+
+      const activeProvider = selectedRadio.value;
+      const config = {};
+
+      if (activeProvider === 'lmstudio') {
+        config.lmstudio = {
+          baseURL: document.getElementById('llm-lmstudio-url').value.trim(),
+          model: document.getElementById('llm-lmstudio-model').value.trim()
+        };
+      } else if (activeProvider === 'openai') {
+        config.openai = {
+          apiKey: document.getElementById('llm-openai-key').value.trim(),
+          baseURL: document.getElementById('llm-openai-url').value.trim(),
+          model: document.getElementById('llm-openai-model').value.trim()
+        };
+      }
+
+      try {
+        const response = await fetch('/api/settings/llm', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ activeProvider, config })
+        });
+        const result = await response.json();
+        if (result.success) {
+          msgDiv.innerHTML = '<div class="success">Настройки сохранены</div>';
+          loadLlmSettings();
+        } else {
+          msgDiv.innerHTML = `<div class="error">${result.error || 'Ошибка сохранения'}</div>`;
+        }
+      } catch (err) {
+        msgDiv.innerHTML = `<div class="error">${err.message}</div>`;
+      }
+    }
+
+    async function testLlmConnection(provider) {
+      const config = {};
+      let resultDivId = 'llm-test-result';
+
+      if (provider === 'lmstudio') {
+        config.baseURL = document.getElementById('llm-lmstudio-url').value.trim();
+        config.model = document.getElementById('llm-lmstudio-model').value.trim();
+        resultDivId = 'llm-test-result';
+      } else if (provider === 'openai') {
+        config.apiKey = document.getElementById('llm-openai-key').value.trim();
+        config.baseURL = document.getElementById('llm-openai-url').value.trim();
+        config.model = document.getElementById('llm-openai-model').value.trim();
+        resultDivId = 'llm-openai-test-result';
+      }
+
+      const resultDiv = document.getElementById(resultDivId);
+      resultDiv.innerHTML = '<div class="loading"><div class="spinner"></div>Проверка соединения...</div>';
+
+      try {
+        const response = await fetch('/api/settings/llm/test', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ provider, config })
+        });
+        const result = await response.json();
+
+        if (result.status === 'ok') {
+          let modelsHtml = '';
+          if (result.modelsList && result.modelsList.length > 0) {
+            modelsHtml = '<br><small>Доступные модели:</small><br>' +
+              result.modelsList.map(m => '<small>• ' + m + '</small>').join('<br>');
+          }
+          resultDiv.innerHTML = `<div class="success">✅ Соединение установлено. Найдено моделей: ${result.models}${modelsHtml}</div>`;
+        } else {
+          resultDiv.innerHTML = `<div class="error">❌ Ошибка: ${result.message}</div>`;
+        }
+      } catch (err) {
+        resultDiv.innerHTML = `<div class="error">❌ Ошибка: ${err.message}</div>`;
+      }
+    }
+
+    // Обновляем showTab для загрузки LLM настроек
+    const originalShowTab2 = showTab;
+    showTab = function(tabName) {
+      originalShowTab2(tabName);
+      if (tabName === 'llm') {
+        loadLlmSettings();
+      }
+    };
+
     // Инициализация
     checkAuth().then(() => loadUsers());
   </script>

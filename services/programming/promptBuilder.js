@@ -65,6 +65,27 @@ class PromptBuilder {
   }
 
   _buildSystemSection(context) {
+    const task = context.task;
+    const isBsl = task && (task.language === 'bsl' || task.domain === '1c');
+
+    if (isBsl) {
+      return {
+        name: 'SYSTEM',
+        content: `[SYSTEM]
+Ты эксперт по платформе 1С:Предприятие 8, язык BSL.
+Код и объекты 1С — твоя основная специализация.
+
+ПРАВИЛА РАБОТЫ:
+1. Используй ТОЛЬКО метаданные, полученные через MCP.
+2. НЕ выдумывай объекты, реквизиты, формы, модули — если их нет в MCP-контексте, сообщи об этом.
+3. Каждый найденный объект сопровождай ссылкой: тип + имя + путь в дереве метаданных.
+4. Если задача — поиск: укажи полный путь, модуль, процедуру/функцию.
+5. Если задача — анализ: опиши структуру, связи, ключевые реквизиты.
+6. Не предлагай изменения в код, если не уверен в архитектуре объекта.
+7. Язык ответа — русский, технический, без воды.`
+      };
+    }
+
     return {
       name: 'SYSTEM',
       content: '[SYSTEM]\nТы опытный разработчик.\nСледуй архитектуре проекта.\nНе придумывай отсутствующие объекты.\nЕсли информации недостаточно — сообщи об этом.'
@@ -160,8 +181,36 @@ class PromptBuilder {
   }
 
   _buildMcpSection(context) {
-    const mcpData = context.collectedData && context.collectedData.collect_metadata;
-    if (!mcpData || Object.keys(mcpData).length === 0) return null;
+    const mcpSources = ['collect_metadata', 'search_metadata', 'get_object_structure', 'describe_metadata'];
+    let mcpData = null;
+
+    for (const source of mcpSources) {
+      const data = context.collectedData && context.collectedData[source];
+      if (data && data.metadata && Object.keys(data.metadata).length > 0) {
+        mcpData = data.metadata;
+        break;
+      }
+      if (data && Object.keys(data).length > 0) {
+        mcpData = data.metadata || data;
+        break;
+      }
+    }
+
+    if (!mcpData) {
+      for (const source of mcpSources) {
+        const data = context.mcpResults && context.mcpResults[source];
+        if (data && data.metadata && Object.keys(data.metadata).length > 0) {
+          mcpData = data.metadata;
+          break;
+        }
+        if (data && Object.keys(data).length > 0) {
+          mcpData = data.metadata || data;
+          break;
+        }
+      }
+    }
+
+    if (!mcpData) return null;
 
     const lines = ['[MCP CONTEXT]'];
     if (typeof mcpData === 'string') {
@@ -174,6 +223,16 @@ class PromptBuilder {
   }
 
   _buildOutputSection(context) {
+    const task = context.task;
+    const isBsl = task && (task.language === 'bsl' || task.domain === '1c');
+
+    if (isBsl) {
+      return {
+        name: 'OUTPUT REQUIREMENTS',
+        content: '[OUTPUT REQUIREMENTS]\nФормат ответа:\n1. Найденный объект (тип, имя, путь)\n2. Модуль / процедура\n3. Ключевые реквизиты (если применимо)\n4. Краткое описание\nНе использовать markdown кроме code block.\nВсе объекты должны быть из MCP-контекста.'
+      };
+    }
+
     return {
       name: 'OUTPUT REQUIREMENTS',
       content: '[OUTPUT REQUIREMENTS]\nСначала код.\nПотом объяснение.\nНе использовать markdown кроме code block.\nНе изменять существующий API.'

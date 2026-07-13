@@ -98,9 +98,11 @@ Providers
   │                           │
   │                    McpConnectionManager
   │                           │
-  │                    McpClientFactory
+  │                    McpToolClient
   │                           │
   │                    http / stdio 🔜 / tcp 🔜 / sse 🔜
+  │                           │
+  │                    RSV Data
   │
   ├── OpenRouterProvider ─── ModelManager ─── OpenRouter
   │
@@ -125,7 +127,7 @@ ProgrammingResult
 | **OpenRouterProvider** | Отправка запросов в LLM через OpenRouter. | ✅ Реализован |
 | **Prompt Builder** | Собирает единый Prompt из ExecutionContext по независимым секциям. | ✅ Реализован |
 | **Reviewer** | Проверяет корректность результата: синтаксис, соответствие типу задачи, безопасность. | ✅ Реализован |
-| **McpProvider** | Доступ к данным через MCP-протокол. Получает клиент через McpConnectionManager. | ✅ Реализован |
+| **McpProvider** | Доступ к данным через MCP-протокол. Получает клиент через McpConnectionManager. Вызов инструментов через McpToolClient. | ✅ Реализован |
 
 ---
 
@@ -171,12 +173,15 @@ Programming Engine
         ▼
     Providers      — конкретные реализации для каждого внешнего сервиса
         │
-        ├── MCP Provider ─── Infrastructure Layer
-        │                           │
-        │                    McpConnectionManager
-        │                           │
-        │                    McpClientFactory
-        │                           │
+  ├── MCP Provider ─── Infrastructure Layer
+  │                           │
+  │                    McpConnectionManager
+  │                           │
+  │                    McpToolClient
+  │                           │
+  │                    http / stdio 🔜 / tcp 🔜 / sse 🔜
+  │                           │
+  │                    RSV Data
 │                    http / stdio 🔜 / tcp 🔜 / sse 🔜
 │
 ├── OpenRouterProvider ─── ModelManager ─── OpenRouter
@@ -188,7 +193,7 @@ Programming Engine
 | **InternalProvider** | ✅ Реализован | `executionContext` (prompt, result) |
 | **FilesystemProvider** | ✅ Переведён | `collectedData.files` (или fallback: файловая система) |
 | **RagProvider** | ✅ Переведён | `collectedData.rag` (или fallback: RAG-сервис) |
-| **MCP Provider** | ✅ Реализован | `McpConnectionManager.getClient()` → `collectedData.collect_metadata` |
+| **MCP Provider** | ✅ Реализован | `McpConnectionManager` → `McpToolClient` → `collectedData.collect_metadata` |
 | **OpenRouterProvider** | ✅ Реализован | `executionContext` (prompt) |
 ```
 Programming Engine
@@ -210,7 +215,7 @@ Programming Engine
 | **InternalProvider** | ✅ Реализован | `executionContext` (prompt, result) |
 | **FilesystemProvider** | ✅ Переведён | `collectedData.files` (или fallback: файловая система) |
 | **RagProvider** | ✅ Переведён | `collectedData.rag` (или fallback: RAG-сервис) |
-| **MCP Provider** | ✅ Реализован | `collectedData.collect_metadata` (или MCP client) |
+| **MCP Provider** | ✅ Реализован | `collectedData.collect_metadata` (или McpToolClient → MCP) |
 | **OpenRouterProvider** | ✅ Реализован | `executionContext` (prompt) |
 
 ---

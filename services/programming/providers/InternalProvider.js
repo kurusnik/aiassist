@@ -16,7 +16,7 @@ class InternalProvider extends BaseProvider {
   async execute(step, context) {
     if (step.action === 'build_prompt') {
       const prompt = this.promptBuilder.build(context);
-      context.setPrompt(prompt);
+      context.prompt = prompt;
       return {
         success: true,
         provider: this.name,
@@ -27,7 +27,7 @@ class InternalProvider extends BaseProvider {
     }
 
     if (step.action === 'review_result') {
-      const llmData = context.getData('call_llm') || {};
+      const llmData = context.llmResponse || context.getData('call_llm') || {};
       const result = new ProgrammingResult();
 
       if (llmData.code) {
@@ -41,6 +41,7 @@ class InternalProvider extends BaseProvider {
 
       const reviewer = new Reviewer();
       const review = reviewer.review(context);
+      context.review = review;
       result.metadata.review = review.toJSON();
 
       if (!result.success && review.errors.length > 0) {
@@ -51,7 +52,7 @@ class InternalProvider extends BaseProvider {
         }
       }
 
-      context.setResult(result);
+      context.result = result;
 
       return {
         success: true,

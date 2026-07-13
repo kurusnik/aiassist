@@ -26,6 +26,8 @@ services:
       - POSTGRES_DB=ai_assistant
       - POSTGRES_USER=ai_user
       - POSTGRES_PASSWORD=ai_password
+    ports:
+      - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./migrations:/docker-entrypoint-initdb.d

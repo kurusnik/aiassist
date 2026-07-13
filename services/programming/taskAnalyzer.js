@@ -3,6 +3,8 @@ const TYPE_RULES = require('./rules/typeRules');
 const LANGUAGE_RULES = require('./rules/languageRules');
 const DOMAIN_RULES = require('./rules/domainRules');
 
+const METADATA_REQUIRED_TYPES = ['find_object', 'analyze_metadata', 'get_structure'];
+
 function extractTitle(text) {
   const cleaned = text.replace(/^(напиши|создай|сделай|разработай|объясни|проверь|измени|добавь|доработай|реализуй|модифицируй|расширь)\s*/i, '');
   return cleaned.length > 100 ? cleaned.substring(0, 100) + '...' : cleaned;
@@ -51,9 +53,18 @@ class TaskAnalyzer {
     const languageRule = classify(text, LANGUAGE_RULES);
     const domainRule = classify(text, DOMAIN_RULES);
 
-    const type = typeRule ? typeRule.type : 'unknown';
+    let type = typeRule ? typeRule.type : 'unknown';
     const language = languageRule ? languageRule.language : 'unknown';
     const domain = domainRule ? domainRule.domain : 'general';
+
+    // Metadata types require bsl + 1c context validation
+    if (METADATA_REQUIRED_TYPES.includes(type)) {
+      const hasBslContext = language === 'bsl' || domain === '1c';
+      if (!hasBslContext) {
+        type = 'unknown';
+      }
+    }
+
     const title = extractTitle(text);
 
     return new ProgrammingTask(type, {

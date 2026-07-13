@@ -17,13 +17,16 @@ if (process.env.NODE_ENV === 'production') {
   process.env.PGUSER = 'ai_user';
   process.env.PGPASSWORD = 'ai_password';
 }
-const openrouter = require('./openrouter');
+const llmService = require('./services/llm');
 const { requireAuth, requireAdmin } = require('./middleware/auth');
 const PasswordManager = require('./services/passwordManager');
 const modelManager = require('./services/models/ModelManager');
 const multer = require('multer');
 const fs = require('fs');
-const { connectionManager } = require('./services/mcp');
+const { connectionManager, mcpToolClient } = require('./services/mcp');
+const programmingService = require('./services/programming');
+const TaskRouter = require('./services/router/TaskRouter');
+const taskRouter = new TaskRouter();
 
 // Авто-миграция таблиц ModelManager при старте
 (async () => {
@@ -32,6 +35,15 @@ const { connectionManager } = require('./services/mcp');
     console.log('[ModelManager] Tables ready');
   } catch (err) {
     console.error('[ModelManager] Table init error:', err.message);
+  }
+})();
+
+(async () => {
+  try {
+    await llmService.ensureLlmTable();
+    console.log('[LLM] Settings table ready');
+  } catch (err) {
+    console.error('[LLM] Table init error:', err.message);
   }
 })();
 
@@ -108,59 +120,17 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok' });
 });
 
-// ========== OPENROUTER CREDITS ==========
+// ========== LLM CREDITS ==========
 
-// Получение баланса OpenRouter
-app.get('/api/credits', async (req, res) => {
+app.get('/api/credits', requireAuth, async (req, res) => {
   try {
-    const apiKey = process.env.OPENROUTER_API_KEY;
-    if (!apiKey) {
-      return res.status(500).json({ error: 'OPENROUTER_API_KEY not configured' });
+    const credits = await llmService.getCredits();
+    if (!credits) {
+      return res.json({ balance: null, spent: null, currency: 'USD', message: 'Credits not supported by current provider' });
     }
-
-    const response = await fetch('https://openrouter.ai/api/v1/credits', {
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json'
-      }
-    });
-
-    if (!response.ok) {
-      throw new Error(`OpenRouter API error: ${response.status}`);
-    }
-
-    const data = await response.json();
-    
-    // OpenRouter возвращает: { data: { total_credits: 15, total_usage: 5.56 } }
-    // balance = total_credits - total_usage
-    let balance = '0.00';
-    let totalUsage = '0.00';
-    
-    if (data?.data) {
-      const d = data.data;
-      
-      // Потрачено
-      if (typeof d.total_usage === 'number') {
-        totalUsage = d.total_usage.toFixed(2);
-      } else if (typeof d.total_usage === 'string') {
-        totalUsage = parseFloat(d.total_usage).toFixed(2);
-      }
-      
-      // Баланс = total_credits - total_usage
-      if (typeof d.total_credits === 'number' && typeof d.total_usage === 'number') {
-        balance = (d.total_credits - d.total_usage).toFixed(2);
-      } else if (typeof d.total_credits === 'string' && typeof d.total_usage === 'string') {
-        balance = (parseFloat(d.total_credits) - parseFloat(d.total_usage)).toFixed(2);
-      }
-    }
-    
-    res.json({
-      balance: balance,
-      spent: totalUsage,
-      currency: 'USD'
-    });
+    res.json(credits);
   } catch (error) {
-    console.error('Error fetching OpenRouter credits:', error);
+    console.error('Error fetching credits:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -517,14 +487,28 @@ app.get('/projects/:id/messages', requireAuth, async (req, res) => {
 
 // Список доступных моделей
 const AVAILABLE_MODELS = [
-  { id: 'arcee-ai/trinity-large-preview:free:online', name: 'ARcee free' },
+  { id: 'openai/gpt-4o-mini', name: 'GPT‑4o Mini (быстрая)' },
   { id: 'openai/gpt-5.2:online', name: 'GPT‑5.2 Base (универсальная)' },
   { id: 'openai/gpt-5.2-pro', name: 'GPT‑5.2 Pro (макс качество)' },
   { id: 'anthropic/claude-opus-4.5', name: 'Claude Opus 4.5 (SEO / сложные тексты)' },
   { id: 'anthropic/claude-sonnet-4.5', name: 'Claude Sonnet 4.5 (универсал)' },
 ];
 
-app.get('/models', (req, res) => {
+app.get('/models', async (req, res) => {
+  try {
+    const settings = await llmService.ProviderFactory.getSettings();
+    if (settings.activeProvider === 'lmstudio') {
+      const models = await llmService.listModels();
+      const list = (Array.isArray(models) ? models : [])
+        .filter(m => m.id)
+        .map(m => ({ id: m.id, name: m.id }));
+      if (list.length > 0) {
+        return res.json(list);
+      }
+    }
+  } catch (e) {
+    // fallback to static list
+  }
   res.json(AVAILABLE_MODELS);
 });
 
@@ -1082,10 +1066,10 @@ app.get('/api/admin/models/catalog', requireAdmin, async (req, res) => {
   }
 });
 
-// Синхронизация каталога с OpenRouter
+// Синхронизация каталога моделей через активный LLM Provider
 app.post('/api/admin/models/sync', requireAdmin, async (req, res) => {
   try {
-    const result = await modelManager.syncFromOpenRouter();
+    const result = await modelManager.syncModels();
     res.json({ success: true, synced: result.synced, message: `Синхронизировано ${result.synced} моделей` });
   } catch (err) {
     console.error('POST /api/admin/models/sync error:', err);
@@ -1142,6 +1126,49 @@ app.post('/api/admin/mcp/reload', requireAdmin, async (req, res) => {
   } catch (err) {
     console.error('POST /api/admin/mcp/reload error:', err);
     res.status(500).json({ error: err.message || 'internal_error' });
+  }
+});
+
+// ========== MCP TOOL CLIENT (Sprint 019) ==========
+
+app.get('/api/admin/mcp/ping', requireAdmin, async (req, res) => {
+  try {
+    const result = await mcpToolClient.ping();
+    res.json(result);
+  } catch (err) {
+    console.error('GET /api/admin/mcp/ping error:', err);
+    res.status(500).json({ error: 'internal_error' });
+  }
+});
+
+app.get('/api/admin/mcp/config', requireAdmin, async (req, res) => {
+  try {
+    const result = await mcpToolClient.config();
+    res.json(result);
+  } catch (err) {
+    console.error('GET /api/admin/mcp/config error:', err);
+    res.status(500).json({ error: 'internal_error' });
+  }
+});
+
+app.get('/api/admin/mcp/describe', requireAdmin, async (req, res) => {
+  try {
+    const result = await mcpToolClient.describe();
+    res.json(result);
+  } catch (err) {
+    console.error('GET /api/admin/mcp/describe error:', err);
+    res.status(500).json({ error: 'internal_error' });
+  }
+});
+
+app.get('/api/admin/mcp/help', requireAdmin, async (req, res) => {
+  try {
+    const topic = req.query.topic;
+    const result = await mcpToolClient.help(topic);
+    res.json(result);
+  } catch (err) {
+    console.error('GET /api/admin/mcp/help error:', err);
+    res.status(500).json({ error: 'internal_error' });
   }
 });
 
@@ -1294,7 +1321,38 @@ app.post('/assistant', requireAuth, async (req, res) => {
       return res.status(404).json({ error: 'Project not found' });
     }
 
-    const selectedModel = model || 'openai/gpt-5.2';
+    const selectedModel = model || 'openai/gpt-4o-mini';
+
+    // ========== TASK ROUTING ==========
+    const routing = taskRouter.detect([{ role: 'user', content: userMessageTrimmed }]);
+    if (routing.type === 'programming' && routing.confidence >= 0.7) {
+      console.log(`[Router] Routing to programming (type=${routing.programmingType}, domain=${routing.domain}, confidence=${routing.confidence})`);
+      try {
+        const progResult = await programmingService.executePipeline(userMessageTrimmed, projectId);
+        const fullReply = progResult.success
+          ? (progResult.explanation
+              ? (progResult.code ? `${progResult.code}\n\n${progResult.explanation}` : progResult.explanation)
+              : (progResult.code || 'Результат получен'))
+          : (progResult.errors && progResult.errors.length
+              ? progResult.errors.map(e => e.message || e).join('\n')
+              : 'Не удалось выполнить задачу');
+
+        await pool.query(
+          `INSERT INTO messages (project_id, role, content) VALUES ($1, $2, $3)`,
+          [projectId, 'user', userMessageTrimmed]
+        );
+        await pool.query(
+          `INSERT INTO messages (project_id, role, content) VALUES ($1, $2, $3)`,
+          [projectId, 'assistant', fullReply]
+        );
+
+        return res.json({ reply: fullReply, routing });
+      } catch (progErr) {
+        console.error('[Router] Programming pipeline error:', progErr);
+        // Fall through to standard chat on error
+      }
+    }
+    // ========== END TASK ROUTING ==========
 
     // 0) Вложения (опционально): подмешиваем содержимое текстовых файлов в контекст
 
@@ -1317,13 +1375,10 @@ app.post('/assistant', requireAuth, async (req, res) => {
     if (history.length > 20) {
       const oldMessages = history.slice(0, history.length - 10);
 
-      const summaryResponse = await openrouter.chat.completions.create({
-        model: selectedModel,
-        messages: [
+      const summaryResponse = await llmService.chat([
           { role: 'system', content: 'Кратко суммируй диалог. Сохрани факты и решения.' },
           ...oldMessages.map(m => ({ role: m.role, content: m.content }))
-        ]
-      });
+        ], { model: selectedModel });
 
       const summaryText = summaryResponse?.choices?.[0]?.message?.content || '';
 
@@ -1507,22 +1562,13 @@ app.post('/assistant', requireAuth, async (req, res) => {
     // 8) Запрос в модель (OpenRouter) с потоковой выдачей
     let stream;
     try {
-      stream = await openrouter.chat.completions.create(
-        {
-          model: selectedModel,
-          messages,
-          stream: true
-        },
-        {
-          signal: abortController.signal
-        }
-      );
-    } catch (e) {
-      // На случай, если установленная версия клиента не поддерживает options/signal.
-      stream = await openrouter.chat.completions.create({
+      stream = await llmService.stream(messages, {
         model: selectedModel,
-        messages,
-        stream: true
+        signal: abortController.signal
+      });
+    } catch (e) {
+      stream = await llmService.stream(messages, {
+        model: selectedModel
       });
     }
 
@@ -1795,138 +1841,6 @@ app.get('/api/rag/stats', requireAuth, async (req, res) => {
   }
 });
 
-// ========== RAG ENDPOINTS ==========
-
-// Индексирование текста
-app.post('/api/rag/index', requireAuth, async (req, res) => {
-  try {
-    const { projectId, content, fileName, metadata } = req.body;
-    const userId = req.session.userId;
-
-    if (!content) {
-      return res.status(400).json({ error: 'content обязателен' });
-    }
-
-    const result = await indexText({
-      text: content,
-      userId,
-      projectId: projectId || null,
-      fileName: fileName || 'unknown',
-      metadata: metadata || {}
-    });
-
-    if (result.success) {
-      res.json(result);
-    } else {
-      res.status(400).json(result);
-    }
-  } catch (error) {
-    console.error('[RAG] Index text error:', error);
-    res.status(500).json({ error: 'internal_error', details: error.message });
-  }
-});
-
-// Индексирование файла
-app.post('/api/rag/index-file', requireAuth, upload.single('file'), async (req, res) => {
-  try {
-    if (!req.file) {
-      return res.status(400).json({ error: 'file обязателен' });
-    }
-
-    const projectId = req.body.projectId ? parseInt(req.body.projectId) : null;
-    const userId = req.session.userId;
-
-    const result = await indexFile({
-      filePath: req.file.path,
-      userId,
-      projectId,
-      metadata: {
-        originalName: req.file.originalname,
-        mimeType: req.file.mimetype,
-        size: req.file.size
-      }
-    });
-
-    // Очистка временного файла
-    fs.unlinkSync(req.file.path);
-
-    if (result.success) {
-      res.json(result);
-    } else {
-      res.status(400).json(result);
-    }
-  } catch (error) {
-    console.error('[RAG] Index file error:', error);
-    
-    if (req.file && fs.existsSync(req.file.path)) {
-      fs.unlinkSync(req.file.path);
-    }
-    
-    res.status(500).json({ error: 'internal_error', details: error.message });
-  }
-});
-
-// Удаление документа из индекса
-app.delete('/api/rag/document/:id', requireAuth, async (req, res) => {
-  try {
-    const documentId = parseInt(req.params.id);
-    const userId = req.session.userId;
-
-    const result = await deleteDocument(documentId, userId);
-
-    if (result.success) {
-      res.json(result);
-    } else {
-      res.status(result.error === 'Access denied' ? 403 : 404).json(result);
-    }
-  } catch (error) {
-    console.error('[RAG] Delete error:', error);
-    res.status(500).json({ error: 'internal_error', details: error.message });
-  }
-});
-
-// Поиск по базе знаний
-app.get('/api/rag/search', requireAuth, async (req, res) => {
-  try {
-    const { q, projectId, limit, threshold, useHybrid } = req.query;
-
-    if (!q) {
-      return res.status(400).json({ error: 'Query parameter q is required' });
-    }
-
-    const searchFn = useHybrid === 'true' ? rag.search.hybridSearch : rag.search.vectorSearch;
-    
-    const results = await searchFn(q, {
-      projectId: projectId ? parseInt(projectId) : null,
-      userId: req.session.userId,
-      limit: limit ? parseInt(limit) : 5,
-      threshold: threshold ? parseFloat(threshold) : 0.7
-    });
-
-    res.json({
-      success: true,
-      query: q,
-      results,
-      count: results.length
-    });
-  } catch (error) {
-    console.error('[RAG] Search error:', error);
-    res.status(500).json({ error: 'internal_error', details: error.message });
-  }
-});
-
-// Статистика RAG
-app.get('/api/rag/stats', requireAuth, async (req, res) => {
-  try {
-    const userId = req.session.userId;
-    const result = await getStats(userId);
-    res.json(result);
-  } catch (error) {
-    console.error('[RAG] Stats error:', error);
-    res.status(500).json({ error: 'internal_error', details: error.message });
-  }
-});
-
 // ========== OCR ENDPOINT ==========
 
 // Распознавание текста с изображений с автоматической отправкой в AI
@@ -2018,18 +1932,9 @@ async function processAiRequest({ text, projectId, userId }) {
     // Вызов OpenRouter API
     let stream;
     try {
-      stream = await openrouter.chat.completions.create({
-        model: model,
-        messages: messages,
-        stream: false
-      });
+      stream = await llmService.chat(messages, { model, stream: false });
     } catch (e) {
-      // На случай, если установленная версия клиента не поддерживает options/signal.
-      stream = await openrouter.chat.completions.create({
-        model: model,
-        messages: messages,
-        stream: false
-      });
+      stream = await llmService.chat(messages, { model, stream: false });
     }
 
     const fullReply = stream?.choices?.[0]?.message?.content || '';
@@ -2063,8 +1968,6 @@ app.get('/admin.html', requireAdmin, (req, res) => {
 });
 
 // ========== PROGRAMMING ENGINE ==========
-
-const programmingService = require('./services/programming');
 
 app.get('/api/programming/status', (req, res) => {
   res.json(programmingService.getStatus());
@@ -2107,6 +2010,47 @@ app.post('/api/programming/execute', async (req, res) => {
     res.json(result);
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+// ========== LLM PROVIDER SETTINGS ==========
+
+app.get('/api/settings/llm', requireAdmin, async (req, res) => {
+  try {
+    const settings = await llmService.ProviderFactory.getSettings();
+    res.json(settings);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/settings/llm', requireAdmin, async (req, res) => {
+  try {
+    const { activeProvider, config } = req.body;
+    if (!activeProvider) {
+      return res.status(400).json({ error: 'activeProvider is required' });
+    }
+    await llmService.ProviderFactory.saveSettings(activeProvider, config || {});
+    res.json({ success: true, message: 'LLM provider settings saved' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/settings/llm/test', requireAdmin, async (req, res) => {
+  try {
+    const { provider } = req.body;
+    if (!provider) {
+      return res.status(400).json({ error: 'provider is required' });
+    }
+
+    const registry = require('./services/llm/registry');
+    const ProviderClass = registry.get(provider);
+    const instance = new ProviderClass(req.body.config || {});
+    const result = await instance.health();
+    res.json(result);
+  } catch (err) {
+    res.json({ status: 'error', message: err.message });
   }
 });
 

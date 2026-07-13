@@ -1,12 +1,12 @@
 const BaseProvider = require('./BaseProvider');
-const openrouter = require('../../../openrouter');
+const llmService = require('../../../services/llm');
 const modelManager = require('../../models/ModelManager');
 
 class OpenRouterProvider extends BaseProvider {
   constructor() {
     super(
       'openrouter',
-      'Отправка запросов в LLM через OpenRouter',
+      'Отправка запросов в LLM через активного провайдера',
       ['call_llm']
     );
   }
@@ -28,12 +28,10 @@ class OpenRouterProvider extends BaseProvider {
 
     try {
       const model = await modelManager.getModel('programming');
-      const completion = await openrouter.chat.completions.create({
-        model: model,
-        messages: [{ role: 'user', content: prompt }],
-        temperature: 0.3,
-        max_tokens: 4096
-      });
+      const completion = await llmService.chat(
+        [{ role: 'user', content: prompt }],
+        { model, temperature: 0.3, max_tokens: 4096 }
+      );
 
       const content = completion.choices?.[0]?.message?.content || '';
 
@@ -49,11 +47,14 @@ class OpenRouterProvider extends BaseProvider {
         if (!explanation) explanation = null;
       }
 
+      const responseData = { code, explanation, fullResponse: content };
+      context.llmResponse = responseData;
+
       return {
         success: true,
         provider: this.name,
         capability: step.action,
-        data: { code, explanation, fullResponse: content },
+        data: responseData,
         message: 'LLM call completed'
       };
     } catch (err) {
@@ -62,7 +63,7 @@ class OpenRouterProvider extends BaseProvider {
         provider: this.name,
         capability: step.action,
         data: {},
-        message: `OpenRouter API error: ${err.message}`
+        message: `LLM API error: ${err.message}`
       };
     }
   }

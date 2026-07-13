@@ -262,10 +262,14 @@ async function loadProjectSettings() {
   const res = await fetch('/projects/' + state.currentProjectId, { credentials: 'include' });
   const project = await res.json();
 
-  updateModel(project.model);
+  const modelSelect = document.getElementById('model');
+  const modelOption = modelSelect?.querySelector(`option[value="${CSS.escape(project.model)}"]`);
+  const model = modelOption ? project.model : (modelSelect?.options[0]?.value || project.model);
+
+  updateModel(model);
   updateSystemPrompt(project.system_prompt || '');
 
-  document.getElementById('model').value = project.model;
+  if (modelSelect) modelSelect.value = model;
   document.getElementById('systemPrompt').value =
     project.system_prompt || '';
 }

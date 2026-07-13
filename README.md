@@ -1,6 +1,6 @@
 # AI Assistant - Персональный AI-помощник
 
-Веб-приложение для работы с различными LLM-моделями через OpenRouter API с сохранением истории диалогов, авторизацией пользователей и админ-панелью.
+Веб-приложение для работы с различными LLM-моделями (OpenRouter, LM Studio, OpenAI) с сохранением истории диалогов, авторизацией пользователей и админ-панелью.
 
 ## 🚀 Возможности
 
@@ -8,10 +8,10 @@
 - ✅ **Авторизация** — регистрация и вход по логину/паролю с проверкой администратором
 - ✅ **Множественные проекты** — создание и управление проектами с индивидуальными настройками
 - ✅ **История диалогов** — сохранение в PostgreSQL с автоматической суммаризацией
-- ✅ **Выбор моделей** — GPT-5.2, Claude Opus 4.5, Claude Sonnet 4.5 и другие через OpenRouter
+- ✅ **Выбор моделей** — GPT-5.2, Claude Opus 4.5, Claude Sonnet 4.5 и другие (OpenRouter, LM Studio, OpenAI)
 - ✅ **Автоматическая суммаризация** — при >20 сообщений история сжимается с сохранением контекста
 - ✅ **Кастомный system prompt** — настройка поведения ассистента для каждого проекта
-- ✅ **Programming Engine** — модуль для инженерных задач: написание кода, ревью, поиск багов, отчёты
+- ✅ **Programming Agent** — модуль для инженерных задач: написание кода, ревью, поиск багов, поддержка BSL/1C с интеграцией MCP метаданных
 - ✅ **Современный UI** — тёмная тема, адаптивный дизайн
 
 ### Безопасность
@@ -38,14 +38,13 @@
 - ✅ **Кэширование OCR** — 24 часа для ускорения повторных запросов
 
 ### API
-- ✅ **SSE Streaming** — потоковая передача ответов (Server-Sent Events)
-- ✅ **OpenRouter Credits** — отображение баланса и расходов
+- ✅ **LLM Streaming** — потоковая передача ответов (Server-Sent Events)
 - ✅ **Health check** — `/health` endpoint для мониторинга
 
 ## 📋 Требования
 
 - Docker и Docker Compose
-- OpenRouter API ключ
+- OpenRouter API ключ (или LM Studio для локального запуска)
 
 ## 🛠️ Установка
 
@@ -66,8 +65,10 @@ cd aiassist
 # База данных (для Docker)
 DATABASE_URL=postgresql://ai_user:ai_password@db:5432/ai_assistant
 
-# OpenRouter
+# LLM провайдер (хотя бы один)
 OPENROUTER_API_KEY=your_openrouter_api_key_here
+# или для локального запуска:
+# LM_STUDIO_BASE_URL=http://host.docker.internal:1234/v1
 
 # Сессии
 SESSION_SECRET=your_random_secret_key_here
@@ -153,13 +154,13 @@ docker compose exec db psql -U ai_user -d ai_assistant -c "UPDATE users SET is_a
 
 ### Доступные модели
 
-| Модель | Описание |
-|--------|----------|
-| `arcee-ai/trinity-large-preview:free:online` | Бесплатная модель |
-| `openai/gpt-5.2:online` | Универсальная модель |
-| `openai/gpt-5.2-pro` | Максимальное качество |
-| `anthropic/claude-opus-4.5` | SEO и сложные тексты |
-| `anthropic/claude-sonnet-4.5` | Универсальная модель |
+| Модель | Провайдер | Описание |
+|--------|-----------|----------|
+| `openai/gpt-5.2:online` | OpenRouter | Универсальная модель |
+| `openai/gpt-5.2-pro` | OpenRouter | Максимальное качество |
+| `anthropic/claude-opus-4.5` | OpenRouter | SEO и сложные тексты |
+| `anthropic/claude-sonnet-4.5` | OpenRouter | Универсальная модель |
+| (любая локальная модель) | LM Studio | Локальный запуск |
 
 ## 📁 Структура проекта
 
@@ -167,7 +168,6 @@ docker compose exec db psql -U ai_user -d ai_assistant -c "UPDATE users SET is_a
 aiassist/
 ├── index.js                 # Основной сервер (Express)
 ├── db.js                    # Подключение к PostgreSQL
-├── openrouter.js            # Клиент OpenRouter API
 ├── package.json             # Зависимости и скрипты
 ├── docker-compose.yml       # Docker конфигурация
 ├── Dockerfile               # Образ приложения
@@ -177,37 +177,42 @@ aiassist/
 │   └── auth.js              # Middleware авторизации
 │
 ├── services/
-│   ├── passwordManager.js   # Управление паролями
-│   ├── ocr.js               # OCR сервис (Tesseract)
-│   ├── projectContext/       # Project Context система
-│   │   ├── ProjectContextService.js  # Фасад контекста проекта
-│   │   └── ContextCollector.js       # Сбор данных в collectedData
-│   ├── programming/          # Programming Engine
-│   │   ├── index.js          # ProgrammingService (фасад)
-│   │   ├── executionContext.js
-│   │   ├── executionPipeline.js
-│   │   ├── executionPlanner.js
-│   │   ├── promptBuilder.js
+│   ├── llm/                 # LLM сервис (ProviderFactory + провайдеры)
+│   │   ├── index.js         # LLMService (chat, stream)
+│   │   ├── ProviderFactory.js
+│   │   ├── register.js
+│   │   └── providers/
+│   │       ├── openrouter/
+│   │       ├── lmstudio/
+│   │       └── openai/
+│   ├── router/
+│   │   └── TaskRouter.js    # Маршрутизация chat / programming
+│   ├── programming/         # Programming Agent
+│   │   ├── index.js         # ProgrammingService (фасад)
 │   │   ├── taskAnalyzer.js
+│   │   ├── executionPlanner.js
+│   │   ├── executionPipeline.js
 │   │   ├── providerManager.js
-│   │   ├── providers/        # Provider Framework
+│   │   ├── promptBuilder.js
+│   │   ├── reviewer.js
+│   │   ├── providers/
 │   │   │   ├── BaseProvider.js
 │   │   │   ├── InternalProvider.js
 │   │   │   ├── FilesystemProvider.js
 │   │   │   ├── RagProvider.js
 │   │   │   ├── McpProvider.js
 │   │   │   └── OpenRouterProvider.js
-│   │   ├── Task.js
-│   │   ├── Context.js
-│   │   ├── Result.js
-│   │   ├── ExecutionPlan.js
 │   │   └── rules/
+│   ├── projectContext/       # Project Context система
+│   │   ├── ProjectContextService.js
+│   │   └── ContextCollector.js
+│   ├── mcp/                 # MCP connection manager
 │   └── rag/                 # RAG семантический поиск
-│       ├── index.js         # Точка входа RAG
-│       ├── embedding.js     # Локальный эмбеддер (Transformers.js)
-│       ├── search.js        # Векторный + гибридный поиск
-│       ├── ingestion.js     # Индексация документов
-│       └── chunking.js      # Разбивка текста на чанки
+│       ├── index.js
+│       ├── embedding.js
+│       ├── search.js
+│       ├── ingestion.js
+│       └── chunking.js
 │
 ├── scripts/
 │   ├── build.js             # Скрипт сборки
@@ -250,7 +255,6 @@ aiassist/
 |----------|-------|----------|
 | `/assistant` | POST | Отправить сообщение (поддерживает SSE) |
 | `/models` | GET | Список доступных моделей |
-| `/api/credits` | GET | Баланс OpenRouter |
 | `/api/ocr` | POST | Распознавание текста с изображения |
 
 ### Админ-панель (требуют прав администратора)
@@ -390,15 +394,17 @@ docker compose up -d --build
 
 ### Миграции
 
-Миграции находятся в папке `migrations/` и применяются автоматически при первом запуске контейнера:
+Миграции находятся в папке `migrations/` и применяются через `npm run migrate` (`scripts/run-migrations.js`):
 
 1. `000_initial_schema.sql` — основные таблицы (users, projects, messages, session)
 2. `001_add_auth.sql` — поля авторизации
 3. `002_add_attachments.sql` — таблица вложений
 4. `003_add_admin_fields.sql` — поля администратора (is_admin, is_approved)
 5. `004_password_change_logs.sql` — логирование изменений паролей
-6. `005_add_rag_embeddings.sql` — векторные представления для RAG
+6. `005_add_rag_embeddings.sql` — векторные представления для RAG + pgvector
 7. `006_embedding_dimension_384.sql` — переход на 384d (multilingual-e5-small)
+8. `007_model_management.sql` — управление моделями
+9. `008_llm_settings.sql` — настройки LLM провайдеров
 
 ## 🧠 RAG (Semantic Search)
 
@@ -408,7 +414,7 @@ docker compose up -d --build
 
 ```bash
 # 1. Применение миграции
-docker compose exec db psql -U ai_user -d ai_assistant -f /docker-entrypoint-initdb.d/005_add_rag_embeddings.sql
+docker compose exec app node scripts/run-migrations.js
 
 # 2. Настройка .env
 RAG_ENABLED=true
@@ -507,10 +513,9 @@ ISC
 
 3. **Проверьте переменные окружения в `.env`**
 
-4. **Убедитесь, что OpenRouter API ключ валиден:**
-   ```bash
-   docker compose exec app curl -H "Authorization: Bearer $OPENROUTER_API_KEY" https://openrouter.ai/api/v1/credits
-   ```
+4. **Убедитесь, что провайдер доступен:**
+   - OpenRouter: `curl -H "Authorization: Bearer $OPENROUTER_API_KEY" https://openrouter.ai/api/v1/credits`
+   - LM Studio: проверьте, что сервер запущен и доступен по `baseURL`
 
 5. **Пересоберите контейнер:**
    ```bash

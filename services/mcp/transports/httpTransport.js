@@ -9,13 +9,17 @@ class HttpMcpClient {
   }
 
   async getMetadata() {
+    return this.callTool('getMetadata');
+  }
+
+  async callTool(action, args = {}) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.timeout);
     try {
       const response = await fetch(this.url, {
         method: 'POST',
         headers: this.headers,
-        body: JSON.stringify({ action: 'getMetadata' }),
+        body: JSON.stringify({ action, ...args }),
         signal: controller.signal
       });
       if (!response.ok) {

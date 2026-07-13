@@ -29,7 +29,7 @@ class Reviewer {
   review(context) {
     const review = new ProgrammingReview();
     const task = context.task || {};
-    const llmData = context.getData('call_llm') || {};
+    const llmData = context.llmResponse || context.getData('call_llm') || {};
     const code = llmData.code || '';
     const resultObj = context.result || {};
     const explanation = llmData.explanation || resultObj.explanation || '';
@@ -81,6 +81,8 @@ class Reviewer {
     } else if (review.passed) {
       review.recommendations.push('Consider addressing warnings to improve quality');
     }
+
+    context.review = review;
 
     return review;
   }

@@ -1,10 +1,9 @@
 const ProgrammingTask = require('./Task');
-const ProgrammingContext = require('./Context');
+const ProgrammingContext = require('./ProgrammingContext');
 const ProgrammingResult = require('./Result');
 const ProgrammingProvider = require('./Provider');
 const TaskAnalyzer = require('./taskAnalyzer');
 const ExecutionPlanner = require('./executionPlanner');
-const ExecutionContext = require('./executionContext');
 const ExecutionPipeline = require('./executionPipeline');
 const ProviderManager = require('./providerManager');
 const ProjectContextService = require('../projectContext/ProjectContextService');
@@ -66,7 +65,7 @@ class ProgrammingService {
   createExecutionContext(text) {
     const task = this.analyzer.analyze(text);
     const plan = this.planner.plan(task);
-    const context = new ExecutionContext();
+    const context = new ProgrammingContext();
     context.setTask(task);
     context.setPlan(plan);
     return { task, plan, context: context.toJSON() };
@@ -75,11 +74,11 @@ class ProgrammingService {
   async createExecutionContextWithProject(text, projectId) {
     const task = this.analyzer.analyze(text);
     const plan = this.planner.plan(task);
-    const context = new ExecutionContext();
+    const context = new ProgrammingContext();
     context.setTask(task);
     context.setPlan(plan);
     if (projectId != null) {
-      context.setProjectId(projectId);
+      context.projectId = projectId;
       const projectContext = await this.projectContextService.load(projectId);
       context.setProjectContext(projectContext);
     }
@@ -89,11 +88,11 @@ class ProgrammingService {
   async executePipeline(text, projectId) {
     const task = this.analyzer.analyze(text);
     const plan = this.planner.plan(task);
-    const context = new ExecutionContext();
+    const context = new ProgrammingContext();
     context.setTask(task);
     context.setPlan(plan);
     if (projectId != null) {
-      context.setProjectId(projectId);
+      context.projectId = projectId;
       const projectContext = await this.projectContextService.load(projectId);
       context.setProjectContext(projectContext);
     }
