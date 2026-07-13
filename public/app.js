@@ -2,8 +2,7 @@ import { state } from './state.js';
 import {
   setMessages,
   addMessage,
-  setLoading,
-  updateModel
+  setLoading
 } from './stateActions.js';
 import { updateSystemPrompt } from './stateActions.js';
 
@@ -12,25 +11,6 @@ import { updateSystemPrompt } from './stateActions.js';
 async function loadModels() {
   const res = await fetch('/models', { credentials: 'include' });
   const models = await res.json();
-
-  const select = document.getElementById('model');
-  select.innerHTML = '';
-
-  models.forEach(m => {
-    const option = document.createElement('option');
-    option.value = m.id;
-    option.textContent = m.name;
-    select.appendChild(option);
-  });
-
-  select.addEventListener('change', e => {
-    updateModel(e.target.value);
-  });
-
-  // initial model
-  if (select.options.length > 0) {
-    updateModel(select.value);
-  }
 }
 
 // ---------- загрузка истории ----------
@@ -65,8 +45,7 @@ async function sendMessage() {
     credentials: 'include',
     body: JSON.stringify({
       projectId: state.currentProjectId,
-      userMessage: text,
-      model: state.projectSettings.model
+      userMessage: text
     })
   });
 
@@ -262,14 +241,7 @@ async function loadProjectSettings() {
   const res = await fetch('/projects/' + state.currentProjectId, { credentials: 'include' });
   const project = await res.json();
 
-  const modelSelect = document.getElementById('model');
-  const modelOption = modelSelect?.querySelector(`option[value="${CSS.escape(project.model)}"]`);
-  const model = modelOption ? project.model : (modelSelect?.options[0]?.value || project.model);
-
-  updateModel(model);
   updateSystemPrompt(project.system_prompt || '');
-
-  if (modelSelect) modelSelect.value = model;
   document.getElementById('systemPrompt').value =
     project.system_prompt || '';
 }
@@ -660,7 +632,6 @@ document.getElementById('savePrompt')
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
       body: JSON.stringify({
-        model: state.projectSettings.model,
         systemPrompt: state.projectSettings.systemPrompt
       })
     });

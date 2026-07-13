@@ -24,9 +24,12 @@ ProviderFactory                          │      ├── MCP Providers (1C me
   │                                      │      ├── FilesystemProvider
   ▼                                      │      ├── RagProvider
 OpenRouter / LM Studio / OpenAI          │      ├── InternalProvider (PromptBuilder, Reviewer)
-                                         │      └── OpenRouterProvider (→ llmService)
-                                         │
-                                         └── Reviewer (code quality check)
+  │                                      │      └── OpenRouterProvider (→ llmService)
+  ▼                                      │
+ModelManager.getModel('chat')            └── ModelManager.getModel('programming')
+  │
+  ▼
+selectedModel → llmService.stream()
 ```
 
 ### LLM Providers
@@ -38,6 +41,21 @@ OpenRouter / LM Studio / OpenAI          │      ├── InternalProvider (Pr
 | `openai` | OpenAI API | `OPENAI_API_KEY` env |
 
 Active provider selected via `llm_settings` table (PostgreSQL), resolved by `ProviderFactory.getActiveProvider()`.
+
+### ModelManager
+
+`ModelManager` (`services/models/ModelManager.js`) — единая точка доступа к моделям для всех ролей:
+
+| Роль | Назначение | Используется в |
+|------|------------|----------------|
+| `chat` | Основной чат | `POST /assistant` |
+| `programming` | Programming Agent | `OpenRouterProvider` |
+| `reviewer` | Ревью кода | `Reviewer` |
+| `summarizer` | Суммаризация | — |
+| `vision` | Vision-задачи | — |
+| `academy` | Академия | — |
+
+Модели назначаются администратором через админ-панель (Models → Assignments). Пользователь не выбирает модель в чате — модель для `chat` назначается администратором, что исключает конфликт между селектором в UI и `model_assignments`.
 
 ---
 

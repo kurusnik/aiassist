@@ -1647,11 +1647,6 @@
     <!-- Sidebar -->
     <aside class="panel sidebar">
       <div class="section">
-        <h3>Модель</h3>
-        <select id="model"></select>
-      </div>
-
-      <div class="section">
         <h3>Проект</h3>
         <div class="row">
           <select id="projectSelect" class="grow"></select>
@@ -2025,7 +2020,6 @@
       models: [],
       projects: [],
       currentProjectId: null,
-      selectedModel: localStorage.getItem('selectedModel') || '',
       systemPrompt: localStorage.getItem('systemPrompt') || '',
       pendingAttachments: [] // [{ id, original_name, filename, size, url }]
     };
@@ -2099,11 +2093,11 @@
       return r.json();
     }
 
-    async function sendAssistantStream(projectId, userMessage, model, attachmentIds = [], onDelta) {
+    async function sendAssistantStream(projectId, userMessage, attachmentIds = [], onDelta) {
       const r = await fetch('/assistant', {
         method: 'POST',
         headers: {'Content-Type':'application/json', 'X-Stream':'1'},
-        body: JSON.stringify({ projectId, userMessage, model, attachmentIds })
+        body: JSON.stringify({ projectId, userMessage, attachmentIds })
       });
       if (!r.ok) {
         const err = await r.json().catch(()=>({}));
@@ -2212,21 +2206,6 @@
     async function refreshModels() {
       const list = await loadModels();
       state.models = list;
-      const sel = $('#model');
-      sel.innerHTML = '';
-      list.forEach(m => {
-        const opt = document.createElement('option');
-        opt.value = m.id;
-        opt.textContent = `${m.name} — ${m.id}`;
-        if (!state.selectedModel) state.selectedModel = m.id;
-        if (m.id === state.selectedModel) opt.selected = true;
-        sel.appendChild(opt);
-      });
-      localStorage.setItem('selectedModel', state.selectedModel);
-      sel.addEventListener('change', () => {
-        state.selectedModel = sel.value;
-        localStorage.setItem('selectedModel', state.selectedModel);
-      });
     }
 
     async function refreshProjects(selectIdToKeep=null) {
@@ -2419,7 +2398,6 @@
         const reply = await sendAssistantStream(
           state.currentProjectId,
           text,
-          state.selectedModel,
           attachmentIds,
           (_delta, full) => {
             if (!inserted) {

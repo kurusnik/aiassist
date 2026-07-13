@@ -403,6 +403,34 @@ app.get('/projects/:id', requireAuth, async (req, res) => {
   }
 });
 
+// Обновить настройки проекта
+app.put('/projects/:id', requireAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.session.userId;
+    const { systemPrompt } = req.body;
+
+    const checkResult = await pool.query(
+      'SELECT id FROM projects WHERE id = $1 AND user_id = $2',
+      [id, userId]
+    );
+
+    if (checkResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Project not found' });
+    }
+
+    await pool.query(
+      'UPDATE projects SET system_prompt = $1 WHERE id = $2',
+      [systemPrompt || null, id]
+    );
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error('PUT /projects/:id error:', err);
+    res.status(500).json({ error: 'internal_error' });
+  }
+});
+
 // Удалить проект (сначала его сообщения)
 app.delete('/projects/:id', requireAuth, async (req, res) => {
   try {
@@ -1321,7 +1349,7 @@ app.post('/assistant', requireAuth, async (req, res) => {
       return res.status(404).json({ error: 'Project not found' });
     }
 
-    const selectedModel = model || 'openai/gpt-4o-mini';
+    const selectedModel = model || await modelManager.getModel('chat');
 
     // ========== TASK ROUTING ==========
     const routing = taskRouter.detect([{ role: 'user', content: userMessageTrimmed }]);
