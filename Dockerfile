@@ -1,44 +1,36 @@
-# Этап 1: Загрузка модели
-FROM node:18-slim AS model-stage
-WORKDIR /app
-COPY package*.json ./
-RUN npm install --omit=dev
-COPY . .
-RUN mkdir -p .cache/transformers && timeout 600 node scripts/preload-model.mjs || echo "Preload completed or timed out"
+FROM node:18-alpine
 
-# Этап 2: Основной образ
-FROM node:18-slim AS stage-1
+# РЈСЃС‚Р°РЅРѕРІРєР° СЃРёСЃС‚РµРјРЅС‹С… Р·Р°РІРёСЃРёРјРѕСЃС‚РµР№
+RUN apk add --no-cache \
+    curl \
+    postgresql-client \
+    && rm -rf /var/cache/apk/*
 
-# Установка системных зависимостей
-RUN apt-get update && apt-get install -y --no-install-recommends curl postgresql-client ca-certificates && rm -rf /var/lib/apt/lists/*
-
-# Создание директорий
+# РЎРѕР·РґР°РЅРёРµ РґРёСЂРµРєС‚РѕСЂРёР№
 WORKDIR /app
 
-# Копируем package.json и package-lock.json
+# РљРѕРїРёСЂСѓРµРј package.json Рё package-lock.json
 COPY package*.json ./
 
-# Установка зависимостей
-RUN npm install --omit=dev
+# РЈСЃС‚Р°РЅРѕРІРєР° Р·Р°РІРёСЃРёРјРѕСЃС‚РµР№
+RUN npm ci --only=production && npm cache clean --force
 
-# Копируем кэш модели из предыдущего этапа
-COPY --from=model-stage /app/.cache/transformers /app/.cache/transformers
-
-# Копируем исходный код
+# РљРѕРїРёСЂСѓРµРј РёСЃС…РѕРґРЅС‹Р№ РєРѕРґ
 COPY . .
 
-# Создаем директории для логов и загрузок
+# РЎРѕР·РґР°РµРј РґРёСЂРµРєС‚РѕСЂРёРё РґР»СЏ Р»РѕРіРѕРІ Рё Р·Р°РіСЂСѓР·РѕРє
 RUN mkdir -p uploads logs
 
-# Устанавливаем права доступа
+# РЈСЃС‚Р°РЅР°РІР»РёРІР°РµРј РїСЂР°РІР° РґРѕСЃС‚СѓРїР°
 RUN chown -R node:node /app
 USER node
 
-# Открываем порт
+# РћС‚РєСЂС‹РІР°РµРј РїРѕСЂС‚
 EXPOSE 3000
 
 # Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 CMD curl -f http://localhost:3000/health || exit 1
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+  CMD curl -f http://localhost:3000/health || exit 1
 
-# Запуск приложения
+# Р—Р°РїСѓСЃРє РїСЂРёР»РѕР¶РµРЅРёСЏ
 CMD ["node", "index.js"]
