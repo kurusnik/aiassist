@@ -1,10 +1,10 @@
-FROM node:18-alpine
+FROM node:18-slim
 
 # Установка системных зависимостей
-RUN apk add --no-cache \
+RUN apt-get update && apt-get install -y \
     curl \
     postgresql-client \
-    && rm -rf /var/cache/apk/*
+    && rm -rf /var/lib/apt/lists/*
 
 # Создание директорий
 WORKDIR /app

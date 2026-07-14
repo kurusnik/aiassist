@@ -2,6 +2,11 @@ certbot
 node_modules
 .git
 .gitignore
-logs
-uploads
 .env
+npm-debug.log
+
+models/
+*.gguf
+
+uploads/
+logs/

@@ -37,7 +37,25 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-
+  llama:
+   container_name: llama
+   image: ghcr.io/ggml-org/llama.cpp:server
+   command:
+     - -m
+     - /models/Qwen2.5-Coder-7B-Instruct-Q4_K_M.gguf
+     - --host
+     - 0.0.0.0
+     - --port
+     - "8080"
+     - -c
+     - "4096"
+     - -t
+     - "4"
+   volumes:
+     - ./models:/models
+   ports:
+     - "8080:8080"
+   restart: unless-stopped
   nginx:
     image: nginx:alpine
     container_name: nginx
