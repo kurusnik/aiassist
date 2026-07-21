@@ -37,12 +37,14 @@
     "dotenv": "^17.2.4",
     "express": "^5.2.1",
     "express-session": "^1.19.0",
+    "https-proxy-agent": "^7.0.6",
     "iconv-lite": "^0.7.2",
     "mammoth": "^1.7.2",
     "multer": "^2.0.2",
     "openai": "^6.21.0",
     "pdf-parse": "^1.1.1",
     "pg": "^8.18.0",
+    "socks-proxy-agent": "^8.0.5",
     "tesseract.js": "^7.0.0"
   },
   "devDependencies": {

@@ -1,5 +1,9 @@
 const OpenAI = require('openai');
 const BaseProvider = require('../../BaseProvider');
+const { createProxyAgent } = require('../../proxyAgent');
+
+// EXPERIMENTAL FEATURE: Proxy Layer — см. services/llm/proxyAgent.js
+// Весь proxy-код ниже является экспериментальным и временно не используется в рабочей версии.
 
 class LMStudioProvider extends BaseProvider {
   constructor(config = {}) {
@@ -10,13 +14,38 @@ class LMStudioProvider extends BaseProvider {
     }
     this._baseURL = baseURL;
     this._model = config.model || '';
+    this._proxyConfig = config.proxy;
+    this._clientPromise = null;
+    this._proxyAgentPromise = null;
     if (!this._baseURL) {
       throw new Error('LM Studio provider requires Base URL. Specify the server address in settings (e.g. http://localhost:1234/v1).');
     }
-    this._client = new OpenAI({
-      apiKey: config.apiKey || 'not-needed',
+  }
+
+  async _getProxyAgent() {
+    if (!this._proxyAgentPromise) {
+      this._proxyAgentPromise = createProxyAgent(this._proxyConfig);
+    }
+    return this._proxyAgentPromise;
+  }
+
+  async _getClient() {
+    if (!this._clientPromise) {
+      this._clientPromise = this._initClient();
+    }
+    return this._clientPromise;
+  }
+
+  async _initClient() {
+    const agent = await this._getProxyAgent();
+    const clientOptions = {
+      apiKey: this._apiKey || 'not-needed',
       baseURL: this._baseURL
-    });
+    };
+    if (agent) {
+      clientOptions.httpAgent = agent;
+    }
+    return new OpenAI(clientOptions);
   }
 
   get name() {
@@ -24,7 +53,8 @@ class LMStudioProvider extends BaseProvider {
   }
 
   async chat(messages, options = {}) {
-    const completion = await this._client.chat.completions.create({
+    const client = await this._getClient();
+    const completion = await client.chat.completions.create({
       model: options.model || this._model,
       messages,
       temperature: options.temperature ?? 0.7,
@@ -35,7 +65,8 @@ class LMStudioProvider extends BaseProvider {
   }
 
   async stream(messages, options = {}) {
-    const stream = await this._client.chat.completions.create(
+    const client = await this._getClient();
+    const stream = await client.chat.completions.create(
       {
         model: options.model || this._model,
         messages,
@@ -51,7 +82,8 @@ class LMStudioProvider extends BaseProvider {
   }
 
   async listModels() {
-    const response = await this._client.models.list();
+    const client = await this._getClient();
+    const response = await client.models.list();
     return response.data || [];
   }
 

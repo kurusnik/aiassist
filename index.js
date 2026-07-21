@@ -2042,11 +2042,24 @@ app.post('/api/programming/execute', async (req, res) => {
 });
 
 // ========== LLM PROVIDER SETTINGS ==========
+//
+// EXPERIMENTAL FEATURE: Proxy Layer
+// Sanitization of proxy.password and apiKey is preserved for future use.
+// See services/llm/proxyAgent.js for details.
 
 app.get('/api/settings/llm', requireAdmin, async (req, res) => {
   try {
     const settings = await llmService.ProviderFactory.getSettings();
-    res.json(settings);
+    const sanitized = JSON.parse(JSON.stringify(settings));
+    if (sanitized.config) {
+      for (const providerName of Object.keys(sanitized.config)) {
+        const cfg = sanitized.config[providerName];
+        if (cfg.apiKey) cfg.apiKey = '';
+        // EXPERIMENTAL FEATURE: Proxy Layer — password strip preserved
+        if (cfg.proxy && cfg.proxy.password) cfg.proxy.password = '';
+      }
+    }
+    res.json(sanitized);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -2058,7 +2071,28 @@ app.post('/api/settings/llm', requireAdmin, async (req, res) => {
     if (!activeProvider) {
       return res.status(400).json({ error: 'activeProvider is required' });
     }
-    await llmService.ProviderFactory.saveSettings(activeProvider, config || {});
+
+    const existing = await llmService.ProviderFactory._loadSettings();
+    const mergedConfig = config || {};
+
+    for (const providerName of Object.keys(mergedConfig)) {
+      const incoming = mergedConfig[providerName];
+      const existingProvider = (existing.config && existing.config[providerName]) || {};
+
+      if (incoming.apiKey === '') {
+        incoming.apiKey = existingProvider.apiKey || '';
+      }
+
+      // EXPERIMENTAL FEATURE: Proxy Layer — password merge preserved
+      if (incoming.proxy) {
+        const existingProxy = existingProvider.proxy || {};
+        if (incoming.proxy.password === '') {
+          incoming.proxy.password = existingProxy.password || '';
+        }
+      }
+    }
+
+    await llmService.ProviderFactory.saveSettings(activeProvider, mergedConfig);
     res.json({ success: true, message: 'LLM provider settings saved' });
   } catch (err) {
     res.status(500).json({ error: err.message });

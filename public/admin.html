@@ -260,6 +260,18 @@
       font-size: 12px;
       margin-top: 5px;
     }
+
+    .proxy-section {
+      margin-top: 15px;
+      padding: 15px;
+      background: #f0f7ff;
+      border-radius: 6px;
+      border: 1px solid #d0e3f7;
+    }
+
+    .proxy-section input[type="checkbox"] {
+      margin-right: 8px;
+    }
     
     .btn-primary {
       background: #007bff;
@@ -869,6 +881,13 @@
           <label for="llm-lmstudio-model">Model</label>
           <input type="text" id="llm-lmstudio-model" placeholder="Оставьте пустым для автоопределения">
         </div>
+        <!--
+        EXPERIMENTAL FEATURE: Proxy Layer
+        Функциональность временно отключена. См. services/llm/proxyAgent.js
+        <div class="proxy-section">
+          ...
+        </div>
+        -->
         <div class="form-group">
           <button class="btn btn-primary" onclick="testLlmConnection('lmstudio')">Test Connection</button>
         </div>
@@ -889,11 +908,31 @@
           <label for="llm-openai-model">Model</label>
           <input type="text" id="llm-openai-model" value="gpt-4o" placeholder="gpt-4o">
         </div>
+        <!--
+        EXPERIMENTAL FEATURE: Proxy Layer
+        <div class="proxy-section">
+          ...
+        </div>
+        -->
         <div class="form-group">
           <button class="btn btn-primary" onclick="testLlmConnection('openai')">Test Connection</button>
         </div>
         <div id="llm-openai-test-result"></div>
       </div>
+
+      <!--
+      EXPERIMENTAL FEATURE: Proxy Layer
+      <div class="password-section" id="llm-openrouter-config" style="display: none;">
+        <h3>Прокси для OpenRouter</h3>
+        <div class="proxy-section">
+          ...
+        </div>
+        <div class="form-group">
+          <button class="btn btn-primary" onclick="testLlmConnection('openrouter')">Test Connection</button>
+        </div>
+        <div id="llm-openrouter-test-result"></div>
+      </div>
+      -->
 
       <div class="password-section">
         <button class="btn btn-primary" onclick="saveLlmSettings()">Сохранить настройки</button>
@@ -1661,6 +1700,20 @@
       onLlmProviderChange(activeProvider);
     }
 
+    /*
+    EXPERIMENTAL FEATURE: Proxy Layer
+    Функциональность временно отключена.
+    При необходимости раскомментировать блоки proxy-section в HTML и функции ниже.
+    См. services/llm/proxyAgent.js
+
+    function getProxyConfig(prefix) { ... }
+    function setProxyFields(prefix, proxy) { ... }
+    function toggleLmStudioProxy() { ... }
+    function toggleOpenAIProxy() { ... }
+    function toggleOpenRouterProxy() { ... }
+    function getProxyTestConfig(prefix) { ... }
+    */
+
     function onLlmProviderChange(provider) {
       document.getElementById('llm-lmstudio-config').style.display = provider === 'lmstudio' ? 'block' : 'none';
       document.getElementById('llm-openai-config').style.display = provider === 'openai' ? 'block' : 'none';
@@ -1696,14 +1749,18 @@
         config.lmstudio = {
           baseURL: document.getElementById('llm-lmstudio-url').value.trim(),
           model: document.getElementById('llm-lmstudio-model').value.trim()
+          // EXPERIMENTAL FEATURE: Proxy Layer — add proxy: getProxyConfig('llm-lmstudio')
         };
       } else if (activeProvider === 'openai') {
         config.openai = {
           apiKey: document.getElementById('llm-openai-key').value.trim(),
           baseURL: document.getElementById('llm-openai-url').value.trim(),
           model: document.getElementById('llm-openai-model').value.trim()
+          // EXPERIMENTAL FEATURE: Proxy Layer — add proxy: getProxyConfig('llm-openai')
         };
       }
+      // EXPERIMENTAL FEATURE: Proxy Layer — openrouter save block removed
+      // config.openrouter = { proxy: getProxyConfig('llm-openrouter') };
 
       try {
         const response = await fetch('/api/settings/llm', {
@@ -1724,6 +1781,19 @@
       }
     }
 
+    function getProxyTestConfig(prefix) {
+      const enabled = document.getElementById(prefix + '-proxy-enabled').checked;
+      if (!enabled) return undefined;
+      return {
+        enabled: true,
+        type: document.getElementById(prefix + '-proxy-type').value,
+        host: document.getElementById(prefix + '-proxy-host').value.trim(),
+        port: parseInt(document.getElementById(prefix + '-proxy-port').value, 10) || 0,
+        username: document.getElementById(prefix + '-proxy-username').value.trim(),
+        password: document.getElementById(prefix + '-proxy-password').value
+      };
+    }
+
     async function testLlmConnection(provider) {
       const config = {};
       let resultDivId = 'llm-test-result';
@@ -1731,13 +1801,17 @@
       if (provider === 'lmstudio') {
         config.baseURL = document.getElementById('llm-lmstudio-url').value.trim();
         config.model = document.getElementById('llm-lmstudio-model').value.trim();
+        // EXPERIMENTAL FEATURE: Proxy Layer — add config.proxy = getProxyTestConfig('llm-lmstudio')
         resultDivId = 'llm-test-result';
       } else if (provider === 'openai') {
         config.apiKey = document.getElementById('llm-openai-key').value.trim();
         config.baseURL = document.getElementById('llm-openai-url').value.trim();
         config.model = document.getElementById('llm-openai-model').value.trim();
+        // EXPERIMENTAL FEATURE: Proxy Layer — add config.proxy = getProxyTestConfig('llm-openai')
         resultDivId = 'llm-openai-test-result';
       }
+      // EXPERIMENTAL FEATURE: Proxy Layer — openrouter test connection removed
+      // else if (provider === 'openrouter') { ... }
 
       const resultDiv = document.getElementById(resultDivId);
       resultDiv.innerHTML = '<div class="loading"><div class="spinner"></div>Проверка соединения...</div>';

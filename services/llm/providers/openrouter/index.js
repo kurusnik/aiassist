@@ -1,19 +1,49 @@
 const OpenAI = require('openai');
+const https = require('https');
 const BaseProvider = require('../../BaseProvider');
+const { createProxyAgent } = require('../../proxyAgent');
+
+// EXPERIMENTAL FEATURE: Proxy Layer — см. services/llm/proxyAgent.js
+// Весь proxy-код ниже является экспериментальным и временно не используется в рабочей версии.
 
 class OpenRouterProvider extends BaseProvider {
   constructor(config = {}) {
     super();
     this._apiKey = config.apiKey || process.env.OPENROUTER_API_KEY || '';
-    this._baseURL = 'https://openrouter.ai/api/v1';
+    this._baseURL = 'https://api.mixroute.ai/v1';
     this._model = config.model || process.env.OPENROUTER_MODEL || 'openai/gpt-4o-mini';
+    this._proxyConfig = config.proxy;
+    this._clientPromise = null;
+    this._proxyAgentPromise = null;
     if (!this._apiKey) {
       throw new Error('OpenRouter API key missing. Set OPENROUTER_API_KEY environment variable or provide apiKey in settings.');
     }
-    this._client = new OpenAI({
+  }
+
+  async _getProxyAgent() {
+    if (!this._proxyAgentPromise) {
+      this._proxyAgentPromise = createProxyAgent(this._proxyConfig);
+    }
+    return this._proxyAgentPromise;
+  }
+
+  async _getClient() {
+    if (!this._clientPromise) {
+      this._clientPromise = this._initClient();
+    }
+    return this._clientPromise;
+  }
+
+  async _initClient() {
+    const agent = await this._getProxyAgent();
+    const clientOptions = {
       apiKey: this._apiKey,
       baseURL: this._baseURL
-    });
+    };
+    if (agent) {
+      clientOptions.httpAgent = agent;
+    }
+    return new OpenAI(clientOptions);
   }
 
   get name() {
@@ -21,7 +51,8 @@ class OpenRouterProvider extends BaseProvider {
   }
 
   async chat(messages, options = {}) {
-    const completion = await this._client.chat.completions.create({
+    const client = await this._getClient();
+    const completion = await client.chat.completions.create({
       model: options.model || this._model,
       messages,
       temperature: options.temperature ?? 0.7,
@@ -32,7 +63,8 @@ class OpenRouterProvider extends BaseProvider {
   }
 
   async stream(messages, options = {}) {
-    const stream = await this._client.chat.completions.create(
+    const client = await this._getClient();
+    const stream = await client.chat.completions.create(
       {
         model: options.model || this._model,
         messages,
@@ -48,7 +80,8 @@ class OpenRouterProvider extends BaseProvider {
   }
 
   async listModels() {
-    const response = await this._client.models.list();
+    const client = await this._getClient();
+    const response = await client.models.list();
     return response.data || [];
   }
 
@@ -69,18 +102,45 @@ class OpenRouterProvider extends BaseProvider {
   }
 
   async getCredits() {
-    const response = await fetch('https://openrouter.ai/api/v1/credits', {
-      headers: {
-        'Authorization': `Bearer ${this._apiKey}`,
-        'Content-Type': 'application/json'
+    const url = new URL('https://openrouter.ai/api/v1/credits');
+    const proxyAgent = await this._getProxyAgent();
+
+    const data = await new Promise((resolve, reject) => {
+      const options = {
+        hostname: url.hostname,
+        port: url.port || 443,
+        path: url.pathname,
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${this._apiKey}`,
+          'Content-Type': 'application/json'
+        }
+      };
+
+      if (proxyAgent) {
+        options.agent = proxyAgent;
       }
+
+      const req = https.request(options, (res) => {
+        let body = '';
+        res.on('data', chunk => { body += chunk; });
+        res.on('end', () => {
+          if (!res.statusCode || res.statusCode < 200 || res.statusCode >= 300) {
+            reject(new Error(`OpenRouter API error: ${res.statusCode}`));
+            return;
+          }
+          try {
+            resolve(JSON.parse(body));
+          } catch (e) {
+            reject(new Error('Invalid JSON response from OpenRouter'));
+          }
+        });
+      });
+
+      req.on('error', reject);
+      req.end();
     });
 
-    if (!response.ok) {
-      throw new Error(`OpenRouter API error: ${response.status}`);
-    }
-
-    const data = await response.json();
     let balance = '0.00';
     let totalUsage = '0.00';
 
