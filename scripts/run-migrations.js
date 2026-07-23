@@ -17,7 +17,8 @@ async function runMigrations() {
       '004_password_change_logs.sql',
       '005_add_rag_embeddings.sql',
       '006_embedding_dimension_384.sql',
-      '007_model_management.sql'
+      '007_model_management.sql',
+      '009_knowledge_schema.sql'
     ];
     
     let executedCount = 0;

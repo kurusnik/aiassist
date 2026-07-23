@@ -40,61 +40,88 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
-      font-family: Arial, sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(135deg, #0f1216 0%, #141a22 100%);
+      min-height: 100vh;
       max-width: 1200px;
-      margin: 20px auto;
-      padding: 0 20px;
-      background: #f5f5f5;
+      margin: 0 auto;
+      padding: 20px;
+      color: #e6edf3;
     }
     
     h1, h2 {
-      color: #333;
+      color: #e6edf3;
     }
     
+    h2 {
+      font-size: 28px;
+      margin-bottom: 10px;
+      background: linear-gradient(135deg, #4ea1ff, #7f5af0);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
     .header {
+      background: linear-gradient(180deg, #141a22, #18202a);
+      padding: 24px 30px;
+      border-radius: 14px;
+      margin-bottom: 20px;
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin-bottom: 20px;
-      padding-bottom: 10px;
-      border-bottom: 2px solid #ccc;
+      border: 1px solid #243041;
     }
+    
+    .header h1 { margin: 0; }
     
     .logout-btn {
-      background: #dc3545;
-      color: white;
-      padding: 8px 15px;
-      border: none;
-      border-radius: 4px;
+      background: #2a1518;
+      border: 1px solid #542127;
+      color: #ffb3b3;
+      padding: 10px 20px;
+      border-radius: 10px;
       cursor: pointer;
+      font-size: 14px;
+      font-weight: 500;
+      transition: .15s ease;
     }
-    
+    .logout-btn:hover { filter: brightness(1.1); }
+
     .tabs {
       display: flex;
       gap: 10px;
       margin-bottom: 20px;
+      flex-wrap: wrap;
     }
     
     .tab-btn {
       padding: 10px 20px;
-      background: #007bff;
-      color: white;
-      border: none;
-      border-radius: 4px;
+      background: #101722;
+      color: #e6edf3;
+      border: 1px solid #243041;
+      border-radius: 10px;
       cursor: pointer;
+      font-size: 14px;
+      font-weight: 500;
+      transition: .15s ease;
     }
+    .tab-btn:hover { border-color: #4ea1ff; }
     
     .tab-btn.active {
-      background: #0056b3;
+      background: linear-gradient(135deg, #3a7bd9, #7f5af0);
+      border-color: transparent;
+      color: #fff;
     }
     
     .tab-content {
       display: none;
-      background: white;
-      padding: 20px;
-      border-radius: 8px;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      background: linear-gradient(180deg, #141a22, #18202a);
+      padding: 30px;
+      border-radius: 14px;
+      border: 1px solid #243041;
+      margin-bottom: 20px;
     }
     
     .tab-content.active {
@@ -108,61 +135,100 @@
     }
     
     th, td {
-      padding: 10px;
+      padding: 12px 14px;
       text-align: left;
-      border-bottom: 1px solid #ddd;
-    }
-    
-    th {
-      background: #f8f9fa;
-      font-weight: bold;
-    }
-    
-    .status-approved {
-      color: green;
-      font-weight: bold;
-    }
-    
-    .status-pending {
-      color: orange;
-      font-weight: bold;
-    }
-    
-    .status-admin {
-      color: purple;
-      font-weight: bold;
-    }
-    
-    .btn {
-      padding: 6px 12px;
-      margin: 2px;
-      border: none;
-      border-radius: 4px;
-      cursor: pointer;
+      border-bottom: 1px solid #1a2230;
       font-size: 14px;
     }
     
+    th {
+      background: #0f141b;
+      font-weight: 600;
+      color: #9fb0c0;
+    }
+    
+    tr:hover td {
+      background: rgba(78, 161, 255, 0.03);
+    }
+
+    .status-approved {
+      color: #16c47f;
+      font-weight: 600;
+    }
+    
+    .status-pending {
+      color: #e6c84f;
+      font-weight: 600;
+    }
+    
+    .status-admin {
+      color: #7f5af0;
+      font-weight: 600;
+    }
+    
+    .btn {
+      padding: 10px 20px;
+      margin: 2px;
+      border: 1px solid #243041;
+      border-radius: 10px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 500;
+      background: #101722;
+      color: #e6edf3;
+      transition: .15s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      text-decoration: none;
+    }
+    .btn:hover { border-color: #4ea1ff; }
+    .btn:disabled { opacity: .5; cursor: not-allowed; border-color: #243041; }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #3a7bd9, #7f5af0);
+      border-color: transparent;
+      color: #fff;
+    }
+    .btn-primary:hover { filter: brightness(1.05); }
+    .btn-primary:disabled { filter: none; opacity: .6; }
+
+    .btn-secondary {
+      background: #101722;
+      border-color: #243041;
+      color: #9fb0c0;
+    }
+    .btn-secondary:hover { border-color: #4ea1ff; color: #e6edf3; }
+
     .btn-approve {
-      background: #28a745;
-      color: white;
+      background: #1a3a2a;
+      border-color: #2a5a3a;
+      color: #16c47f;
     }
-    
+    .btn-approve:hover { filter: brightness(1.1); }
+
     .btn-edit {
-      background: #007bff;
-      color: white;
+      background: #1a2a3a;
+      border-color: #2a3a5a;
+      color: #4ea1ff;
     }
-    
+    .btn-edit:hover { filter: brightness(1.1); }
+
     .btn-delete {
-      background: #dc3545;
-      color: white;
+      background: #2a1518;
+      border-color: #542127;
+      color: #ffb3b3;
     }
-    
+    .btn-delete:hover { filter: brightness(1.1); }
+
     .btn-add {
-      background: #28a745;
-      color: white;
+      background: #1a3a2a;
+      border-color: #2a5a3a;
+      color: #16c47f;
       padding: 10px 20px;
       margin-bottom: 10px;
     }
+    .btn-add:hover { filter: brightness(1.1); }
     
     .form-group {
       margin-bottom: 15px;
@@ -170,16 +236,31 @@
     
     .form-group label {
       display: block;
-      margin-bottom: 5px;
-      font-weight: bold;
+      margin-bottom: 6px;
+      font-weight: 600;
+      color: #9fb0c0;
     }
     
-    .form-group input {
+    .form-group input,
+    .form-group select,
+    .form-group textarea {
       width: 100%;
-      padding: 8px;
-      border: 1px solid #ddd;
-      border-radius: 4px;
+      padding: 12px 14px;
+      background: #0f141b;
+      color: #e6edf3;
+      border: 1px solid #243041;
+      border-radius: 10px;
+      outline: none;
+      font-size: 14px;
+      font-family: inherit;
+      transition: .15s ease;
       box-sizing: border-box;
+    }
+    .form-group input:focus,
+    .form-group select:focus,
+    .form-group textarea:focus {
+      border-color: #4ea1ff;
+      box-shadow: 0 0 0 3px rgba(78,161,255,.15);
     }
     
     .modal {
@@ -189,9 +270,10 @@
       left: 0;
       width: 100%;
       height: 100%;
-      background: rgba(0,0,0,0.5);
+      background: rgba(0,0,0,0.7);
       justify-content: center;
       align-items: center;
+      z-index: 1000;
     }
     
     .modal.active {
@@ -199,10 +281,11 @@
     }
     
     .modal-content {
-      background: white;
-      padding: 20px;
-      border-radius: 8px;
-      width: 400px;
+      background: linear-gradient(180deg, #141a22, #18202a);
+      padding: 30px;
+      border-radius: 14px;
+      border: 1px solid #243041;
+      width: 480px;
       max-width: 90%;
     }
     
@@ -210,25 +293,37 @@
       display: flex;
       gap: 10px;
       justify-content: flex-end;
-      margin-top: 15px;
+      margin-top: 20px;
     }
     
     .error {
-      color: red;
+      color: #ffb3b3;
       margin: 10px 0;
+      padding: 16px 20px;
+      background: #2a1518;
+      border: 1px solid #542127;
+      border-radius: 10px;
+      font-size: 14px;
+      line-height: 1.6;
     }
     
     .success {
-      color: green;
+      color: #16c47f;
       margin: 10px 0;
+      padding: 16px 20px;
+      background: #1a3a2a;
+      border: 1px solid #2a5a3a;
+      border-radius: 10px;
+      font-size: 14px;
+      line-height: 1.6;
     }
     
     .model-item {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      padding: 10px;
-      border-bottom: 1px solid #eee;
+      padding: 14px 16px;
+      border-bottom: 1px solid #1a2230;
     }
     
     .model-item:last-child {
@@ -241,53 +336,44 @@
     }
     
     .password-section {
-      background: white;
-      padding: 20px;
-      border-radius: 8px;
-      border: 1px solid #eee;
+      background: linear-gradient(180deg, #141a22, #18202a);
+      padding: 30px;
+      border-radius: 14px;
+      border: 1px solid #243041;
     }
     
     .password-section h3 {
       margin-top: 0;
-      margin-bottom: 15px;
-      padding-bottom: 10px;
-      border-bottom: 2px solid #f0f0f0;
-      color: #333;
+      margin-bottom: 16px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid #243041;
+      color: #e6edf3;
+      font-size: 18px;
     }
     
     .password-requirements {
-      color: #666;
-      font-size: 12px;
-      margin-top: 5px;
+      color: #9fb0c0;
+      font-size: 13px;
+      margin-top: 6px;
     }
 
     .proxy-section {
       margin-top: 15px;
       padding: 15px;
-      background: #f0f7ff;
-      border-radius: 6px;
-      border: 1px solid #d0e3f7;
+      background: #0f141b;
+      border-radius: 10px;
+      border: 1px solid #243041;
     }
 
     .proxy-section input[type="checkbox"] {
       margin-right: 8px;
     }
     
-    .btn-primary {
-      background: #007bff;
-      color: white;
-    }
-    
-    .btn-secondary {
-      background: #6c757d;
-      color: white;
-    }
-    
     .password-logs-table {
       max-height: 400px;
       overflow-y: auto;
-      border: 1px solid #ddd;
-      border-radius: 4px;
+      border: 1px solid #243041;
+      border-radius: 10px;
     }
     
     .password-logs-table table {
@@ -297,42 +383,61 @@
     .password-logs-table th {
       position: sticky;
       top: 0;
-      background: #f8f9fa;
+      background: #0f141b;
       z-index: 1;
     }
     
     select {
       width: 100%;
-      padding: 8px;
-      border: 1px solid #ddd;
-      border-radius: 4px;
-      background: white;
+      padding: 12px 14px;
+      border: 1px solid #243041;
+      border-radius: 10px;
+      background: #0f141b;
+      color: #e6edf3;
+      outline: none;
+      font-size: 14px;
+      font-family: inherit;
+      transition: .15s ease;
       box-sizing: border-box;
     }
+    select:focus { border-color: #4ea1ff; box-shadow: 0 0 0 3px rgba(78,161,255,.15); }
     
+    /* Card (programming module reference style) */
+    .card {
+      background: linear-gradient(180deg, #141a22, #18202a);
+      border-radius: 14px;
+      padding: 30px;
+      border: 1px solid #243041;
+      margin-bottom: 20px;
+    }
+
     /* RAG стили */
     .result-item {
-      background: #f8f9ff;
-      padding: 15px;
-      border-radius: 8px;
+      background: #0f141b;
+      padding: 16px 20px;
+      border-radius: 10px;
       margin-bottom: 10px;
-      border-left: 4px solid #667eea;
+      border-left: 4px solid #4ea1ff;
+      border: 1px solid #243041;
+      border-left-width: 4px;
+      color: #e6edf3;
     }
     
     .loading {
       text-align: center;
-      padding: 20px;
-      color: #666;
+      padding: 24px;
+      color: #9fb0c0;
+      font-size: 14px;
     }
     
     .spinner {
-      border: 3px solid #f3f3f3;
-      border-top: 3px solid #667eea;
+      border: 3px solid #2d3a4d;
+      border-top: 3px solid #4ea1ff;
       border-radius: 50%;
       width: 30px;
       height: 30px;
       animation: spin 1s linear infinite;
-      margin: 0 auto 10px;
+      margin: 0 auto 12px;
     }
     
     @keyframes spin {
@@ -341,22 +446,23 @@
     }
     
     .stat-item {
-      background: #f8f9ff;
-      padding: 15px;
-      border-radius: 8px;
+      background: #0f141b;
+      padding: 16px 20px;
+      border-radius: 10px;
       text-align: center;
+      border: 1px solid #243041;
     }
     
     .stat-value {
-      font-size: 24px;
-      font-weight: bold;
-      color: #667eea;
+      font-size: 26px;
+      font-weight: 700;
+      color: #4ea1ff;
     }
     
     .stat-label {
-      font-size: 12px;
-      color: #666;
-      margin-top: 5px;
+      font-size: 13px;
+      color: #9fb0c0;
+      margin-top: 6px;
     }
 
     @media (max-width: 768px) {
@@ -369,8 +475,9 @@
       .header {
         flex-direction: column;
         gap: 12px;
-        padding: 12px 16px;
+        padding: 20px 16px;
         margin-bottom: 12px;
+        border-radius: 0;
       }
       
       .header h1 {
@@ -400,12 +507,13 @@
       }
       
       .tab-content {
-        padding: 16px;
+        padding: 20px;
         margin: 0 16px 16px;
+        border-radius: 10px;
       }
       
       h2 {
-        font-size: 18px;
+        font-size: 22px;
         margin-top: 0;
       }
       
@@ -417,11 +525,11 @@
       }
       
       th, td {
-        padding: 8px;
+        padding: 10px;
       }
       
       .btn {
-        padding: 8px 12px;
+        padding: 8px 14px;
         font-size: 13px;
         min-height: 44px;
         min-width: 44px;
@@ -451,7 +559,7 @@
       .modal-content {
         width: 90%;
         max-width: 90%;
-        padding: 16px;
+        padding: 20px;
       }
       
       .modal-buttons {
@@ -468,7 +576,7 @@
       }
       
       .password-section {
-        padding: 16px;
+        padding: 20px;
       }
       
       .password-section h3 {
@@ -483,7 +591,7 @@
 
     @media (max-width: 480px) {
       .header {
-        padding: 10px 12px;
+        padding: 16px 12px;
       }
       
       .header h1 {
@@ -502,12 +610,12 @@
       }
       
       .tab-content {
-        padding: 12px;
+        padding: 16px;
         margin: 0 12px 12px;
       }
       
       h2 {
-        font-size: 16px;
+        font-size: 20px;
       }
       
       table {
@@ -515,7 +623,7 @@
       }
       
       th, td {
-        padding: 6px;
+        padding: 8px;
       }
       
       .btn {
@@ -531,11 +639,11 @@
       }
       
       .modal-content {
-        padding: 14px;
+        padding: 16px;
       }
       
       .password-section {
-        padding: 14px;
+        padding: 16px;
       }
       
       .password-section h3 {
@@ -554,7 +662,7 @@
       }
       
       h2 {
-        font-size: 15px;
+        font-size: 18px;
       }
       
       .btn {
@@ -576,7 +684,7 @@
   <div class="header">
     <h1>Админ-панель</h1>
     <div style="display: flex; gap: 10px;">
-      <a href="/index.html" class="btn" style="background: #17a2b8; color: white; text-decoration: none; padding: 8px 15px; border-radius: 4px;">💬 Чат</a>
+      <a href="/index.html" class="btn" style="background: #1a2a3a; border-color: #2a3a5a; color: #4ea1ff; text-decoration: none;">💬 Чат</a>
       <button class="logout-btn" onclick="logout()">Выйти</button>
     </div>
   </div>
@@ -587,6 +695,7 @@
     <button class="tab-btn" onclick="showTab('passwords')">Пароли</button>
     <button class="tab-btn" onclick="showTab('rag')">🧠 База знаний</button>
     <button class="tab-btn" onclick="showTab('llm')">AI &gt; LLM Provider</button>
+    <button class="tab-btn" onclick="showTab('system-health')">🩺 System Health</button>
   </div>
   
   <!-- Таблица пользователей -->
@@ -936,6 +1045,37 @@
 
       <div class="password-section">
         <button class="btn btn-primary" onclick="saveLlmSettings()">Сохранить настройки</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- System Health -->
+  <div id="system-health-tab" class="tab-content">
+    <h2>🩺 System Health</h2>
+    <div id="system-health-message"></div>
+
+    <div class="password-sections">
+      <div class="password-section">
+        <h3>1C MCP</h3>
+        <div id="health-mcp-status">
+          <p>Загрузка...</p>
+        </div>
+        <button class="btn btn-primary" onclick="checkMcp()" style="margin-top: 10px;">Проверить MCP</button>
+      </div>
+
+      <div class="password-section">
+        <h3>PostgreSQL</h3>
+        <div id="health-database-status">
+          <p>Загрузка...</p>
+        </div>
+      </div>
+
+      <div class="password-section">
+        <h3>Knowledge Layer</h3>
+        <div id="health-knowledge-status">
+          <p>Загрузка...</p>
+        </div>
+        <button class="btn btn-primary" onclick="startKnowledgeImport()" style="margin-top: 10px;">Обновить знания</button>
       </div>
     </div>
   </div>
@@ -1840,12 +1980,105 @@
       }
     }
 
+    // System Health
+    async function loadSystemHealth() {
+      const mcpDiv = document.getElementById('health-mcp-status');
+      const dbDiv = document.getElementById('health-database-status');
+      const knDiv = document.getElementById('health-knowledge-status');
+      const msgDiv = document.getElementById('system-health-message');
+      msgDiv.innerHTML = '';
+
+      try {
+        const response = await fetch('/api/admin/system/health', { credentials: 'include' });
+        if (!response.ok) {
+          if (response.status === 401 || response.status === 403) { window.location.href = '/login.html'; return; }
+          throw new Error('Ошибка загрузки health');
+        }
+        const data = await response.json();
+
+        const mcp = data.mcp || {};
+        const db = data.database || {};
+        const kn = data.knowledge || {};
+
+        const mcpIcon = mcp.connected ? '🟢' : '🔴';
+        const mcpText = mcp.connected ? 'Connected' : (mcp.enabled ? 'Disconnected' : 'Disabled');
+        const latencyText = mcp.latency !== null ? `${mcp.latency} ms` : '—';
+
+        mcpDiv.innerHTML = `
+          <p style="font-size: 18px; margin: 8px 0;">${mcpIcon} <strong>${mcpText}</strong></p>
+          <p style="margin: 4px 0; color: #555;">Latency: <strong>${latencyText}</strong></p>
+        `;
+
+        const dbIcon = db.connected ? '🟢' : '🔴';
+        const dbText = db.connected ? 'Connected' : 'Disconnected';
+        const dbLatencyText = db.latency !== null ? `${db.latency} ms` : '—';
+
+        dbDiv.innerHTML = `
+          <p style="font-size: 18px; margin: 8px 0;">${dbIcon} <strong>${dbText}</strong></p>
+          <p style="margin: 4px 0; color: #555;">Latency: <strong>${dbLatencyText}</strong></p>
+        `;
+
+        const statusText = kn.status === 'ready' ? 'Ready' : 'Empty';
+        const objectsText = kn.objects != null ? kn.objects.toLocaleString() : '—';
+        const fieldsText = kn.fields != null ? kn.fields.toLocaleString() : '—';
+        const dateText = kn.importedAt ? new Date(kn.importedAt).toLocaleString() : '—';
+
+        knDiv.innerHTML = `
+          <p style="margin: 4px 0;">Status: <strong>${statusText}</strong></p>
+          <p style="margin: 4px 0;">Objects: <strong>${objectsText}</strong></p>
+          <p style="margin: 4px 0;">Fields: <strong>${fieldsText}</strong></p>
+          <p style="margin: 4px 0;">Last Import: <strong>${dateText}</strong></p>
+        `;
+      } catch (err) {
+        mcpDiv.innerHTML = `<p class="error">${err.message}</p>`;
+        dbDiv.innerHTML = `<p class="error">${err.message}</p>`;
+        knDiv.innerHTML = `<p class="error">${err.message}</p>`;
+      }
+    }
+
+    async function checkMcp() {
+      const msgDiv = document.getElementById('system-health-message');
+      msgDiv.innerHTML = '<div class="loading"><div class="spinner"></div>Проверка MCP...</div>';
+      await loadSystemHealth();
+      msgDiv.innerHTML = '<div class="success">MCP проверен</div>';
+      setTimeout(() => msgDiv.innerHTML = '', 3000);
+    }
+
+    async function startKnowledgeImport() {
+      const msgDiv = document.getElementById('system-health-message');
+      msgDiv.innerHTML = '<div class="loading"><div class="spinner"></div>Импорт запущен</div>';
+
+      try {
+        const response = await fetch('/api/admin/knowledge/import', {
+          method: 'POST',
+          credentials: 'include'
+        });
+        if (!response.ok) {
+          if (response.status === 401 || response.status === 403) { window.location.href = '/login.html'; return; }
+          throw new Error('Ошибка запуска импорта');
+        }
+        const data = await response.json();
+        if (data.started) {
+          msgDiv.innerHTML = '<div class="success">Импорт запущен. Данные обновятся после завершения.</div>';
+          setTimeout(() => {
+            msgDiv.innerHTML = '<div class="loading"><div class="spinner"></div>Обновление данных...</div>';
+            loadSystemHealth();
+          }, 2000);
+        }
+      } catch (err) {
+        msgDiv.innerHTML = `<div class="error">${err.message}</div>`;
+      }
+    }
+
     // Обновляем showTab для загрузки LLM настроек
     const originalShowTab2 = showTab;
     showTab = function(tabName) {
       originalShowTab2(tabName);
       if (tabName === 'llm') {
         loadLlmSettings();
+      }
+      if (tabName === 'system-health') {
+        loadSystemHealth();
       }
     };
 

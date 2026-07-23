@@ -18,7 +18,8 @@
     "docker:build": "docker build -t ai-assistant:latest .",
     "docker:run": "docker-compose up -d",
     "docker:stop": "docker-compose down",
-    "docker:restart": "docker-compose restart"
+    "docker:restart": "docker-compose restart",
+    "knowledge:import": "node scripts/knowledge-import.js"
   },
   "keywords": [
     "ai",

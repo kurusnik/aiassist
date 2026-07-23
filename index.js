@@ -23,10 +23,13 @@ const PasswordManager = require('./services/passwordManager');
 const modelManager = require('./services/models/ModelManager');
 const multer = require('multer');
 const fs = require('fs');
-const { connectionManager, mcpToolClient } = require('./services/mcp');
+const { connectionManager, mcpToolClient, onecConnectionManager, onecToolClient } = require('./services/mcp');
+const knowledgeService = require('./services/knowledge/service');
+const KnowledgeImporter = require('./services/knowledge/importer');
 const programmingService = require('./services/programming');
 const TaskRouter = require('./services/router/TaskRouter');
 const taskRouter = new TaskRouter();
+const { build: buildKnowledgeContext, render: renderKnowledgeContext } = require('./services/knowledge/contextBuilder');
 
 // Авто-миграция таблиц ModelManager при старте
 (async () => {
@@ -1209,7 +1212,82 @@ app.get('/api/admin/mcp/help', requireAdmin, async (req, res) => {
   }
 });
 
-// Загрузка вложений для проекта
+// ========== SYSTEM HEALTH (RC-02.1) ==========
+
+app.get('/api/admin/system/health', requireAdmin, async (req, res) => {
+  try {
+    const mcpStatus = onecConnectionManager.getStatus();
+
+    let latency = null;
+    if (mcpStatus.connected) {
+      const start = Date.now();
+      await onecToolClient.ping();
+      latency = Date.now() - start;
+    }
+
+    const knowledgeHealth = await knowledgeService.health();
+
+    let dbConnected = false;
+    let dbLatency = null;
+    let dbError = null;
+    try {
+      const dbStart = Date.now();
+      await pool.query('SELECT 1');
+      dbLatency = Date.now() - dbStart;
+      dbConnected = true;
+    } catch (dbErr) {
+      dbError = dbErr.message;
+    }
+
+    res.json({
+      success: true,
+      mcp: {
+        enabled: mcpStatus.enabled,
+        connected: mcpStatus.connected,
+        latency
+      },
+      database: {
+        connected: dbConnected,
+        latency: dbLatency,
+        error: dbError
+      },
+      knowledge: {
+        status: knowledgeHealth.objects > 0 ? 'ready' : 'empty',
+        objects: knowledgeHealth.objects,
+        fields: knowledgeHealth.fields,
+        importedAt: knowledgeHealth.importedAt
+      }
+    });
+  } catch (err) {
+    console.error('GET /api/admin/system/health error:', err);
+    res.status(500).json({ error: err.message || 'internal_error' });
+  }
+});
+
+// ========== KNOWLEDGE IMPORT (RC-02.1) ==========
+
+app.post('/api/admin/knowledge/import', requireAdmin, async (req, res) => {
+  res.json({ success: true, started: true });
+
+  setImmediate(async () => {
+    const importer = new KnowledgeImporter();
+    try {
+      console.log('[Knowledge Import] started');
+      const ok = await importer.import();
+      if (ok) {
+        console.log('[Knowledge Import] completed');
+        console.log(`objects: ${importer.stats.objects}`);
+        console.log(`fields: ${importer.stats.fields}`);
+      } else {
+        console.log('[Knowledge Import] completed with errors');
+      }
+    } catch (err) {
+      console.error('[Knowledge Import] error:', err.message);
+    }
+  });
+});
+
+// ========== ATTACHMENTS ==========
 app.post('/projects/:id/attachments', requireAuth, upload.single('file'), async (req, res) => {
   try {
     const projectId = req.params.id;
@@ -1506,6 +1584,41 @@ app.post('/assistant', requireAuth, async (req, res) => {
       ragContext,
       ragResult?.hasRelevantContext || false
     );
+
+    // 6.1) Knowledge Context
+    let knowledgeLog = null;
+    try {
+      const kCtx = await buildKnowledgeContext(userMessageTrimmed);
+      if (kCtx.found && kCtx.objects.length > 0) {
+        const objectsFound = kCtx.objects.length;
+        const limited = { ...kCtx, objects: kCtx.objects.slice(0, 3) };
+        let knowledgeText = renderKnowledgeContext(limited);
+        const charactersBefore = knowledgeText.length;
+        let truncated = false;
+        const MAX_KC_LENGTH = 4000;
+        if (knowledgeText.length > MAX_KC_LENGTH) {
+          const cutAt = knowledgeText.lastIndexOf('\n', MAX_KC_LENGTH);
+          knowledgeText = knowledgeText.slice(0, cutAt > 0 ? cutAt : MAX_KC_LENGTH) + '\n...\nКонтекст сокращён для соблюдения лимита.';
+          truncated = true;
+        }
+        finalSystemPrompt += '\n\n---\nДоступная информация о конфигурации 1С:\n' + knowledgeText;
+        knowledgeLog = {
+          enabled: true,
+          objectsFound,
+          objectsInjected: limited.objects.length,
+          charactersBefore,
+          charactersAfter: knowledgeText.length,
+          truncated
+        };
+      }
+    } catch (kErr) {
+      console.error('[Knowledge] Error:', kErr.message);
+    }
+    if (knowledgeLog) {
+      console.log('[Knowledge Context]', JSON.stringify(knowledgeLog));
+    } else {
+      console.log('[Knowledge Context] {"enabled": false}');
+    }
 
     const messages = [{ role: 'system', content: finalSystemPrompt }];
     if (summary) {

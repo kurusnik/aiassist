@@ -1,99 +1,67 @@
-# AiAssist Roadmap
+# Knowledge Layer — Roadmap
 
-## v0.1 — Programming Skeleton
-**Статус:** ✅ completed
+## Completed
 
-Создана базовая структура Programming Engine: классы Task, Context, Result, Provider, сервис-синглтон, страница `/programming.html`, навигация.
+### Knowledge Schema
 
-## v0.2 — Task Analyzer
-**Статус:** ✅ completed
+Создана схема `knowledge` в PostgreSQL с четырьмя таблицами: `configurations`, `objects`, `fields`, `relations`. Идемпотентная миграция, FK-связи, `gen_random_uuid()` для первичных ключей.
 
-Реализован Task Analyzer — модуль классификации текстового запроса в структурированную ProgrammingTask. Поддержка 7 типов задач, 5 языков, 4 доменов. Полностью локальный, без LLM.
+### Knowledge Importer
 
-## v0.3 — Provider Framework
-**Статус:** ✅ completed
+Импорт метаданных конфигурации 1С (документы, справочники, регистры сведений, регистры накопления, перечисления) через MCP-протокол. Full Refresh перед каждым импортом.
 
-Создан Provider Framework: ProviderManager, базовый класс BaseProvider, 5 встроенных провайдеров (Internal, Filesystem, MCP, RAG, OpenRouter). Все внешние интеграции работают через Provider Framework.
+### Knowledge Service
 
-## v0.4 — Execution Context
-**Статус:** ✅ completed
+Read-only сервис с методами `health()`, `getObject()`, `findObjects()`, `getFields()`. Прямые SQL-запросы через `pg.Pool`.
 
-Создан ExecutionContext — единый контейнер состояния выполнения через весь pipeline. Содержит task, plan, collectedData, prompt, result, metadata. Полностью сериализуем через toJSON/fromJSON.
+### Context Builder
 
-## v0.5 — Execution Planner
-**Статус:** ✅ completed
+Преобразование пользовательского запроса в контекст для LLM: `build()` — поиск объектов, `render()` — форматирование текста с ограничением 10 полей на объект.
 
-Создан ExecutionPlanner — составляет последовательность действий для выполнения задачи. Не выполняет действия. Использует ProviderManager для получения информации о провайдерах.
+### Prompt Injection
 
-## v0.6 — Execution Pipeline
-**Статус:** ✅ completed
+Интеграция Knowledge Context в системный промпт: до 3 объектов, до 4000 символов, обрезка по границе строки при превышении.
 
-Создан ExecutionPipeline — оркестратор выполнения. Последовательно проходит по шагам ExecutionPlan, получает провайдера через ProviderManager, вызывает его, сохраняет результат в ExecutionContext. Добавлен executionLog.
+## Future
 
-## Sprint 010 — RAG Integration
-**Статус:** ✅ completed
+### Semantic Search
 
-Интеграция существующей RAG-системы в Programming Engine через RagProvider. RagProvider.execute() вызывает `rag.prepareRagContext()`.
+**Статус:** planned
 
-## Sprint 011 — Project Context Foundation
-**Статус:** ✅ completed
+Замена `ILIKE` на семантический поиск по смыслу. Потребуется миграция для хранения эмбеддингов объектов, новый метод в Knowledge Service и модификация Context Builder для выбора стратегии поиска.
 
-Создан ProjectContextService, ExecutionContext расширен полями projectId и projectContext. API принимает projectId, UI показывает селектор проекта.
+### Embeddings
 
-## Sprint 012 — Project Context Integration
-**Статус:** ✅ completed
+**Статус:** planned
 
-ProjectContextService использует реальные источники: projects, messages, attachments, document_embeddings. В PromptBuilder добавлена секция [PROJECT].
+Генерация эмбеддингов для объектов и/или реквизитов конфигурации 1С. Может использоваться для семантического поиска, кластеризации или рекомендаций.
 
-## Sprint 013 — Context Collector
-**Статус:** ✅ completed
+### Knowledge Ranking
 
-Создан ContextCollector — единый слой подготовки данных перед Pipeline. Providers переведены на collectedData с сохранением fallback.
+**Статус:** planned
 
-## Sprint 014 — Reviewer Engine
-**Статус:** ✅ completed
+Ранжирование найденных объектов по релевантности запросу. В MVP возвращаются все совпадения без сортировки. Ранжирование позволит отдавать наиболее значимые объекты в пределах лимита.
 
-Модуль проверки результата: эвристический анализ кода (наличие, языковые конструкции, соответствие запросу), оценка score 0–100, warnings/errors/recommendations. ProgrammingReview и Reviewer. Полностью локальный, без LLM. Результат ревью сохраняется в metadata.review. Обратная совместимость ProgrammingResult сохранена.
+### Incremental Import
 
-## Sprint 015 — Model Management Platform
-**Статус:** ✅ completed
+**Статус:** planned
 
-Создан ModelManager — единая точка доступа к моделям. Модели хранятся в БД (таблицы `models` и `model_assignments`). Администратор управляет моделями через Admin UI: синхронизация каталога с OpenRouter, назначение моделей по ролям (chat, programming, reviewer, academy, summarizer, vision). OpenRouterProvider получает модель через ModelManager. Ни один модуль не знает конкретного имени модели. Полная обратная совместимость сохранена.
+Замена Full Refresh на инкрементальное обновление: добавление новых объектов, обновление изменённых, удаление отсутствующих. Сократит время импорта и позволит запускать его чаще.
 
-## Sprint 016 — MCP Provider Foundation
-**Статус:** ✅ completed
+### Auto Refresh Import
 
-Реализован McpProvider с действием `collect_metadata`. Provider возвращает `{ available, metadata }`, не выбрасывает исключений при недоступности MCP. Данные сохраняются в `collectedData.collect_metadata`. Предусмотрен интерфейс для будущего MCP-клиента через конструктор. `collect_metadata` помечен как необязательный шаг плана (required: false). Pipeline продолжается при любой недоступности MCP. Полная обратная совместимость сохранена.
+**Статус:** planned
 
-## Sprint 017 — Infrastructure Layer: MCP Connection Manager
-**Статус:** ✅ completed
+Автоматический перезапуск импорта по расписанию (cron) или при детектировании изменений в конфигурации 1С. Без инкрементального импорта будет выполняться Full Refresh.
 
-Создан инфраструктурный слой `services/mcp/`: `McpConnectionManager`, `McpClientFactory`, `config.js`. McpProvider переведён на использование `McpConnectionManager.getClient()`. Provider не знает о конфигурации, транспорте или местоположении MCP-сервера. Поддерживается архитектура транспортов (HTTP/stdio/TCP/SSE) через реестр фабрики. При `enabled: false` никаких ошибок не возникает. Programming Engine инициализирует MCP-соединение при старте. Полная обратная совместимость сохранена.
+### Relations API
 
-## Sprint 018 — Real MCP Connection (RSV Data)
-**Статус:** ✅ completed
+**Статус:** planned
 
-Создан `HttpMcpClient` в `services/mcp/transports/httpTransport.js` — полноценный HTTP-клиент на встроенном `fetch()`. URL строится полностью из config. McpClientFactory использует новый модуль без изменения публичного API. Добавлены admin endpoints: `GET /api/admin/mcp/status` и `POST /api/admin/mcp/reload`. Все ошибки сети обрабатываются безопасно (available=false). Подготовлена почва для подключения реального RSV Data MCP-сервера. McpProvider, Programming Engine, Chat, RAG не изменены.
+Заполнение и использование таблицы `knowledge.relations`. В MVP таблица создана, но не заполняется. После реализации импортёра связей можно будет отвечать на запросы вида "какие документы используют справочник X" или "от каких объектов зависит регистр Y".
 
-## Sprint 019 — Conversation Memory
-**Статус:** 🔄 planned
+### Knowledge Context — Programming Engine
 
-Использование истории диалогов для контекста задач.
+**Статус:** planned
 
-## Sprint 020 — Prompt Templates
-**Статус:** 🔄 planned
-
-Шаблоны промптов для разных типов задач.
-
-## v1.0 — AI Programming Assistant
-**Статус:** 🔄 planned
-
-Полноценный AI-ассистент для разработчика. Pipeline: запрос → анализ → контекст → промпт → LLM → ревью → результат.
-
----
-
-## Долгосрочное видение
-
-Programming Engine — первый специализированный модуль универсальной AI-платформы. В перспективе AiAssist может включать модули для любых инженерных доменов: DevOps, аналитика данных, документооборот, тестирование. Каждый модуль строится по единой архитектурной схеме: Task Analyzer → Context → Prompt → LLM → Reviewer → Result.
-
-Платформа не привязана к 1С или программированию — это инфраструктура для построения предметных AI-ассистентов.
+Интеграция Knowledge Context в Programming Engine (не только в Chat). Добавление секции `[KNOWLEDGE]` в Prompt Builder для Programming Agent.
