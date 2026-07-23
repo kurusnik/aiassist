@@ -9,16 +9,24 @@ class McpConnectionManager {
   }
 
   async connect() {
+    const url = `${this.config.transport}://${this.config.host}:${this.config.port}${this.config.path}`;
+    console.log(`[McpConnectionManager] connect() called — transport: ${this.config.transport}, url: ${url}`);
     if (!this.config.enabled) {
+      console.log(`[McpConnectionManager] connect() skipped — config.enabled is false`);
       this._connected = false;
       this._client = null;
       return false;
     }
+    console.log(`[McpConnectionManager] Creating client for transport "${this.config.transport}"...`);
     try {
       this._client = McpClientFactory.createClient(this.config);
       this._connected = true;
+      console.log(`[McpConnectionManager] Client created, connection established`);
       return true;
     } catch (err) {
+      console.error(`[McpConnectionManager] Client creation failed:`);
+      console.error(`[McpConnectionManager] Error message: ${err.message}`);
+      console.error(`[McpConnectionManager] Error stack: ${err.stack}`);
       this._connected = false;
       this._client = null;
       return false;

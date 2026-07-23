@@ -47,6 +47,15 @@ const taskRouter = new TaskRouter();
   }
 })();
 
+(async () => {
+  try {
+    await programmingService.init();
+    console.log('[Programming] Service ready');
+  } catch (err) {
+    console.error('[Programming] Init error:', err.message);
+  }
+})();
+
 // RAG сервисы
 const rag = require('./services/rag');
 const { indexFile, indexText, deleteDocument, getStats } = require('./services/rag/ingestion');

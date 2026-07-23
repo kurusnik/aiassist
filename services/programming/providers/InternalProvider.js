@@ -17,6 +17,7 @@ class InternalProvider extends BaseProvider {
     if (step.action === 'build_prompt') {
       const prompt = this.promptBuilder.build(context);
       context.prompt = prompt;
+
       return {
         success: true,
         provider: this.name,

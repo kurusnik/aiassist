@@ -37,7 +37,7 @@ class ExecutionPipeline {
     context.status = LIFECYCLE_STATES.PLANNED;
     context.steps = plan.steps;
 
-    const mcpActions = ['collect_metadata', 'search_metadata', 'get_object_structure', 'describe_metadata'];
+    const mcpActions = ['collect_metadata', 'search_metadata', 'get_object_structure', 'describe_metadata', 'query_data'];
     let hasMcpSteps = false;
     let hasLlmStep = false;
 

@@ -5,6 +5,7 @@ const STEP_PROVIDERS = {
   search_metadata:        'mcp',
   get_object_structure:   'mcp',
   describe_metadata:      'mcp',
+  query_data:             'mcp',
   collect_project_files:  'filesystem',
   collect_examples:       'filesystem',
   collect_rag:            'rag',
@@ -52,6 +53,10 @@ const PLAN_TEMPLATES = {
     actions: ['get_object_structure', 'build_prompt', 'call_llm', 'review_result'],
     complexity: 'low'
   },
+  data_query: {
+    actions: ['query_data', 'build_prompt', 'call_llm', 'review_result'],
+    complexity: 'low'
+  },
   unknown: {
     actions: ['build_prompt', 'call_llm', 'review_result'],
     complexity: 'low'
@@ -70,7 +75,7 @@ class ExecutionPlanner {
 
     const template = PLAN_TEMPLATES[task.type] || PLAN_TEMPLATES.unknown;
     const metadataRequired = METADATA_REQUIRED_TYPES.includes(task.type);
-    const metadataActions = ['collect_metadata', 'search_metadata', 'get_object_structure', 'describe_metadata'];
+    const metadataActions = ['collect_metadata', 'search_metadata', 'get_object_structure', 'describe_metadata', 'query_data'];
 
     const steps = template.actions.map((action, index) => {
       const providerName = STEP_PROVIDERS[action];

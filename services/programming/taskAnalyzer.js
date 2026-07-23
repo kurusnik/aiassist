@@ -5,6 +5,31 @@ const DOMAIN_RULES = require('./rules/domainRules');
 
 const METADATA_REQUIRED_TYPES = ['find_object', 'analyze_metadata', 'get_structure'];
 
+// Intent keywords — stems handle Russian inflection (структур → структура, структуру, структуры)
+const GET_STRUCTURE_INTENT = [
+  'структур', 'реквизит', 'поля', 'состав',
+  'табличн',   // табличная часть, табличные части, табличную часть
+  'измерени', 'ресурс',
+  'типы данных', 'типов данных',
+  'свойств объекта', 'свойств'
+];
+
+const FIND_OBJECT_INTENT = [
+  'найди', 'существует', 'есть ли',
+  'покажи объект', 'что такое', 'описание объекта'
+];
+
+const DATA_QUERY_INTENT = [
+  'сколько', 'какая сумма', 'какую сумму', 'на какую сумму',
+  'за период', 'за месяц', 'за день', 'за неделю',
+  'покажи данные', 'вывести данные'
+];
+
+function hasIntent(text, keywords) {
+  const lower = text.toLowerCase();
+  return keywords.some(kw => lower.includes(kw));
+}
+
 function extractTitle(text) {
   const cleaned = text.replace(/^(напиши|создай|сделай|разработай|объясни|проверь|измени|добавь|доработай|реализуй|модифицируй|расширь)\s*/i, '');
   return cleaned.length > 100 ? cleaned.substring(0, 100) + '...' : cleaned;
@@ -49,6 +74,37 @@ class TaskAnalyzer {
       });
     }
 
+    // 1. Intent pre-check before scoring
+    const lowerText = text.toLowerCase();
+
+    if (hasIntent(lowerText, GET_STRUCTURE_INTENT)) {
+      return new ProgrammingTask('get_structure', {
+        title: extractTitle(text),
+        language: 'bsl',
+        domain: '1c',
+        originalRequest: text
+      });
+    }
+
+    if (hasIntent(lowerText, FIND_OBJECT_INTENT)) {
+      return new ProgrammingTask('find_object', {
+        title: extractTitle(text),
+        language: 'bsl',
+        domain: '1c',
+        originalRequest: text
+      });
+    }
+
+    if (hasIntent(lowerText, DATA_QUERY_INTENT)) {
+      return new ProgrammingTask('data_query', {
+        title: extractTitle(text),
+        language: 'bsl',
+        domain: '1c',
+        originalRequest: text
+      });
+    }
+
+    // 2. Fallback: existing scoring
     const typeRule = classify(text, TYPE_RULES);
     const languageRule = classify(text, LANGUAGE_RULES);
     const domainRule = classify(text, DOMAIN_RULES);

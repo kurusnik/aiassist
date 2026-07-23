@@ -14,7 +14,7 @@ const FilesystemProvider = require('./providers/FilesystemProvider');
 const McpProvider = require('./providers/McpProvider');
 const RagProvider = require('./providers/RagProvider');
 const OpenRouterProvider = require('./providers/OpenRouterProvider');
-const { connectionManager } = require('../mcp');
+const { onecConnectionManager } = require('../mcp');
 
 class ProgrammingService {
   constructor() {
@@ -40,8 +40,11 @@ class ProgrammingService {
 
   async init() {
     if (this.initialized) return;
-    await connectionManager.connect();
+    await onecConnectionManager.connect();
     this.initialized = true;
+    const status = onecConnectionManager.getStatus();
+    console.log(`[MCP 1C] enabled=${status.enabled}`);
+    console.log(`[MCP 1C] connected=${status.connected}`);
   }
 
   getStatus() {
@@ -49,7 +52,7 @@ class ProgrammingService {
       version: this.version,
       initialized: this.initialized,
       providers: this.providerManager.list().map(p => p.name),
-      mcp: connectionManager.getStatus(),
+      mcp: onecConnectionManager.getStatus(),
       engine: `Programming Engine v${this.version}`
     };
   }

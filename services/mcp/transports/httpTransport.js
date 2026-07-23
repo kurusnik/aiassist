@@ -19,13 +19,19 @@ class HttpMcpClient {
       const response = await fetch(this.url, {
         method: 'POST',
         headers: this.headers,
-        body: JSON.stringify({ action, ...args }),
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: Date.now(),
+          method: 'tools/call',
+          params: { name: action, arguments: args }
+        }),
         signal: controller.signal
       });
       if (!response.ok) {
         throw new Error(`MCP HTTP error: ${response.status}`);
       }
-      return response.json();
+      const body = await response.json();
+      return body.result;
     } finally {
       clearTimeout(timer);
     }
