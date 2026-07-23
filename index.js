@@ -1218,11 +1218,15 @@ app.get('/api/admin/system/health', requireAdmin, async (req, res) => {
   try {
     const mcpStatus = onecConnectionManager.getStatus();
 
-    let latency = null;
-    if (mcpStatus.connected) {
+    let mcpConnected = false;
+    let mcpLatency = null;
+    try {
       const start = Date.now();
       await onecToolClient.ping();
-      latency = Date.now() - start;
+      mcpLatency = Date.now() - start;
+      mcpConnected = true;
+    } catch (_) {
+      // ping failed — not connected
     }
 
     const knowledgeHealth = await knowledgeService.health();
@@ -1243,8 +1247,8 @@ app.get('/api/admin/system/health', requireAdmin, async (req, res) => {
       success: true,
       mcp: {
         enabled: mcpStatus.enabled,
-        connected: mcpStatus.connected,
-        latency
+        connected: mcpConnected,
+        latency: mcpLatency
       },
       database: {
         connected: dbConnected,
