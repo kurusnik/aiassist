@@ -1,136 +1,103 @@
-# AI Assistant - Персональный AI-помощник
+# AI Assistant — Персональная AI-платформа
 
-Веб-приложение для работы с различными LLM-провайдерами (LLM Aggregator, LM Studio, OpenAI) с сохранением истории диалогов, авторизацией пользователей и админ-панелью.
+Веб-приложение для работы с LLM-провайдерами, инженерными задачами (Programming Agent), семантическим поиском (RAG), метаданными 1С (Knowledge Layer) и интеграцией с MCP-инструментами.
 
-## 🚀 Возможности
+## Возможности
 
 ### Основной функционал
-- ✅ **Авторизация** — регистрация и вход по логину/паролю с проверкой администратором
-- ✅ **Множественные проекты** — создание и управление проектами с индивидуальными настройками
-- ✅ **История диалогов** — сохранение в PostgreSQL с автоматической суммаризацией
-- ✅ **Управление моделями** — администратор назначает модели для каждой роли (chat, programming, reviewer и др.) через админ-панель
-- ✅ **Автоматическая суммаризация** — при >20 сообщений история сжимается с сохранением контекста
-- ✅ **Кастомный system prompt** — настройка поведения ассистента для каждого проекта
-- ✅ **Programming Agent** — модуль для инженерных задач: написание кода, ревью, поиск багов, поддержка BSL/1C с интеграцией MCP метаданных
-- ✅ **Современный UI** — тёмная тема, адаптивный дизайн
+- **Авторизация** — регистрация и вход по логину/паролю с одобрением администратором
+- **Проекты** — создание и управление проектами с индивидуальными system prompt
+- **История диалогов** — сохранение в PostgreSQL с автоматической суммаризацией
+- **Streaming** — потоковая передача ответов (SSE)
+- **Тёмная тема** — современный адаптивный UI
+
+### LLM Провайдеры
+- **LLM Aggregator** — универсальный провайдер для OpenAI-совместимых API (OpenRouter, MixRoute, Custom)
+- **OpenAI** — прямая интеграция с OpenAI API
+- **LM Studio** — локальный LLM-сервер
+- **ModelManager** — администратор назначает модели ролям (chat, programming, reviewer, summarizer, vision, academy) через админ-панель
+
+### Programming Agent
+- Классификация задач (TaskAnalyzer) — код, ревью, баги, 1С-метаданные
+- Планирование (ExecutionPlanner) — построение пошагового плана
+- Исполнение (ExecutionPipeline) — через провайдеры: MCP (1С), Filesystem, RAG, Internal (PromptBuilder, Reviewer), OpenRouter
+- Ревью кода (Reviewer) — проверка на соответствие языку, ключевым словам, оценка 0–100
+
+### RAG (Semantic Search)
+- Локальный эмбеддер — `@xenova/transformers` с моделью `Xenova/multilingual-e5-small` (384d)
+- Векторный поиск через pgvector
+- Индексация файлов, истории диалогов, общей базы знаний
+- Маркеры источников в UI (RAG:SOURCE, RAG:ANALYSIS, MODEL:KNOWLEDGE)
+
+### Knowledge Layer (1C)
+- Импорт метаданных конфигурации 1С через MCP-протокол (RSV Data)
+- Хранение в схеме `knowledge` (конфигурации, объекты, поля, связи)
+- Context Builder — поиск и форматирование контекста для LLM
+- Injection в системный промпт (до 3 объектов, до 4000 символов)
+
+### MCP (Model Context Protocol)
+- Два независимых MCP-контура: общий и 1С
+- Транспорт: JSON-RPC 2.0 поверх HTTP
+- Устойчивость к недоступности MCP-сервера
+
+### OCR
+- Распознавание текста с изображений (JPEG, PNG, WebP) через Tesseract.js
+- Кэширование результатов (24 часа)
+- Автоматическая отправка распознанного текста в модель
 
 ### Безопасность
-- ✅ **Хеширование паролей** — bcrypt с солью
-- ✅ **Сессии в PostgreSQL** — надёжное хранение сессий
-- ✅ **Middleware авторизации** — защита всех API endpoints
-- ✅ **Rate limiting** — ограничение попыток изменения пароля
-- ✅ **Логирование изменений пароля** — аудит всех операций
-- ✅ **Требования к паролям** — минимальная длина, сложность
-- ✅ **Одобрение пользователей** — администратор подтверждает новые аккаунты
+- Хеширование паролей bcrypt с солью
+- Сессии в PostgreSQL (httpOnly cookies, 30 дней)
+- Rate limiting (5 попыток за 15 минут)
+- Логирование всех изменений паролей
+- Запрет повторения последних 5 паролей
+- Одобрение пользователей администратором
 
 ### Админ-панель
-- ✅ **Управление пользователями** — просмотр, редактирование, удаление
-- ✅ **Одобрение/блокировка** — контроль доступа
-- ✅ **Назначение админов** — выдача прав администратора
-- ✅ **Смена паролей пользователей** — с логированием
-- ✅ **Управление моделями** — добавление/удаление доступных моделей
-- ✅ **Просмотр логов** — история изменений паролей
+- Управление пользователями (просмотр, редактирование, удаление, одобрение/блокировка)
+- Назначение администраторов
+- Управление моделями и назначение ролям
+- Настройка LLM провайдера (Aggregator Type, Base URL, API Key)
+- Смена паролей пользователей с логированием
+- Просмотр логов изменений паролей
 
-### Работа с файлами
-- ✅ **Загрузка вложений** — до 10 файлов на сообщение (макс. 10MB каждый)
-- ✅ **Текстовые файлы** — автоматическое чтение содержимого (txt, md, json, js, ts, sql, csv, и др.)
-- ✅ **OCR** — распознавание текста с изображений (JPEG, PNG, WebP) через Tesseract.js
-- ✅ **Кэширование OCR** — 24 часа для ускорения повторных запросов
-
-### API
-- ✅ **LLM Streaming** — потоковая передача ответов (Server-Sent Events)
-- ✅ **Health check** — `/health` endpoint для мониторинга
-
-## 📋 Требования
+## Требования
 
 - Docker и Docker Compose
-- API ключ LLM Aggregator (OpenRouter, MixRoute или другой OpenAI-совместимый API) или LM Studio для локального запуска
+- API ключ LLM Aggregator (OpenRouter, MixRoute или Custom OpenAI-совместимый API) или LM Studio
 
-## 🛠️ Установка
+## Установка
 
-### Установка через Docker Compose (единственный поддерживаемый способ)
-
-#### 1. Клонирование репозитория
+### Через Docker Compose (единственный поддерживаемый способ)
 
 ```bash
 git clone <repository-url>
 cd aiassist
 ```
 
-#### 2. Настройка переменных окружения
-
-Создайте файл `.env`:
+Создайте `.env`:
 
 ```env
-# База данных (для Docker)
 DATABASE_URL=postgresql://ai_user:ai_password@db:5432/ai_assistant
-
-# LLM провайдер (хотя бы один)
-# LLM Aggregator (OpenRouter, MixRoute или Custom):
 OPENROUTER_API_KEY=your_api_key_here
-# или для локального запуска:
-# LM_STUDIO_BASE_URL=http://host.docker.internal:1234/v1
-
-# Сессии
 SESSION_SECRET=your_random_secret_key_here
 PORT=3000
-
-# Окружение
 NODE_ENV=production
 ```
 
-Сгенерируйте SESSION_SECRET:
+Сгенерируйте `SESSION_SECRET`:
 
 ```bash
 node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 ```
 
-#### 3. Сборка и запуск
+Сборка и запуск:
 
 ```bash
 docker compose up -d --build
 ```
 
-#### 4. Проверка статуса
-
-```bash
-docker compose ps
-docker compose logs -f app
-```
-
-Контейнеры:
-- **app** — Node.js приложение (порт 3000 внутри сети)
-- **db** — PostgreSQL 15 (порт 5432 внутри сети, данные в volume)
-- **nginx** — обратный прокси (порты 80, 443)
-- **certbot** — SSL сертификаты Let's Encrypt
-- **certbot-renew** — автоматическое обновление сертификатов
-
-#### 5. Остановка
-
-```bash
-docker compose down
-```
-
-#### 6. Обновление
-
-```bash
-docker compose pull
-docker compose up -d --build
-```
-
-Или одной командой:
-```bash
-docker compose restart
-```
-
-## 📖 Использование
-
-### Первый запуск
-
-1. Откройте `http://localhost` (или ваш домен)
-2. Перейдите на страницу регистрации
-3. Создайте учётную запись
-4. **Дождитесь одобрения администратором** (или создайте админа через скрипт)
+Контейнеры: **app** (Node.js), **db** (PostgreSQL 15), **nginx** (прокси + SSL), **certbot** (Let's Encrypt), **certbot-renew**.
 
 ### Создание администратора
 
@@ -138,74 +105,63 @@ docker compose restart
 docker compose exec app node create-admin.js
 ```
 
-Или напрямую в БД:
+### Обновление
 
 ```bash
-docker compose exec db psql -U ai_user -d ai_assistant -c "UPDATE users SET is_admin = true, is_approved = true WHERE username = 'your_username';"
+cd ~/aiassist && git pull && docker compose up -d --build
 ```
 
-### Работа с проектами
+## Использование
 
-1. **Создание проекта** — нажмите "Новый проект"
-2. **Настройка промпта** — отредактируйте system prompt (опционально)
-3. **Диалог** — начните общение с ассистентом
-4. **Вложения** — прикрепите файлы для анализа
-5. **Управление** — удаление проекта или сброс диалога
+1. Откройте `http://localhost` (или ваш домен)
+2. Зарегистрируйтесь — дождитесь одобрения администратором
+3. Создайте проект — настройте system prompt (опционально)
+4. Начните диалог — прикрепляйте файлы, используйте OCR для изображений
 
-### Управление моделями и LLM провайдером (админ-панель)
+### Назначение моделей (админ-панель)
 
-Модели для всех ролей (chat, programming, reviewer, summarizer, vision, academy) назначаются администратором через админ-панель. Пользователь не выбирает модель в чате — это делает администратор в разделе Models → Assignments.
+1. Вкладка **AI → LLM Provider** — выберите провайдера, настройте Aggregator Type и API Key
+2. Нажмите **Сохранить** — каталог моделей синхронизируется автоматически
+3. Вкладка **Models → Assignments** — назначьте модель для каждой роли
 
-1. Зайдите в админ-панель (кнопка в правом верхнем углу)
-2. Перейдите на вкладку **AI → LLM Provider**
-3. Выберите **LLM Aggregator** (OpenRouter, MixRoute или Custom), **OpenAI** или **LM Studio**
-4. Для LLM Aggregator: выберите тип агрегатора, Base URL заполнится автоматически, введите API Key и Default Model
-5. Нажмите **Сохранить** — каталог моделей синхронизируется автоматически
-6. Перейдите на вкладку **Models → Assignments** и при необходимости измените назначение модели для каждой роли
-3. Для каждой роли выберите модель из синхронизированного каталога
-4. Нажмите Save
+### Импорт метаданных 1С
 
-**Важно:** перед назначением моделей выполните Sync Catalog, чтобы загрузить актуальный список моделей из подключённого провайдера. Каталог автоматически синхронизируется при сохранении настроек LLM Aggregator.
+```bash
+docker compose exec app npm run knowledge:import
+```
 
-### Доступные модели
-
-Список моделей формируется динамически из активного LLM-провайдера (LLM Aggregator — OpenRouter, MixRoute или Custom OpenAI-совместимый API, а также LM Studio, OpenAI). Администратор назначает модели ролям через админ-панель (Models → Assignments).
-
-Текущие роли: `chat`, `programming`, `reviewer`, `summarizer`, `vision`, `academy`.
-
-## 📁 Структура проекта
+## Структура проекта
 
 ```
 aiassist/
-├── index.js                 # Основной сервер (Express)
-├── db.js                    # Подключение к PostgreSQL
-├── package.json             # Зависимости и скрипты
-├── docker-compose.yml       # Docker конфигурация
-├── Dockerfile               # Образ приложения
-├── .env                     # Переменные окружения
+├── index.js                    # Express сервер
+├── db.js                       # PostgreSQL connection pool
+├── docker-compose.yml          # Docker Compose (app + db + nginx + certbot)
+├── Dockerfile                  # Образ приложения
 │
 ├── middleware/
-│   └── auth.js              # Middleware авторизации
+│   └── auth.js                 # Middleware авторизации
 │
 ├── services/
-│   ├── llm/                 # LLM сервис (ProviderFactory + провайдеры)
-│   │   ├── index.js         # LLMService (chat, stream)
-│   │   ├── ProviderFactory.js
-│   │   ├── register.js
+│   ├── llm/                    # LLM сервис (ProviderFactory + провайдеры)
+│   │   ├── index.js            # LLMService (chat, stream)
+│   │   ├── ProviderFactory.js  # Выбор активного провайдера
+│   │   ├── register.js         # Реестр провайдеров
 │   │   └── providers/
-│   │       ├── openrouter/       # LLM Aggregator (OpenRouter, MixRoute, Custom)
+│   │       ├── openrouter/     # LLM Aggregator (OpenRouter, MixRoute, Custom)
 │   │       ├── lmstudio/
 │   │       └── openai/
+│   ├── models/                 # ModelManager (назначение моделей ролям)
 │   ├── router/
-│   │   └── TaskRouter.js    # Маршрутизация chat / programming
-│   ├── programming/         # Programming Agent
-│   │   ├── index.js         # ProgrammingService (фасад)
-│   │   ├── taskAnalyzer.js
-│   │   ├── executionPlanner.js
-│   │   ├── executionPipeline.js
-│   │   ├── providerManager.js
-│   │   ├── promptBuilder.js
-│   │   ├── reviewer.js
+│   │   └── TaskRouter.js       # Маршрутизация chat / programming
+│   ├── programming/            # Programming Agent
+│   │   ├── index.js            # ProgrammingService (фасад)
+│   │   ├── taskAnalyzer.js     # Классификация задач
+│   │   ├── executionPlanner.js # Планирование шагов
+│   │   ├── executionPipeline.js# Исполнение пайплайна
+│   │   ├── providerManager.js  # Регистр провайдеров
+│   │   ├── promptBuilder.js    # Построение промптов
+│   │   ├── reviewer.js         # Проверка кода
 │   │   ├── providers/
 │   │   │   ├── BaseProvider.js
 │   │   │   ├── InternalProvider.js
@@ -214,325 +170,177 @@ aiassist/
 │   │   │   ├── McpProvider.js
 │   │   │   └── OpenRouterProvider.js
 │   │   └── rules/
-│   ├── projectContext/       # Project Context система
-│   │   ├── ProjectContextService.js
-│   │   └── ContextCollector.js
-│   ├── mcp/                 # MCP connection manager
-│   └── rag/                 # RAG семантический поиск
-│       ├── index.js
-│       ├── embedding.js
-│       ├── search.js
-│       ├── ingestion.js
-│       └── chunking.js
+│   ├── projectContext/         # Project Context система
+│   ├── mcp/                    # MCP connection manager (общий + 1С)
+│   ├── rag/                    # RAG семантический поиск
+│   │   ├── index.js
+│   │   ├── embedding.js
+│   │   ├── chunking.js
+│   │   ├── search.js
+│   │   └── ingestion.js
+│   ├── knowledge/              # Knowledge Layer (метаданные 1С)
+│   │   ├── importer.js
+│   │   ├── service.js
+│   │   └── contextBuilder.js
+│   ├── passwordManager.js      # Управление паролями
+│   └── ocr.js                  # OCR сервис (Tesseract.js)
 │
 ├── scripts/
-│   ├── build.js             # Скрипт сборки
-│   ├── deploy.js            # Скрипт деплоя
-│   ├── migrate.js           # Миграции БД
-│   ├── run-migrations.js    # Исполнитель миграций
-│   ├── backup.js            # Резервное копирование
-│   ├── update.js            # Обновление проекта
-│   └── preload-model.mjs    # Предзагрузка модели эмбеддингов
+│   ├── build.js, deploy.js, migrate.js, run-migrations.js
+│   ├── backup.js, update.js, preload-model.mjs
+│   └── knowledge-import.js
 │
-├── uploads/                 # Загруженные файлы (volume)
-└── logs/                    # Логи приложения (volume)
+├── migrations/                 # SQL миграции (000–009 + knowledge)
+├── public/                     # Frontend SPA
+├── docs/                       # Документация
+│   ├── ARCHITECTURE.md         # Архитектура компонентов
+│   ├── DEVELOPMENT.md          # Процесс разработки
+│   ├── deployment-guide.md     # Руководство по развёртыванию
+│   ├── knowledge-layer.md      # Knowledge Layer
+│   ├── RAG_IMPLEMENTATION.md   # RAG спецификация
+│   ├── RAG_GETTING_STARTED.md  # RAG быстрый старт
+│   ├── ocr-feature.md          # OCR документация
+│   ├── password-management.md  # Управление паролями
+│   └── architecture/decisions/ # ADR
+├── plans/                      # Планы (см. раздел ниже)
+└── uploads/                    # Загруженные файлы (volume)
 ```
 
-## 🔧 API Endpoints
+## API Endpoints
 
 ### Авторизация
 | Endpoint | Метод | Описание |
 |----------|-------|----------|
-| `/register` | POST | Регистрация нового пользователя |
-| `/login` | POST | Вход в систему |
-| `/logout` | POST | Выход из системы |
+| `/register` | POST | Регистрация |
+| `/login` | POST | Вход |
+| `/logout` | POST | Выход |
 | `/auth/check` | GET | Проверка авторизации |
-| `/api/change-password` | PUT | Изменение своего пароля |
+| `/api/change-password` | PUT | Изменение пароля |
 
-### Проекты (требуют авторизации)
+### Проекты
 | Endpoint | Метод | Описание |
 |----------|-------|----------|
-| `/projects` | GET | Список проектов пользователя |
-| `/projects` | POST | Создать проект |
-| `/projects/:id` | GET | Получить проект |
-| `/projects/:id` | PUT | Обновить настройки (system_prompt) |
-| `/projects/:id` | DELETE | Удалить проект |
-| `/projects/:id/messages` | GET | История сообщений |
-| `/projects/:id/messages` | DELETE | Сбросить диалог |
-| `/projects/:id/attachments` | POST | Загрузить вложение |
-| `/projects/:id/attachments` | GET | Список вложений |
+| `/projects` | GET/POST | Список / создать |
+| `/projects/:id` | GET/PUT/DELETE | Получить / обновить / удалить |
+| `/projects/:id/messages` | GET/DELETE | История / сброс |
+| `/projects/:id/attachments` | GET/POST | Вложения |
 
 ### Ассистент
 | Endpoint | Метод | Описание |
 |----------|-------|----------|
-| `/assistant` | POST | Отправить сообщение (поддерживает SSE). Модель определяется через `model_assignments` (роль `chat`), не из тела запроса |
-| `/models` | GET | Список доступных моделей |
+| `/assistant` | POST | Отправить сообщение (SSE) |
+| `/models` | GET | Список моделей |
 | `/api/ocr` | POST | Распознавание текста с изображения |
 
-### Админ-панель (требуют прав администратора)
-| Endpoint | Метод | Описание |
-|----------|-------|----------|
-| `/api/admin/users` | GET | Все пользователи |
-| `/api/admin/users/:id` | PUT/DELETE | Редактировать/удалить |
-| `/api/admin/users/:id/approve` | PUT | Одобрить пользователя |
-| `/api/admin/users/:id/change-password` | PUT | Сменить пароль пользователя |
-| `/api/admin/users/password-logs` | GET | Логи изменения паролей |
-| `/api/admin/models` | GET/POST | Управление моделями |
-| `/api/settings/llm` | GET/POST | Настройки LLM провайдера |
-| `/api/settings/llm/test` | POST | Проверка соединения с провайдером |
-
-## 🔒 Безопасность
-
-### Пароли
-- Минимальная длина: 8 символов
-- Требуются: заглавные, строчные буквы, цифры, спецсимволы
-- Rate limiting: 5 попыток за 15 минут
-- Запрет повторения последних 5 паролей
-- Логирование всех изменений
-
-### Сессии
-- httpOnly cookies
-- 30 дней время жизни
-- Хранение в PostgreSQL
-- CSRF защита
-
-### Доступ
-- Обязательное одобрение новых пользователей
-- Разделение ролей (user/admin)
-- Middleware защита endpoints
-
-## 🐛 Отладка
-
-### Просмотр логов
-```bash
-docker compose logs -f app
-docker compose logs -f db
-docker compose logs -f nginx
-```
-
-### Подключение к БД
-```bash
-docker compose exec db psql -U ai_user -d ai_assistant
-```
-
-### Проверка БД
-```bash
-docker compose exec db psql -U ai_user -d ai_assistant -c "SELECT * FROM users;"
-```
-
-### Health check
-```bash
-curl http://localhost/health
-```
-
-### Пересборка контейнера
-```bash
-docker compose up -d --build
-```
-
-## 📝 Скрипты npm
-
-| Команда | Описание |
-|---------|----------|
-| `npm start` | Запуск сервера |
-| `npm run dev` | Разработка с nodemon |
-| `npm run build` | Сборка проекта |
-| `npm run deploy` | Деплой на сервер |
-| `npm run migrate` | Применение миграций |
-| `npm run backup` | Резервное копирование БД |
-| `npm run update` | Обновление проекта |
-| `npm run lint` | Проверка кода ESLint |
-| `npm run docker:build` | Docker сборка |
-| `npm run docker:run` | Запуск Docker |
-| `npm run docker:stop` | Остановка Docker |
-
-## 🔄 Деплой на сервер
-
-### Схема развёртывания
-```
-Рабочий компьютер
-     │ git push
-     ↓
-GitHub
-     │ git pull
-     ↓
-Сервер
-     │ docker compose up -d --build
-     ↓
-Приложение доступно
-```
-
-### Команда обновления на сервере
-```bash
-cd ~/aiassist && git pull && docker compose up -d --build
-```
-
-### Через SSH
-```bash
-ssh user@192.168.0.84
-cd ~/aiassist
-git pull
-docker compose up -d --build
-```
-
-## 📊 База данных
-
-### Основные таблицы
-
-**users** — пользователи
-- id, username, email, name, password_hash
-- is_admin, is_approved
-- created_at
-
-**projects** — проекты
-- id, name, user_id, summary
-- model, system_prompt
-- created_at
-
-**messages** — сообщения
-- id, project_id, role, content
-- created_at
-
-**attachments** — вложения
-- id, project_id, user_id
-- filename, original_name, mime, size, path
-- created_at
-
-**session** — сессии Express
-- sid, sess (JSON), expire
-
-**password_change_logs** — логи паролей
-- id, user_id, changed_by_user_id
-- timestamp, ip_address, user_agent
-- success, error_message
-
-### Миграции
-
-Миграции находятся в папке `migrations/` и применяются через `npm run migrate` (`scripts/run-migrations.js`):
-
-1. `000_initial_schema.sql` — основные таблицы (users, projects, messages, session)
-2. `001_add_auth.sql` — поля авторизации
-3. `002_add_attachments.sql` — таблица вложений
-4. `003_add_admin_fields.sql` — поля администратора (is_admin, is_approved)
-5. `004_password_change_logs.sql` — логирование изменений паролей
-6. `005_add_rag_embeddings.sql` — векторные представления для RAG + pgvector
-7. `006_embedding_dimension_384.sql` — переход на 384d (multilingual-e5-small)
-8. `007_model_management.sql` — управление моделями
-9. `008_llm_settings.sql` — настройки LLM провайдеров
-
-## 🧠 RAG (Semantic Search)
-
-Система семантического поиска и генерации ответов на основе базы знаний.
-
-### Быстрый старт
-
-```bash
-# 1. Применение миграции
-docker compose exec app node scripts/run-migrations.js
-
-# 2. Настройка .env
-RAG_ENABLED=true
-RAG_SIMILARITY_THRESHOLD=0.7
-
-# 3. Перезапуск
-docker compose restart app
-```
-
-### API Endpoints
-
+### RAG
 | Endpoint | Метод | Описание |
 |----------|-------|----------|
 | `/api/rag/index` | POST | Индексировать текст |
 | `/api/rag/index-file` | POST | Индексировать файл |
 | `/api/rag/search` | GET | Поиск по базе знаний |
 | `/api/rag/document/:id` | DELETE | Удалить документ |
-| `/api/rag/stats` | GET | Статистика индексации |
+| `/api/rag/stats` | GET | Статистика |
 
-### Пример использования
+### Админ-панель
+| Endpoint | Метод | Описание |
+|----------|-------|----------|
+| `/api/admin/users` | GET | Все пользователи |
+| `/api/admin/users/:id` | PUT/DELETE | Редактировать / удалить |
+| `/api/admin/users/:id/approve` | PUT | Одобрить пользователя |
+| `/api/admin/users/:id/change-password` | PUT | Сменить пароль |
+| `/api/admin/users/password-logs` | GET | Логи изменений паролей |
+| `/api/admin/models` | GET/POST | Управление моделями |
+| `/api/settings/llm` | GET/POST | Настройки LLM провайдера |
+| `/api/settings/llm/test` | POST | Проверка соединения |
 
-```bash
-# Индексирование файла
-curl -X POST http://localhost:3000/api/rag/index-file \
-  -F "file=@document.pdf" \
-  -F "projectId=1"
+## База данных
 
-# Поиск
-curl "http://localhost:3000/api/rag/search?q=авторизация&limit=5"
-```
+### Миграции (`migrations/`)
 
-📖 **Полная документация:** [docs/RAG_GETTING_STARTED.md](docs/RAG_GETTING_STARTED.md)
+1. `000_initial_schema.sql` — основные таблицы (users, projects, messages, session)
+2. `001_add_auth.sql` — поля авторизации
+3. `002_add_attachments.sql` — таблица вложений
+4. `003_add_admin_fields.sql` — поля администратора
+5. `004_password_change_logs.sql` — логирование паролей
+6. `005_add_rag_embeddings.sql` — векторные представления (pgvector)
+7. `006_embedding_dimension_384.sql` — переход на 384d
+8. `007_model_management.sql` — управление моделями
+9. `008_llm_settings.sql` — настройки LLM провайдеров
+10. `009_knowledge_schema.sql` — схема knowledge (метаданные 1С)
 
-## 🚧 TODO
+## Скрипты
 
-- [ ] Экспорт диалогов (JSON, PDF, Markdown)
-- [ ] Разработка с volume на `./public` для hot-reload статики без пересборки образа
-- [ ] Markdown рендеринг в чате
-- [ ] Темы оформления (светлая/тёмная)
-- [ ] Уведомления (WebSocket/Push)
-- [ ] Мобильное приложение (React Native)
-- [ ] Telegram-бот интеграция
-- [ ] Гибридный поиск (вектор + полнотекстовый)
-- [ ] Статистика использования токенов
-- [ ] 2FA аутентификация
+| Команда | Описание |
+|---------|----------|
+| `npm start` | Запуск сервера |
+| `npm run dev` | Разработка с nodemon |
+| `npm run migrate` | Применение миграций |
+| `npm run knowledge:import` | Импорт метаданных 1С |
+| `npm run backup` | Резервное копирование БД |
+| `npm run update` | Обновление проекта |
+| `npm run lint` | Проверка кода ESLint |
 
-## 📝 История изменений
+## Планы и улучшения — оценка актуальности
 
-### 2026-06-22 — Локальный эмбеддер Transformers.js + RAG исправления
+### 🔴 Неактуально / Выполнено
 
-#### Локальный эмбеддер
-- ✅ Замена API-эмбеддингов (OpenRouter/OpenAI) на локальный `@xenova/transformers`
-- ✅ Модель `Xenova/multilingual-e5-small` (384d) с поддержкой русского языка
-- ✅ Модель кэшируется в образе Docker при сборке
-- ✅ Автоматическая предзагрузка при старте сервера
+| План | Статус | Комментарий |
+|------|--------|-------------|
+| Админ-панель (plans/admin-panel-plan.md) | ✅ Выполнено | Полноценная админ-панель реализована |
+| OCR (plans/ocr-feature-plan.md, docs/ocr-feature.md) | ✅ Выполнено | Tesseract.js интегрирован, работает |
+| RAG система (docs/RAG_*) | ✅ Выполнено | RAG с локальным эмбеддером реализован |
+| Knowledge Layer (docs/ROADMAP.md) | ✅ Выполнено | Импорт метаданных 1С, Context Builder, Injection |
+| Баланс OpenRouter (plans/openrouter-credits-display.md) | ❌ Отменён | OpenRouter — не единственный провайдер; концепция устарела |
+| Развёртывание (plans/deployment-strategy.md, CHANGELOG.md plans v1.1.0, v1.2.0) | ❌ Устарел | Деплой через Docker Compose + nginx + certbot уже работает; Kubernetes, Prometheus, multi-region — избыточны |
+| 2FA (docs/password-management.md) | ❌ Отменён | Поле `two_factor_enabled` — заглушка, не востребовано |
 
-#### RAG: исправление поиска
-- 🐛 **Критический баг**: `buildSystemPrompt` получал объект `{role, content}` вместо строки → system prompt превращался в `"[object Object]"`, инструкции по маркерам терялись
-- 🐛 **Критический баг**: SQL поиск отфильтровывал документы с `project_id IS NULL` (загруженные из админ-панели) из-за строгого `de.project_id = $X` — исправлено на `de.project_id = $X OR de.project_id IS NULL`
-- 🐛 **База**: образ `node:18-alpine` несовместим с ONNX Runtime (Ort::Exception) — смена на `node:18-slim`
-- 🐛 **Миграция**: создана `006_embedding_dimension_384.sql` для перехода с 1536→384
-- 🐛 **Миграция**: `005_add_rag_embeddings.sql` не была в списке `run-migrations.js` — добавлена
-- ✅ Индексация файлов при загрузке через `/projects/:id/attachments`
+### 🟡 Частично выполнено
 
-#### Маркеры источников в UI
-- 🐛 **SSE коррупция**: обработчик `data.segment` перезаписывал контент, смешивая сегменты с сырыми токенами — удалён
-- 🐛 Дубликат `renderChat` (override + declaration) — удалён override
-- 🐛 Лишняя `}` в `initSourceStats()` — удалена
-- 🐛 Статистика: `textContent = rag` терял эмодзи — исправлен формат
-- 🐛 `addSourceStats()`, `addSourceLegend()` не вызывались при инициализации — добавлены
+| План | Статус | Комментарий |
+|------|--------|-------------|
+| Голосовой ввод (docs/voice_input_plan.md) | 🔧 Реализован интерфейс, нет тестирования и документации | Web Speech API кнопка есть, но нет тестов (Chrome/Edge/Safari), нет README, нет документации API |
+| Система меток RAG (RAG_SOURCE_MARKERS.md, README_RAG_MARKERS.md) | 🔧 Реализована, частично сломана | SSE-коррупция исправлена, но требуется проверка интеграции |
+| Управление паролями (docs/password-management.md, IMPLEMENTATION_REPORT.md, PASSWORD_CHANGE_FIXES.md) | 🔧 Реализовано, валидация упрощена | Сложная валидация отключена по запросу, остальное работает |
 
----
+### 🟢 Актуальные улучшения
 
-**Последнее обновление:** 2026-06-22
+| Улучшение | Приоритет | Обоснование |
+|-----------|-----------|-------------|
+| Экспорт диалогов (JSON, PDF, Markdown) | Средний | Востребовано пользователями, нет blocker'ов |
+| Markdown рендеринг в чате | Средний | Улучшение UX, текущий plain-text неудобен |
+| Гибридный поиск (вектор + полнотекстовый) | Низкий | RAG работает, но tsvector повысит качество на точных совпадениях |
+| Статистика токенов | Средний | Полезно для контроля расходов |
+| Автоматическая индексация RAG через триггеры | Низкий | Удобство, но не критично |
+| Knowledge Layer: Semantic Search (замена ILIKE) | Низкий | ILIKE работает, семантика даст прирост на синонимах |
+| Knowledge Layer: Incremental Import | Низкий | Full Refresh 279s на 3580 объектов — приемлемо |
+| Knowledge Layer: Relations API | Низкий | Таблица создана, не заполняется — MVP достаточен |
+| Knowledge Layer: Knowledge Ranking | Низкий | Срез первых 3 без сортировки — адекватно для MVP |
+| Knowledge Layer: Programming Engine интеграция | Средний | Контекст метаданных полезен и в Programming Agent |
+| Тестирование голосового ввода | Низкий | Функция есть, но не документирована |
+| Кэширование эмбеддингов (Redis) | Низкий | Локальный эмбеддер уже достаточно быстр |
+| Аналитика RAG (дашборд) | Низкий | Никто не запрашивал |
 
-## 📄 Лицензия
+### 🔴 Удалено из планов (неактуально / избыточно)
+
+- Kubernetes, Prometheus/Grafana, multi-region — избыточно для single-server проекта
+- 2FA, LDAP, уведомления по email — не востребовано
+- CDN для статики, Advanced security features — нет необходимости
+- Мобильное приложение (React Native) — вне scope
+- Telegram-бот интеграция — не требуется
+- Уведомления (WebSocket/Push) — нет сценария использования
+
+## История изменений
+
+**Последняя версия: 1.1.0 (2026-07-24)**
+- LLM Aggregator — универсальный провайдер (OpenRouter, MixRoute, Custom)
+- Автоматическая синхронизация каталога моделей при смене провайдера
+- Исправление 401 при смене провайдера
+
+**1.0.0 (2026-02-24)**
+- Скрипты сборки, деплоя, миграций, backup
+- Docker Compose (app + db + nginx + certbot)
+- CI/CD через GitHub Actions
+
+## Лицензия
 
 ISC
-
-## 👥 Авторы
-
-Разработка ведётся в рамках проекта AI Assistant.
-
-## 🆘 Поддержка
-
-При возникновении проблем:
-
-1. **Проверьте логи:**
-   ```bash
-   docker compose logs -f
-   ```
-
-2. **Убедитесь, что БД доступна:**
-   ```bash
-   docker compose exec db pg_isready
-   ```
-
-3. **Проверьте переменные окружения в `.env`**
-
-4. **Убедитесь, что провайдер доступен:**
-   - OpenRouter: `curl -H "Authorization: Bearer $OPENROUTER_API_KEY" https://openrouter.ai/api/v1/credits`
-   - LM Studio: проверьте, что сервер запущен и доступен по `baseURL`
-
-5. **Пересоберите контейнер:**
-   ```bash
-   docker compose up -d --build
-   ```
