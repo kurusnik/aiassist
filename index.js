@@ -143,7 +143,7 @@ app.get('/api/credits', requireAuth, async (req, res) => {
     res.json(credits);
   } catch (error) {
     console.error('Error fetching credits:', error);
-    res.status(500).json({ error: error.message });
+    res.json({ balance: null, spent: null, currency: 'USD', message: 'Credits not supported by current provider' });
   }
 });
 
@@ -2199,11 +2199,13 @@ app.post('/api/settings/llm', requireAdmin, async (req, res) => {
     }
 
     const existing = await llmService.ProviderFactory._loadSettings();
-    const mergedConfig = config || {};
+    const incomingConfig = config || {};
 
-    for (const providerName of Object.keys(mergedConfig)) {
-      const incoming = mergedConfig[providerName];
-      const existingProvider = (existing.config && existing.config[providerName]) || {};
+    // Merge: start with existing config, overlay incoming provider configs
+    const mergedConfig = JSON.parse(JSON.stringify(existing.config || {}));
+    for (const providerName of Object.keys(incomingConfig)) {
+      const incoming = incomingConfig[providerName];
+      const existingProvider = mergedConfig[providerName] || {};
 
       if (incoming.apiKey === '') {
         incoming.apiKey = existingProvider.apiKey || '';
@@ -2216,9 +2218,44 @@ app.post('/api/settings/llm', requireAdmin, async (req, res) => {
           incoming.proxy.password = existingProxy.password || '';
         }
       }
+
+      mergedConfig[providerName] = incoming;
     }
 
     await llmService.ProviderFactory.saveSettings(activeProvider, mergedConfig);
+
+    // Auto-assign model from aggregator config and sync models
+    if (activeProvider === 'openrouter') {
+      const providerConfig = mergedConfig.openrouter || {};
+      const modelId = providerConfig.model || '';
+
+      // Remove old models (cascade deletes old model_assignments)
+      await pool.query('DELETE FROM models');
+
+      // Insert configured model and assign to all roles
+      if (modelId) {
+        await pool.query(
+          `INSERT INTO models (id, slug, name, active, created_at, updated_at)
+           VALUES ($1, $1, $1, true, NOW(), NOW())`,
+          [modelId]
+        );
+        for (const role of ['chat', 'programming', 'reviewer', 'academy', 'summarizer', 'vision']) {
+          await pool.query(
+            `INSERT INTO model_assignments (role, model_id, updated_at)
+             VALUES ($1, $2, NOW())`,
+            [role, modelId]
+          );
+        }
+      }
+
+      // Sync models from the new provider
+      try {
+        await modelManager.syncModels();
+      } catch (e) {
+        console.error('[LLM] Model sync after provider change failed:', e.message);
+      }
+    }
+
     res.json({ success: true, message: 'LLM provider settings saved' });
   } catch (err) {
     res.status(500).json({ error: err.message });

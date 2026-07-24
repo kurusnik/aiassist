@@ -1,6 +1,6 @@
 # AI Assistant - Персональный AI-помощник
 
-Веб-приложение для работы с различными LLM-моделями (OpenRouter, LM Studio, OpenAI) с сохранением истории диалогов, авторизацией пользователей и админ-панелью.
+Веб-приложение для работы с различными LLM-провайдерами (LLM Aggregator, LM Studio, OpenAI) с сохранением истории диалогов, авторизацией пользователей и админ-панелью.
 
 ## 🚀 Возможности
 
@@ -44,7 +44,7 @@
 ## 📋 Требования
 
 - Docker и Docker Compose
-- OpenRouter API ключ (или LM Studio для локального запуска)
+- API ключ LLM Aggregator (OpenRouter, MixRoute или другой OpenAI-совместимый API) или LM Studio для локального запуска
 
 ## 🛠️ Установка
 
@@ -66,7 +66,8 @@ cd aiassist
 DATABASE_URL=postgresql://ai_user:ai_password@db:5432/ai_assistant
 
 # LLM провайдер (хотя бы один)
-OPENROUTER_API_KEY=your_openrouter_api_key_here
+# LLM Aggregator (OpenRouter, MixRoute или Custom):
+OPENROUTER_API_KEY=your_api_key_here
 # или для локального запуска:
 # LM_STUDIO_BASE_URL=http://host.docker.internal:1234/v1
 
@@ -151,20 +152,24 @@ docker compose exec db psql -U ai_user -d ai_assistant -c "UPDATE users SET is_a
 4. **Вложения** — прикрепите файлы для анализа
 5. **Управление** — удаление проекта или сброс диалога
 
-### Управление моделями (админ-панель)
+### Управление моделями и LLM провайдером (админ-панель)
 
 Модели для всех ролей (chat, programming, reviewer, summarizer, vision, academy) назначаются администратором через админ-панель. Пользователь не выбирает модель в чате — это делает администратор в разделе Models → Assignments.
 
 1. Зайдите в админ-панель (кнопка в правом верхнем углу)
-2. Перейдите на вкладку Models → Assignments
+2. Перейдите на вкладку **AI → LLM Provider**
+3. Выберите **LLM Aggregator** (OpenRouter, MixRoute или Custom), **OpenAI** или **LM Studio**
+4. Для LLM Aggregator: выберите тип агрегатора, Base URL заполнится автоматически, введите API Key и Default Model
+5. Нажмите **Сохранить** — каталог моделей синхронизируется автоматически
+6. Перейдите на вкладку **Models → Assignments** и при необходимости измените назначение модели для каждой роли
 3. Для каждой роли выберите модель из синхронизированного каталога
 4. Нажмите Save
 
-**Важно:** перед назначением моделей выполните Sync Catalog, чтобы загрузить актуальный список моделей из OpenRouter/LM Studio.
+**Важно:** перед назначением моделей выполните Sync Catalog, чтобы загрузить актуальный список моделей из подключённого провайдера. Каталог автоматически синхронизируется при сохранении настроек LLM Aggregator.
 
 ### Доступные модели
 
-Список моделей формируется динамически из подключённого LLM-провайдера (OpenRouter, LM Studio). Администратор назначает модели ролям через админ-панель (Models → Assignments).
+Список моделей формируется динамически из активного LLM-провайдера (LLM Aggregator — OpenRouter, MixRoute или Custom OpenAI-совместимый API, а также LM Studio, OpenAI). Администратор назначает модели ролям через админ-панель (Models → Assignments).
 
 Текущие роли: `chat`, `programming`, `reviewer`, `summarizer`, `vision`, `academy`.
 
@@ -188,7 +193,7 @@ aiassist/
 │   │   ├── ProviderFactory.js
 │   │   ├── register.js
 │   │   └── providers/
-│   │       ├── openrouter/
+│   │       ├── openrouter/       # LLM Aggregator (OpenRouter, MixRoute, Custom)
 │   │       ├── lmstudio/
 │   │       └── openai/
 │   ├── router/
@@ -273,6 +278,8 @@ aiassist/
 | `/api/admin/users/:id/change-password` | PUT | Сменить пароль пользователя |
 | `/api/admin/users/password-logs` | GET | Логи изменения паролей |
 | `/api/admin/models` | GET/POST | Управление моделями |
+| `/api/settings/llm` | GET/POST | Настройки LLM провайдера |
+| `/api/settings/llm/test` | POST | Проверка соединения с провайдером |
 
 ## 🔒 Безопасность
 

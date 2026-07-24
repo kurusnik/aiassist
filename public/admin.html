@@ -1043,6 +1043,34 @@
       </div>
       -->
 
+      <div class="password-section" id="llm-openrouter-config" style="display: none;">
+        <h3>Настройки LLM Aggregator</h3>
+        <div class="form-group">
+          <label for="llm-aggregator-type">Aggregator Type</label>
+          <select id="llm-aggregator-type" onchange="onAggregatorTypeChange()">
+            <option value="openrouter">OpenRouter</option>
+            <option value="mixroute">MixRoute</option>
+            <option value="custom">Custom</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="llm-aggregator-url">Base URL</label>
+          <input type="text" id="llm-aggregator-url" placeholder="https://openrouter.ai/api/v1">
+        </div>
+        <div class="form-group">
+          <label for="llm-aggregator-key">API Key</label>
+          <input type="password" id="llm-aggregator-key" placeholder="sk-...">
+        </div>
+        <div class="form-group">
+          <label for="llm-aggregator-model">Default Model</label>
+          <input type="text" id="llm-aggregator-model" placeholder="openai/gpt-4o-mini">
+        </div>
+        <div class="form-group">
+          <button class="btn btn-primary" onclick="testLlmConnection('openrouter')">Test Connection</button>
+        </div>
+        <div id="llm-test-result"></div>
+      </div>
+
       <div class="password-section">
         <button class="btn btn-primary" onclick="saveLlmSettings()">Сохранить настройки</button>
       </div>
@@ -1284,7 +1312,7 @@
     function renderModelsCatalog(models) {
       const tbody = document.getElementById('models-catalog-table');
       if (!models || models.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="9">Нет моделей. Нажмите "Обновить каталог" для синхронизации с OpenRouter.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="9">Нет моделей. Нажмите "Обновить каталог" для синхронизации моделей.</td></tr>';
         return;
       }
       tbody.innerHTML = models.map(m => `
@@ -1305,7 +1333,7 @@
     // Синхронизация с OpenRouter
     async function syncModels() {
       const msgDiv = document.getElementById('models-message');
-      msgDiv.innerHTML = '<div class="loading">Синхронизация с OpenRouter...</div>';
+      msgDiv.innerHTML = '<div class="loading">Синхронизация моделей...</div>';
       try {
         const response = await fetch('/api/admin/models/sync', {
           method: 'POST',
@@ -1828,7 +1856,7 @@
       const activeProvider = data.activeProvider || 'openrouter';
       const config = data.config || {};
 
-      const labels = { openai: 'OpenAI', openrouter: 'OpenRouter', lmstudio: 'LM Studio' };
+      const labels = { openai: 'OpenAI', openrouter: 'LLM Aggregator', lmstudio: 'LM Studio' };
 
       container.innerHTML = providers.map(name => `
         <label style="display: block; padding: 10px; margin: 5px 0; background: #f8f9fa; border-radius: 4px; cursor: pointer; border: 2px solid ${activeProvider === name ? '#007bff' : 'transparent'};">
@@ -1854,9 +1882,20 @@
     function getProxyTestConfig(prefix) { ... }
     */
 
+    function onAggregatorTypeChange() {
+      const type = document.getElementById('llm-aggregator-type').value;
+      const urlInput = document.getElementById('llm-aggregator-url');
+      if (type === 'openrouter') {
+        urlInput.value = 'https://openrouter.ai/api/v1';
+      } else if (type === 'mixroute') {
+        urlInput.value = 'https://api.mixroute.ai/v1';
+      }
+    }
+
     function onLlmProviderChange(provider) {
       document.getElementById('llm-lmstudio-config').style.display = provider === 'lmstudio' ? 'block' : 'none';
       document.getElementById('llm-openai-config').style.display = provider === 'openai' ? 'block' : 'none';
+      document.getElementById('llm-openrouter-config').style.display = provider === 'openrouter' ? 'block' : 'none';
 
       if (llmSettingsData && llmSettingsData.config) {
         const cfg = llmSettingsData.config;
@@ -1868,6 +1907,13 @@
           document.getElementById('llm-openai-key').value = cfg.openai.apiKey || '';
           document.getElementById('llm-openai-url').value = cfg.openai.baseURL || 'https://api.openai.com/v1';
           document.getElementById('llm-openai-model').value = cfg.openai.model || 'gpt-4o';
+        }
+        if (cfg.openrouter) {
+          const orCfg = cfg.openrouter;
+          document.getElementById('llm-aggregator-type').value = orCfg.aggregatorType || 'openrouter';
+          document.getElementById('llm-aggregator-url').value = orCfg.baseURL || '';
+          document.getElementById('llm-aggregator-key').value = orCfg.apiKey || '';
+          document.getElementById('llm-aggregator-model').value = orCfg.model || '';
         }
       }
     }
@@ -1898,6 +1944,13 @@
           model: document.getElementById('llm-openai-model').value.trim()
           // EXPERIMENTAL FEATURE: Proxy Layer — add proxy: getProxyConfig('llm-openai')
         };
+      } else if (activeProvider === 'openrouter') {
+        config.openrouter = {
+          aggregatorType: document.getElementById('llm-aggregator-type').value,
+          baseURL: document.getElementById('llm-aggregator-url').value.trim(),
+          apiKey: document.getElementById('llm-aggregator-key').value.trim(),
+          model: document.getElementById('llm-aggregator-model').value.trim()
+        };
       }
       // EXPERIMENTAL FEATURE: Proxy Layer — openrouter save block removed
       // config.openrouter = { proxy: getProxyConfig('llm-openrouter') };
@@ -1913,6 +1966,8 @@
         if (result.success) {
           msgDiv.innerHTML = '<div class="success">Настройки сохранены</div>';
           loadLlmSettings();
+          loadModelsCatalog();
+          loadModelsAssignments();
         } else {
           msgDiv.innerHTML = `<div class="error">${result.error || 'Ошибка сохранения'}</div>`;
         }
@@ -1949,6 +2004,11 @@
         config.model = document.getElementById('llm-openai-model').value.trim();
         // EXPERIMENTAL FEATURE: Proxy Layer — add config.proxy = getProxyTestConfig('llm-openai')
         resultDivId = 'llm-openai-test-result';
+      } else if (provider === 'openrouter') {
+        config.apiKey = document.getElementById('llm-aggregator-key').value.trim();
+        config.baseURL = document.getElementById('llm-aggregator-url').value.trim();
+        config.model = document.getElementById('llm-aggregator-model').value.trim();
+        resultDivId = 'llm-test-result';
       }
       // EXPERIMENTAL FEATURE: Proxy Layer — openrouter test connection removed
       // else if (provider === 'openrouter') { ... }

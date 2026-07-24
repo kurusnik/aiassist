@@ -1637,7 +1637,7 @@
       </div>
       <div class="toolbar">
         <span style="color:var(--muted); font-size:14px;">👤 <span id="username">...</span></span>
-        <button class="btn btn-sm" id="creditsBtn" style="padding:6px 12px; font-size:13px; margin-right:8px;" title="Баланс OpenRouter">💰 <span id="balance-short">--</span></button>
+        <button class="btn btn-sm" id="creditsBtn" style="padding:6px 12px; font-size:13px; margin-right:8px;" title="Баланс">💰 <span id="balance-short">--</span></button>
         <button class="btn btn-sm" id="adminBtn" style="padding:6px 12px; font-size:13px; display:none; margin-right:8px;">Админ-панель</button>
         <button class="btn btn-sm" id="programmingBtn" style="padding:6px 12px; font-size:13px; margin-right:8px;" onclick="window.location.href='/programming.html'">Programming</button>
         <button class="btn btn-sm" id="logoutBtn" style="padding:6px 12px; font-size:13px;">Выход</button>
@@ -2684,7 +2684,7 @@
   <script>
     let creditsModalOpen = false;
     
-    // Загрузка баланса OpenRouter
+    // Загрузка баланса
     async function loadCredits() {
       const balanceEl = document.getElementById('balance-amount');
       const spentEl = document.getElementById('spent-amount');
@@ -2696,6 +2696,18 @@
           throw new Error(`HTTP ${response.status}`);
         }
         const data = await response.json();
+        
+        if (data.balance === null && data.spent === null) {
+          // Credits not supported by current provider
+          balanceEl.textContent = 'недоступно';
+          balanceEl.classList.remove('credits-loading');
+          spentEl.textContent = '--';
+          spentEl.classList.remove('credits-loading');
+          if (balanceShortEl) {
+            balanceShortEl.textContent = '--';
+          }
+          return;
+        }
         
         const balanceText = data.balance ? `$${data.balance}` : '--';
         const spentText = data.spent ? `$${data.spent}` : '--';
@@ -2712,14 +2724,13 @@
         }
       } catch (error) {
         console.error('Ошибка загрузки баланса:', error);
-        balanceEl.textContent = 'ошибка';
+        balanceEl.textContent = 'недоступно';
         balanceEl.classList.remove('credits-loading');
-        balanceEl.classList.add('credits-error');
         spentEl.textContent = '--';
         spentEl.classList.remove('credits-loading');
         
         if (balanceShortEl) {
-          balanceShortEl.textContent = 'ош.';
+          balanceShortEl.textContent = '--';
         }
       }
     }

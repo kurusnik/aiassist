@@ -10,13 +10,13 @@ class OpenRouterProvider extends BaseProvider {
   constructor(config = {}) {
     super();
     this._apiKey = config.apiKey || process.env.OPENROUTER_API_KEY || '';
-    this._baseURL = 'https://api.mixroute.ai/v1';
+    this._baseURL = config.baseURL || 'https://openrouter.ai/api/v1';
     this._model = config.model || process.env.OPENROUTER_MODEL || 'openai/gpt-4o-mini';
     this._proxyConfig = config.proxy;
     this._clientPromise = null;
     this._proxyAgentPromise = null;
     if (!this._apiKey) {
-      throw new Error('OpenRouter API key missing. Set OPENROUTER_API_KEY environment variable or provide apiKey in settings.');
+      throw new Error('API key missing. Set OPENROUTER_API_KEY environment variable or provide apiKey in settings.');
     }
   }
 
@@ -91,7 +91,7 @@ class OpenRouterProvider extends BaseProvider {
       return {
         status: 'ok',
         models: Array.isArray(models) ? models.length : 0,
-        message: 'OpenRouter API is reachable'
+        message: 'LLM API is reachable'
       };
     } catch (err) {
       return {
@@ -102,68 +102,72 @@ class OpenRouterProvider extends BaseProvider {
   }
 
   async getCredits() {
-    const url = new URL('https://openrouter.ai/api/v1/credits');
-    const proxyAgent = await this._getProxyAgent();
+    try {
+      const url = new URL('https://openrouter.ai/api/v1/credits');
+      const proxyAgent = await this._getProxyAgent();
 
-    const data = await new Promise((resolve, reject) => {
-      const options = {
-        hostname: url.hostname,
-        port: url.port || 443,
-        path: url.pathname,
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${this._apiKey}`,
-          'Content-Type': 'application/json'
+      const data = await new Promise((resolve, reject) => {
+        const options = {
+          hostname: url.hostname,
+          port: url.port || 443,
+          path: url.pathname,
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${this._apiKey}`,
+            'Content-Type': 'application/json'
+          }
+        };
+
+        if (proxyAgent) {
+          options.agent = proxyAgent;
         }
-      };
 
-      if (proxyAgent) {
-        options.agent = proxyAgent;
-      }
-
-      const req = https.request(options, (res) => {
-        let body = '';
-        res.on('data', chunk => { body += chunk; });
-        res.on('end', () => {
-          if (!res.statusCode || res.statusCode < 200 || res.statusCode >= 300) {
-            reject(new Error(`OpenRouter API error: ${res.statusCode}`));
-            return;
-          }
-          try {
-            resolve(JSON.parse(body));
-          } catch (e) {
-            reject(new Error('Invalid JSON response from OpenRouter'));
-          }
+        const req = https.request(options, (res) => {
+          let body = '';
+          res.on('data', chunk => { body += chunk; });
+          res.on('end', () => {
+            if (!res.statusCode || res.statusCode < 200 || res.statusCode >= 300) {
+              reject(new Error(`API error: ${res.statusCode}`));
+              return;
+            }
+            try {
+              resolve(JSON.parse(body));
+            } catch (e) {
+              reject(new Error('Invalid JSON response from API'));
+            }
+          });
         });
+
+        req.on('error', reject);
+        req.end();
       });
 
-      req.on('error', reject);
-      req.end();
-    });
+      let balance = '0.00';
+      let totalUsage = '0.00';
 
-    let balance = '0.00';
-    let totalUsage = '0.00';
+      if (data?.data) {
+        const d = data.data;
+        if (typeof d.total_usage === 'number') {
+          totalUsage = d.total_usage.toFixed(2);
+        } else if (typeof d.total_usage === 'string') {
+          totalUsage = parseFloat(d.total_usage).toFixed(2);
+        }
 
-    if (data?.data) {
-      const d = data.data;
-      if (typeof d.total_usage === 'number') {
-        totalUsage = d.total_usage.toFixed(2);
-      } else if (typeof d.total_usage === 'string') {
-        totalUsage = parseFloat(d.total_usage).toFixed(2);
+        if (typeof d.total_credits === 'number' && typeof d.total_usage === 'number') {
+          balance = (d.total_credits - d.total_usage).toFixed(2);
+        } else if (typeof d.total_credits === 'string' && typeof d.total_usage === 'string') {
+          balance = (parseFloat(d.total_credits) - parseFloat(d.total_usage)).toFixed(2);
+        }
       }
 
-      if (typeof d.total_credits === 'number' && typeof d.total_usage === 'number') {
-        balance = (d.total_credits - d.total_usage).toFixed(2);
-      } else if (typeof d.total_credits === 'string' && typeof d.total_usage === 'string') {
-        balance = (parseFloat(d.total_credits) - parseFloat(d.total_usage)).toFixed(2);
-      }
+      return {
+        balance,
+        spent: totalUsage,
+        currency: 'USD'
+      };
+    } catch (e) {
+      return null;
     }
-
-    return {
-      balance,
-      spent: totalUsage,
-      currency: 'USD'
-    };
   }
 }
 

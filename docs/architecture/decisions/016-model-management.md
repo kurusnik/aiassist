@@ -2,7 +2,8 @@
 
 ## Статус
 
-✅ Принято (Sprint 015)
+✅ Принято (Sprint 015)  
+🔄 Актуализировано (Sprint 016 — LLM Aggregator)
 
 ## Контекст
 
@@ -10,12 +11,9 @@
 - `AVAILABLE_MODELS` в `index.js`
 - `selectedModel = model || 'openai/gpt-5.2'` в Chat
 - `process.env.OPENROUTER_MODEL || 'openai/gpt-4o-mini'` в Programming
+- Каталог моделей синхронизировался только из OpenRouter
 
-Это создавало проблемы:
-- Каждый модуль знал конкретные имена моделей
-- Изменение модели требовало изменения кода
-- Администратор не мог управлять моделями через UI
-- Список моделей не синхронизировался с OpenRouter
+После внедрения LLM Aggregator (Sprint 016) провайдер OpenRouter был заменён на универсальный агрегатор, поддерживающий OpenRouter, MixRoute и любые OpenAI-совместимые API. Каталог моделей теперь синхронизируется из активного агрегатора, а не только из OpenRouter.
 
 ## Решение
 
@@ -35,15 +33,15 @@ ModelManager (services/models/ModelManager.js)
     ├── PostgreSQL (models table — каталог)
     └── PostgreSQL (model_assignments table — назначения)
 
-OpenRouter ---> syncFromOpenRouter()
+LLM Aggregator (OpenRouter / MixRoute / Custom) ─── syncModels()
 ```
 
 ### ModelManager
 
 Методы:
-- `syncFromOpenRouter()` — загружает каталог моделей из OpenRouter API
+- `syncModels()` — загружает каталог моделей из активного LLM-провайдера (агрегатора)
 - `getAvailableModels()` — возвращает все модели из БД
-- `getModel(role)` — возвращает модель, назначенную роли (с fallback на OPENROUTER_MODEL)
+- `getModel(role)` — возвращает модель, назначенную роли (с fallback на первую модель в каталоге или `openai/gpt-4o-mini`)
 - `setModel(role, modelId)` — назначает модель роли
 - `getRoles()` — возвращает список ролей
 - `getAssignments()` — возвращает все назначения с информацией о моделях
@@ -81,16 +79,23 @@ OpenRouter ---> syncFromOpenRouter()
 | Метод | Path | Описание |
 |-------|------|----------|
 | GET | `/api/admin/models/catalog` | Каталог моделей |
-| POST | `/api/admin/models/sync` | Синхронизация с OpenRouter |
+| POST | `/api/admin/models/sync` | Синхронизация с активным провайдером (LLM Aggregator / LM Studio / OpenAI) |
 | GET | `/api/admin/models/assignments` | Назначения моделей |
 | PUT | `/api/admin/models/assignments` | Назначить модель роли |
 
 Все endpoints защищены `requireAdmin`.
 
+### Интеграция с LLM Aggregator
+
+При сохранении настроек LLM Aggregator (`POST /api/settings/llm`):
+1. Удаляются все старые модели из таблицы `models` (каскадно удаляются устаревшие назначения)
+2. Модель из конфига агрегатора вставляется в `models` и назначается всем 6 ролям
+3. Автоматически вызывается `ModelManager.syncModels()` для загрузки актуального каталога моделей от нового провайдера
+
 ### Интеграция с Programming
 
-`OpenRouterProvider` получает модель через `ModelManager.getModel('programming')`.
-Если роль не назначена — используется fallback через `OPENROOTER_MODEL`.
+`OpenRouterProvider` в Programming Pipeline получает модель через `ModelManager.getModel('programming')`.
+Если роль не назначена — используется первая модель из каталога или `'openai/gpt-4o-mini'`.
 
 ### Обратная совместимость
 
