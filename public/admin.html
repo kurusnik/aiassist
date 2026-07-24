@@ -1,740 +1,94 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="ru" data-theme="dark">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5">
   <title>Админ-панель</title>
   <link rel="icon" type="image/svg+xml" href="/icons/favicon.svg" />
   <link rel="apple-touch-icon" href="/icons/favicon.svg" />
-  <meta name="theme-color" content="#007bff" />
+  <meta name="theme-color" content="#4ea1ff" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <link rel="icon" type="image/svg+xml" href="/icons/favicon.svg" />
-  <link rel="apple-touch-icon" href="/icons/favicon.svg" />
-  <meta name="theme-color" content="#007bff" />
-  <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <link rel="icon" type="image/svg+xml" href="/icons/favicon.svg" />
-  <link rel="apple-touch-icon" href="/icons/favicon.svg" />
-  <meta name="theme-color" content="#007bff" />
-  <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <link rel="icon" type="image/svg+xml" href="/icons/favicon.svg" />
-  <link rel="apple-touch-icon" href="/icons/favicon.svg" />
-  <meta name="theme-color" content="#007bff" />
-  <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <link rel="icon" type="image/svg+xml" href="/icons/favicon.svg" />
-  <link rel="apple-touch-icon" href="/icons/favicon.svg" />
-  <meta name="theme-color" content="#007bff" />
-  <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <link rel="icon" type="image/svg+xml" href="/icons/favicon.svg" />
-  <link rel="apple-touch-icon" href="/icons/favicon.svg" />
-  <meta name="theme-color" content="#007bff" />
-  <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <link rel="icon" type="image/svg+xml" href="/icons/favicon.svg" />
-  <link rel="apple-touch-icon" href="/icons/favicon.svg" />
-  <meta name="theme-color" content="#007bff" />
-  <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <link rel="stylesheet" href="/css/design-tokens.css" />
+  <link rel="stylesheet" href="/css/base.css" />
+  <link rel="stylesheet" href="/css/components.css" />
+  <link rel="stylesheet" href="/css/responsive.css" />
+  <script src="/scripts/theme.js"></script>
   <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      background: linear-gradient(135deg, #0f1216 0%, #141a22 100%);
-      min-height: 100vh;
       max-width: 1200px;
       margin: 0 auto;
       padding: 20px;
-      color: #e6edf3;
-    }
-    
-    h1, h2 {
-      color: #e6edf3;
-    }
-    
-    h2 {
-      font-size: 28px;
-      margin-bottom: 10px;
-      background: linear-gradient(135deg, #4ea1ff, #7f5af0);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-    }
-
-    .header {
-      background: linear-gradient(180deg, #141a22, #18202a);
-      padding: 24px 30px;
-      border-radius: 14px;
-      margin-bottom: 20px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      border: 1px solid #243041;
-    }
-    
-    .header h1 { margin: 0; }
-    
-    .logout-btn {
-      background: #2a1518;
-      border: 1px solid #542127;
-      color: #ffb3b3;
-      padding: 10px 20px;
-      border-radius: 10px;
-      cursor: pointer;
-      font-size: 14px;
-      font-weight: 500;
-      transition: .15s ease;
-    }
-    .logout-btn:hover { filter: brightness(1.1); }
-
-    .tabs {
-      display: flex;
-      gap: 10px;
-      margin-bottom: 20px;
-      flex-wrap: wrap;
-    }
-    
-    .tab-btn {
-      padding: 10px 20px;
-      background: #101722;
-      color: #e6edf3;
-      border: 1px solid #243041;
-      border-radius: 10px;
-      cursor: pointer;
-      font-size: 14px;
-      font-weight: 500;
-      transition: .15s ease;
-    }
-    .tab-btn:hover { border-color: #4ea1ff; }
-    
-    .tab-btn.active {
-      background: linear-gradient(135deg, #3a7bd9, #7f5af0);
-      border-color: transparent;
-      color: #fff;
-    }
-    
-    .tab-content {
-      display: none;
-      background: linear-gradient(180deg, #141a22, #18202a);
-      padding: 30px;
-      border-radius: 14px;
-      border: 1px solid #243041;
-      margin-bottom: 20px;
-    }
-    
-    .tab-content.active {
-      display: block;
-    }
-    
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      margin-top: 10px;
-    }
-    
-    th, td {
-      padding: 12px 14px;
-      text-align: left;
-      border-bottom: 1px solid #1a2230;
-      font-size: 14px;
-    }
-    
-    th {
-      background: #0f141b;
-      font-weight: 600;
-      color: #9fb0c0;
-    }
-    
-    tr:hover td {
-      background: rgba(78, 161, 255, 0.03);
-    }
-
-    .status-approved {
-      color: #16c47f;
-      font-weight: 600;
-    }
-    
-    .status-pending {
-      color: #e6c84f;
-      font-weight: 600;
-    }
-    
-    .status-admin {
-      color: #7f5af0;
-      font-weight: 600;
-    }
-    
-    .btn {
-      padding: 10px 20px;
-      margin: 2px;
-      border: 1px solid #243041;
-      border-radius: 10px;
-      cursor: pointer;
-      font-size: 14px;
-      font-weight: 500;
-      background: #101722;
-      color: #e6edf3;
-      transition: .15s ease;
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      text-decoration: none;
-    }
-    .btn:hover { border-color: #4ea1ff; }
-    .btn:disabled { opacity: .5; cursor: not-allowed; border-color: #243041; }
-
-    .btn-primary {
-      background: linear-gradient(135deg, #3a7bd9, #7f5af0);
-      border-color: transparent;
-      color: #fff;
-    }
-    .btn-primary:hover { filter: brightness(1.05); }
-    .btn-primary:disabled { filter: none; opacity: .6; }
-
-    .btn-secondary {
-      background: #101722;
-      border-color: #243041;
-      color: #9fb0c0;
-    }
-    .btn-secondary:hover { border-color: #4ea1ff; color: #e6edf3; }
-
-    .btn-approve {
-      background: #1a3a2a;
-      border-color: #2a5a3a;
-      color: #16c47f;
-    }
-    .btn-approve:hover { filter: brightness(1.1); }
-
-    .btn-edit {
-      background: #1a2a3a;
-      border-color: #2a3a5a;
-      color: #4ea1ff;
-    }
-    .btn-edit:hover { filter: brightness(1.1); }
-
-    .btn-delete {
-      background: #2a1518;
-      border-color: #542127;
-      color: #ffb3b3;
-    }
-    .btn-delete:hover { filter: brightness(1.1); }
-
-    .btn-add {
-      background: #1a3a2a;
-      border-color: #2a5a3a;
-      color: #16c47f;
-      padding: 10px 20px;
-      margin-bottom: 10px;
-    }
-    .btn-add:hover { filter: brightness(1.1); }
-    
-    .form-group {
-      margin-bottom: 15px;
-    }
-    
-    .form-group label {
-      display: block;
-      margin-bottom: 6px;
-      font-weight: 600;
-      color: #9fb0c0;
-    }
-    
-    .form-group input,
-    .form-group select,
-    .form-group textarea {
-      width: 100%;
-      padding: 12px 14px;
-      background: #0f141b;
-      color: #e6edf3;
-      border: 1px solid #243041;
-      border-radius: 10px;
-      outline: none;
-      font-size: 14px;
-      font-family: inherit;
-      transition: .15s ease;
-      box-sizing: border-box;
-    }
-    .form-group input:focus,
-    .form-group select:focus,
-    .form-group textarea:focus {
-      border-color: #4ea1ff;
-      box-shadow: 0 0 0 3px rgba(78,161,255,.15);
-    }
-    
-    .modal {
-      display: none;
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background: rgba(0,0,0,0.7);
-      justify-content: center;
-      align-items: center;
-      z-index: 1000;
-    }
-    
-    .modal.active {
-      display: flex;
-    }
-    
-    .modal-content {
-      background: linear-gradient(180deg, #141a22, #18202a);
-      padding: 30px;
-      border-radius: 14px;
-      border: 1px solid #243041;
-      width: 480px;
-      max-width: 90%;
-    }
-    
-    .modal-buttons {
-      display: flex;
-      gap: 10px;
-      justify-content: flex-end;
-      margin-top: 20px;
-    }
-    
-    .error {
-      color: #ffb3b3;
-      margin: 10px 0;
-      padding: 16px 20px;
-      background: #2a1518;
-      border: 1px solid #542127;
-      border-radius: 10px;
-      font-size: 14px;
-      line-height: 1.6;
-    }
-    
-    .success {
-      color: #16c47f;
-      margin: 10px 0;
-      padding: 16px 20px;
-      background: #1a3a2a;
-      border: 1px solid #2a5a3a;
-      border-radius: 10px;
-      font-size: 14px;
-      line-height: 1.6;
-    }
-    
-    .model-item {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 14px 16px;
-      border-bottom: 1px solid #1a2230;
-    }
-    
-    .model-item:last-child {
-      border-bottom: none;
-    }
-    
-    .password-sections {
-      display: grid;
-      gap: 30px;
-    }
-    
-    .password-section {
-      background: linear-gradient(180deg, #141a22, #18202a);
-      padding: 30px;
-      border-radius: 14px;
-      border: 1px solid #243041;
-    }
-    
-    .password-section h3 {
-      margin-top: 0;
-      margin-bottom: 16px;
-      padding-bottom: 12px;
-      border-bottom: 1px solid #243041;
-      color: #e6edf3;
-      font-size: 18px;
-    }
-    
-    .password-requirements {
-      color: #9fb0c0;
-      font-size: 13px;
-      margin-top: 6px;
-    }
-
-    .proxy-section {
-      margin-top: 15px;
-      padding: 15px;
-      background: #0f141b;
-      border-radius: 10px;
-      border: 1px solid #243041;
-    }
-
-    .proxy-section input[type="checkbox"] {
-      margin-right: 8px;
-    }
-    
-    .password-logs-table {
-      max-height: 400px;
+      background: var(--bg);
+      min-height: 100vh;
       overflow-y: auto;
-      border: 1px solid #243041;
-      border-radius: 10px;
     }
-    
-    .password-logs-table table {
-      margin: 0;
-    }
-    
-    .password-logs-table th {
-      position: sticky;
-      top: 0;
-      background: #0f141b;
-      z-index: 1;
-    }
-    
-    select {
-      width: 100%;
-      padding: 12px 14px;
-      border: 1px solid #243041;
-      border-radius: 10px;
-      background: #0f141b;
-      color: #e6edf3;
-      outline: none;
-      font-size: 14px;
-      font-family: inherit;
-      transition: .15s ease;
-      box-sizing: border-box;
-    }
-    select:focus { border-color: #4ea1ff; box-shadow: 0 0 0 3px rgba(78,161,255,.15); }
-    
-    /* Card (programming module reference style) */
-    .card {
-      background: linear-gradient(180deg, #141a22, #18202a);
-      border-radius: 14px;
-      padding: 30px;
-      border: 1px solid #243041;
-      margin-bottom: 20px;
-    }
-
-    /* RAG стили */
-    .result-item {
-      background: #0f141b;
-      padding: 16px 20px;
-      border-radius: 10px;
-      margin-bottom: 10px;
-      border-left: 4px solid #4ea1ff;
-      border: 1px solid #243041;
-      border-left-width: 4px;
-      color: #e6edf3;
-    }
-    
-    .loading {
-      text-align: center;
-      padding: 24px;
-      color: #9fb0c0;
-      font-size: 14px;
-    }
-    
-    .spinner {
-      border: 3px solid #2d3a4d;
-      border-top: 3px solid #4ea1ff;
-      border-radius: 50%;
-      width: 30px;
-      height: 30px;
-      animation: spin 1s linear infinite;
-      margin: 0 auto 12px;
-    }
-    
-    @keyframes spin {
-      0% { transform: rotate(0deg); }
-      100% { transform: rotate(360deg); }
-    }
-    
-    .stat-item {
-      background: #0f141b;
-      padding: 16px 20px;
-      border-radius: 10px;
-      text-align: center;
-      border: 1px solid #243041;
-    }
-    
-    .stat-value {
-      font-size: 26px;
-      font-weight: 700;
-      color: #4ea1ff;
-    }
-    
-    .stat-label {
-      font-size: 13px;
-      color: #9fb0c0;
-      margin-top: 6px;
-    }
-
+    .password-logs-table { max-height: 400px; overflow-y: auto; border: 1px solid var(--border-primary); border-radius: var(--radius-md); }
+    .password-logs-table th { position: sticky; top: 0; z-index: 1; }
+    #rate-limit-info { margin-top: 15px; }
+    .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: var(--space-3); margin-top: 15px; }
     @media (max-width: 768px) {
-      body {
-        padding: 0;
-        margin: 0;
-        max-width: 100%;
-      }
-      
-      .header {
-        flex-direction: column;
-        gap: 12px;
-        padding: 20px 16px;
-        margin-bottom: 12px;
-        border-radius: 0;
-      }
-      
-      .header h1 {
-        font-size: 20px;
-        margin: 0;
-      }
-      
-      .logout-btn {
-        padding: 8px 16px;
-        min-height: 44px;
-        font-size: 14px;
-      }
-      
-      .tabs {
-        flex-wrap: wrap;
-        gap: 6px;
-        padding: 0 16px;
-        margin-bottom: 16px;
-      }
-      
-      .tab-btn {
-        padding: 10px 14px;
-        font-size: 14px;
-        min-height: 44px;
-        flex: 1;
-        min-width: calc(33% - 4px);
-      }
-      
-      .tab-content {
-        padding: 20px;
-        margin: 0 16px 16px;
-        border-radius: 10px;
-      }
-      
-      h2 {
-        font-size: 22px;
-        margin-top: 0;
-      }
-      
-      table {
-        font-size: 14px;
-        display: block;
-        overflow-x: auto;
-        white-space: nowrap;
-      }
-      
-      th, td {
-        padding: 10px;
-      }
-      
-      .btn {
-        padding: 8px 14px;
-        font-size: 13px;
-        min-height: 44px;
-        min-width: 44px;
-      }
-      
-      .btn-add {
-        width: 100%;
-        margin-bottom: 12px;
-      }
-      
-      .form-group {
-        margin-bottom: 12px;
-      }
-      
-      .form-group label {
-        font-size: 14px;
-        margin-bottom: 6px;
-      }
-      
-      .form-group input,
-      .form-group select {
-        font-size: 16px;
-        padding: 10px 12px;
-        min-height: 44px;
-      }
-      
-      .modal-content {
-        width: 90%;
-        max-width: 90%;
-        padding: 20px;
-      }
-      
-      .modal-buttons {
-        flex-direction: column;
-        gap: 8px;
-      }
-      
-      .modal-buttons .btn {
-        width: 100%;
-      }
-      
-      .password-sections {
-        gap: 20px;
-      }
-      
-      .password-section {
-        padding: 20px;
-      }
-      
-      .password-section h3 {
-        font-size: 16px;
-        margin-bottom: 12px;
-      }
-      
-      .password-logs-table {
-        max-height: 300px;
-      }
-    }
-
-    @media (max-width: 480px) {
-      .header {
-        padding: 16px 12px;
-      }
-      
-      .header h1 {
-        font-size: 18px;
-      }
-      
-      .tabs {
-        padding: 0 12px;
-      }
-      
-      .tab-btn {
-        padding: 8px 10px;
-        font-size: 13px;
-        min-height: 40px;
-        min-width: calc(50% - 3px);
-      }
-      
-      .tab-content {
-        padding: 16px;
-        margin: 0 12px 12px;
-      }
-      
-      h2 {
-        font-size: 20px;
-      }
-      
-      table {
-        font-size: 13px;
-      }
-      
-      th, td {
-        padding: 8px;
-      }
-      
-      .btn {
-        padding: 8px 10px;
-        font-size: 12px;
-        min-height: 40px;
-      }
-      
-      .form-group input,
-      .form-group select {
-        font-size: 15px;
-        padding: 9px 10px;
-      }
-      
-      .modal-content {
-        padding: 16px;
-      }
-      
-      .password-section {
-        padding: 16px;
-      }
-      
-      .password-section h3 {
-        font-size: 15px;
-      }
-    }
-
-    @media (max-width: 360px) {
-      .header h1 {
-        font-size: 16px;
-      }
-      
-      .tab-btn {
-        font-size: 12px;
-        padding: 6px 8px;
-      }
-      
-      h2 {
-        font-size: 18px;
-      }
-      
-      .btn {
-        font-size: 11px;
-      }
-      
-      .form-group label {
-        font-size: 13px;
-      }
-      
-      .form-group input,
-      .form-group select {
-        font-size: 14px;
-      }
+      body { padding: 0; margin: 0; max-width: 100%; }
     }
   </style>
 </head>
 <body>
-  <div class="header">
-    <h1>Админ-панель</h1>
-    <div style="display: flex; gap: 10px;">
-      <a href="/index.html" class="btn" style="background: #1a2a3a; border-color: #2a3a5a; color: #4ea1ff; text-decoration: none;">💬 Чат</a>
-      <button class="logout-btn" onclick="logout()">Выйти</button>
+  <header class="app-header" style="position:static;border-radius:var(--radius-lg);margin-bottom:20px;border:1px solid var(--border-primary);">
+    <div class="flex items-center gap-3">
+      <h1 style="font-size:var(--text-xl);margin:0;">Админ-панель</h1>
     </div>
+    <div class="flex items-center gap-2">
+      <button class="btn btn-icon" id="themeToggle" aria-label="Toggle theme" title="Toggle theme">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+      </button>
+      <a href="/index.html" class="btn btn-sm" style="text-decoration:none;">💬 Чат</a>
+      <button class="btn btn-danger btn-sm" onclick="logout()">Выйти</button>
+    </div>
+  </header>
+  
+  <div class="tabs" style="background:var(--bg-surface);">
+    <button class="tab active" onclick="showTab('users')">Пользователи</button>
+    <button class="tab" onclick="showTab('models')">Модели</button>
+    <button class="tab" onclick="showTab('passwords')">Пароли</button>
+    <button class="tab" onclick="showTab('rag')">🧠 База знаний</button>
+    <button class="tab" onclick="showTab('llm')">AI > LLM Provider</button>
+    <button class="tab" onclick="showTab('system-health')">🩺 System Health</button>
   </div>
   
-  <div class="tabs">
-    <button class="tab-btn active" onclick="showTab('users')">Пользователи</button>
-    <button class="tab-btn" onclick="showTab('models')">Модели</button>
-    <button class="tab-btn" onclick="showTab('passwords')">Пароли</button>
-    <button class="tab-btn" onclick="showTab('rag')">🧠 База знаний</button>
-    <button class="tab-btn" onclick="showTab('llm')">AI &gt; LLM Provider</button>
-    <button class="tab-btn" onclick="showTab('system-health')">🩺 System Health</button>
-  </div>
-  
-  <!-- Таблица пользователей -->
-  <div id="users-tab" class="tab-content active">
+  <div id="users-tab" class="tab-content active" style="display:block;">
     <h2>Управление пользователями</h2>
     <div id="users-message"></div>
-    <table>
-      <thead>
-        <tr>
-          <th>ID</th>
-          <th>Имя пользователя</th>
-          <th>Email</th>
-          <th>Имя</th>
-          <th>Статус</th>
-          <th>Админ</th>
-          <th>Дата регистрации</th>
-          <th>Действия</th>
-        </tr>
-      </thead>
-      <tbody id="users-table">
-        <tr><td colspan="8">Загрузка...</td></tr>
-      </tbody>
-    </table>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Имя пользователя</th>
+            <th>Email</th>
+            <th>Имя</th>
+            <th>Статус</th>
+            <th>Админ</th>
+            <th>Дата регистрации</th>
+            <th>Действия</th>
+          </tr>
+        </thead>
+        <tbody id="users-table">
+          <tr><td colspan="8">Загрузка...</td></tr>
+        </tbody>
+      </table>
+    </div>
   </div>
   
-  <!-- Управление моделями -->
-  <div id="models-tab" class="tab-content">
+  <div id="models-tab" class="tab-content" style="display:none;">
     <h2>Управление моделями</h2>
     <div id="models-message"></div>
-
-    <div class="tabs" style="margin-bottom: 15px;">
-      <button class="tab-btn active" onclick="showModelsSubTab('catalog')">Каталог моделей</button>
-      <button class="tab-btn" onclick="showModelsSubTab('assignments')">Назначение моделей</button>
+    <div class="tabs" style="margin-bottom:var(--space-4);background:var(--bg);">
+      <button class="tab active" onclick="showModelsSubTab('catalog')">Каталог моделей</button>
+      <button class="tab" onclick="showModelsSubTab('assignments')">Назначение моделей</button>
     </div>
-
-    <!-- Каталог моделей -->
-    <div id="models-catalog" style="display: block;">
-      <button class="btn btn-primary" onclick="syncModels()" style="margin-bottom: 15px;">Обновить каталог</button>
-      <div style="overflow-x: auto;">
+    <div id="models-catalog">
+      <button class="btn btn-primary" onclick="syncModels()" style="margin-bottom:var(--space-4);">Обновить каталог</button>
+      <div class="table-wrap">
         <table>
           <thead>
             <tr>
@@ -755,82 +109,79 @@
         </table>
       </div>
     </div>
-
-    <!-- Назначение моделей -->
-    <div id="models-assignments" style="display: none;">
+    <div id="models-assignments" style="display:none;">
       <div id="assignments-message"></div>
-      <table>
-        <thead>
-          <tr>
-            <th>Роль</th>
-            <th>Модель</th>
-          </tr>
-        </thead>
-        <tbody id="models-assignments-table">
-          <tr><td colspan="2">Загрузка...</td></tr>
-        </tbody>
-      </table>
-      <button class="btn btn-primary" onclick="saveAssignments()" style="margin-top: 15px;">Сохранить</button>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Роль</th>
+              <th>Модель</th>
+            </tr>
+          </thead>
+          <tbody id="models-assignments-table">
+            <tr><td colspan="2">Загрузка...</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <button class="btn btn-primary" onclick="saveAssignments()" style="margin-top:var(--space-4);">Сохранить</button>
     </div>
   </div>
   
-  <!-- Управление паролями -->
-  <div id="passwords-tab" class="tab-content">
+  <div id="passwords-tab" class="tab-content" style="display:none;">
     <h2>Управление паролями</h2>
     <div id="passwords-message"></div>
-    
     <div class="password-sections">
-      <!-- Секция изменения собственного пароля -->
-      <div class="password-section">
-        <h3>Изменить свой пароль</h3>
+      <div class="card">
+        <h3 class="card-heading">Изменить свой пароль</h3>
         <div id="change-own-password-message"></div>
         <form id="change-own-password-form">
           <div class="form-group">
             <label for="current-password">Текущий пароль:</label>
-            <input type="password" id="current-password" required>
+            <input type="password" id="current-password" class="input" required>
           </div>
           <div class="form-group">
             <label for="new-password">Новый пароль:</label>
-            <input type="password" id="new-password" required>
-            <div class="password-requirements">
-              <small>Минимум 8 символов, буквы верхнего и нижнего регистра, цифры</small>
+            <input type="password" id="new-password" class="input" required>
+            <div class="password-requirements text-small" style="color:var(--text-tertiary);margin-top:4px;">
+              Минимум 8 символов, буквы верхнего и нижнего регистра, цифры
             </div>
           </div>
           <div class="form-group">
             <label for="confirm-password">Подтверждение пароля:</label>
-            <input type="password" id="confirm-password" required>
+            <input type="password" id="confirm-password" class="input" required>
           </div>
-          <div class="form-group">
+          <div class="form-group flex gap-2">
             <button type="submit" class="btn btn-primary">Изменить пароль</button>
-            <button type="button" class="btn btn-secondary" onclick="checkRateLimit()">Проверить лимиты</button>
+            <button type="button" class="btn btn-ghost" onclick="checkRateLimit()">Проверить лимиты</button>
           </div>
         </form>
-        <div id="rate-limit-info" style="margin-top: 15px; padding: 10px; background: #f8f9fa; border-radius: 4px;"></div>
+        <div id="rate-limit-info"></div>
       </div>
       
-      <!-- Секция изменения пароля других пользователей (для админов) -->
-      <div class="password-section">
-        <h3>Изменить пароль пользователя</h3>
+      <div class="card">
+        <h3 class="card-heading">Изменить пароль пользователя</h3>
         <div id="change-user-password-message"></div>
         <form id="change-user-password-form">
           <div class="form-group">
             <label for="user-select">Пользователь:</label>
-            <select id="user-select" required>
+            <select id="user-select" class="input" required>
               <option value="">Выберите пользователя...</option>
             </select>
           </div>
           <div class="form-group">
             <label for="admin-new-password">Новый пароль:</label>
-            <input type="password" id="admin-new-password" required>
+            <input type="password" id="admin-new-password" class="input" required>
           </div>
           <div class="form-group">
             <label for="admin-confirm-password">Подтверждение пароля:</label>
-            <input type="password" id="admin-confirm-password" required>
+            <input type="password" id="admin-confirm-password" class="input" required>
           </div>
           <div class="form-group">
-            <label>
+            <label class="toggle">
               <input type="checkbox" id="require-2fa">
-              Требовать двухфакторную аутентификацию
+              <span class="toggle-slider"></span>
+              <span>Требовать двухфакторную аутентификацию</span>
             </label>
           </div>
           <div class="form-group">
@@ -839,13 +190,12 @@
         </form>
       </div>
       
-      <!-- Секция просмотра логов -->
-      <div class="password-section">
-        <h3>Логи изменения паролей</h3>
+      <div class="card">
+        <h3 class="card-heading">Логи изменения паролей</h3>
         <div id="password-logs-message"></div>
         <div class="form-group">
           <label for="log-user-select">Пользователь для просмотра логов:</label>
-          <select id="log-user-select" onchange="loadPasswordLogs()">
+          <select id="log-user-select" class="input" onchange="loadPasswordLogs()">
             <option value="">Все пользователи...</option>
           </select>
         </div>
@@ -872,53 +222,52 @@
     </div>
   </div>
   
-  <!-- Модальное окно редактирования пользователя -->
-  <div id="edit-user-modal" class="modal">
+  <div id="edit-user-modal" class="modal-overlay">
     <div class="modal-content">
-      <h2>Редактировать пользователя</h2>
+      <div class="modal-header">
+        <h2>Редактировать пользователя</h2>
+        <button class="modal-close" onclick="closeEditUserModal()">✕</button>
+      </div>
       <form id="edit-user-form">
         <input type="hidden" id="edit-user-id">
         <div class="form-group">
           <label>Имя пользователя:</label>
-          <input type="text" id="edit-username" required>
+          <input type="text" id="edit-username" class="input" required>
         </div>
         <div class="form-group">
           <label>Email:</label>
-          <input type="email" id="edit-email">
+          <input type="email" id="edit-email" class="input">
         </div>
         <div class="form-group">
           <label>Имя:</label>
-          <input type="text" id="edit-name">
+          <input type="text" id="edit-name" class="input">
         </div>
-        <div class="modal-buttons">
-          <button type="button" class="btn" onclick="closeEditUserModal()">Отмена</button>
-          <button type="submit" class="btn btn-edit">Сохранить</button>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-ghost" onclick="closeEditUserModal()">Отмена</button>
+          <button type="submit" class="btn btn-primary">Сохранить</button>
         </div>
       </form>
     </div>
   </div>
   
-  <!-- Вкладка RAG База Знаний -->
-  <div id="rag-tab" class="tab-content">
+  <div id="rag-tab" class="tab-content" style="display:none;">
     <h2>🧠 RAG База Знаний</h2>
     <div id="rag-message"></div>
-    
     <div class="password-sections">
-      <!-- Загрузка файлов -->
-      <div class="password-section">
-        <h3>📤 Загрузка документов</h3>
+      <div class="card">
+        <h3 class="card-heading">📤 Загрузка документов</h3>
         <div class="form-group">
           <label for="rag-project">Проект (опционально)</label>
-          <select id="rag-project"><option value="">Общая база (без привязки)</option></select>
+          <select id="rag-project" class="input"><option value="">Общая база (без привязки)</option></select>
         </div>
         <div class="form-group">
           <label>Файл для индексирования</label>
-          <input type="file" id="rag-file" accept=".txt,.md,.json,.js,.ts,.py,.sql,.pdf,.docx,.doc,.html,.css,.yaml,.yml">
-          <small style="color: #666; display: block; margin-top: 5px;">Поддерживаются: TXT, MD, JSON, JS, TS, PY, SQL, PDF, DOCX</small>
+          <input type="file" id="rag-file" class="input" accept=".txt,.md,.json,.js,.ts,.py,.sql,.pdf,.docx,.doc,.html,.css,.yaml,.yml">
+          <small class="text-small" style="display:block;margin-top:5px;">Поддерживаются: TXT, MD, JSON, JS, TS, PY, SQL, PDF, DOCX</small>
         </div>
         <div class="form-group">
           <label for="rag-category">Категория</label>
-          <select id="rag-category">
+          <select id="rag-category" class="input">
             <option value="documentation">Документация</option>
             <option value="code">Код</option>
             <option value="faq">FAQ</option>
@@ -928,126 +277,90 @@
         </div>
         <div class="form-group">
           <label for="rag-tags">Теги (через запятую)</label>
-          <input type="text" id="rag-tags" placeholder="api, auth, example">
+          <input type="text" id="rag-tags" class="input" placeholder="api, auth, example">
         </div>
         <button class="btn btn-primary" onclick="uploadRagFile()">Загрузить и индексировать</button>
       </div>
-
-      <!-- Поиск -->
-      <div class="password-section">
-        <h3>🔍 Поиск по базе</h3>
+      <div class="card">
+        <h3 class="card-heading">🔍 Поиск по базе</h3>
         <div class="form-group">
           <label for="rag-search-query">Поисковый запрос</label>
-          <input type="text" id="rag-search-query" placeholder="Введите запрос...">
+          <input type="text" id="rag-search-query" class="input" placeholder="Введите запрос...">
         </div>
         <div class="form-group">
           <label for="rag-search-limit">Количество результатов</label>
-          <select id="rag-search-limit">
+          <select id="rag-search-limit" class="input">
             <option value="3">3</option>
             <option value="5" selected>5</option>
             <option value="10">10</option>
           </select>
         </div>
         <button class="btn btn-primary" onclick="searchRag()">Найти</button>
-        <div id="rag-search-results" style="margin-top: 15px;"></div>
+        <div id="rag-search-results" style="margin-top:var(--space-4);"></div>
       </div>
-
-      <!-- Статистика -->
-      <div class="password-section">
-        <h3>📊 Статистика</h3>
-        <div class="stats-grid" style="margin-top: 15px;">
+      <div class="card">
+        <h3 class="card-heading">📊 Статистика</h3>
+        <div class="stats-grid">
           <div class="stat-item"><div class="stat-value" id="rag-stat-total">-</div><div class="stat-label">Документов</div></div>
           <div class="stat-item"><div class="stat-value" id="rag-stat-projects">-</div><div class="stat-label">Проектов</div></div>
           <div class="stat-item"><div class="stat-value" id="rag-stat-docs">-</div><div class="stat-label">Текстовых файлов</div></div>
           <div class="stat-item"><div class="stat-value" id="rag-stat-code">-</div><div class="stat-label">Файлов кода</div></div>
         </div>
-        <button class="btn btn-secondary" onclick="loadRagStats()" style="margin-top: 10px;">Обновить</button>
+        <button class="btn btn-ghost" onclick="loadRagStats()" style="margin-top:var(--space-3);">Обновить</button>
       </div>
     </div>
   </div>
 
-  <!-- Вкладка LLM Provider -->
-  <div id="llm-tab" class="tab-content">
-    <h2>AI &gt; LLM Provider</h2>
+  <div id="llm-tab" class="tab-content" style="display:none;">
+    <h2>AI > LLM Provider</h2>
     <div id="llm-message"></div>
-
     <div class="password-sections">
-      <div class="password-section">
-        <h3>Выбор провайдера</h3>
+      <div class="card">
+        <h3 class="card-heading">Выбор провайдера</h3>
         <div class="form-group">
           <label>Активный провайдер</label>
           <div id="llm-providers-list"></div>
         </div>
       </div>
-
-      <div class="password-section" id="llm-lmstudio-config" style="display: none;">
-        <h3>Настройки LM Studio</h3>
+      <div class="card" id="llm-lmstudio-config" style="display:none;">
+        <h3 class="card-heading">Настройки LM Studio</h3>
         <div class="form-group">
           <label for="llm-lmstudio-url">Base URL</label>
-          <input type="text" id="llm-lmstudio-url" value="http://localhost:1234/v1" placeholder="http://localhost:1234/v1">
+          <input type="text" id="llm-lmstudio-url" class="input" value="http://localhost:1234/v1" placeholder="http://localhost:1234/v1">
         </div>
         <div class="form-group">
           <label for="llm-lmstudio-model">Model</label>
-          <input type="text" id="llm-lmstudio-model" placeholder="Оставьте пустым для автоопределения">
+          <input type="text" id="llm-lmstudio-model" class="input" placeholder="Оставьте пустым для автоопределения">
         </div>
-        <!--
-        EXPERIMENTAL FEATURE: Proxy Layer
-        Функциональность временно отключена. См. services/llm/proxyAgent.js
-        <div class="proxy-section">
-          ...
-        </div>
-        -->
         <div class="form-group">
           <button class="btn btn-primary" onclick="testLlmConnection('lmstudio')">Test Connection</button>
         </div>
         <div id="llm-test-result"></div>
       </div>
-
-      <div class="password-section" id="llm-openai-config" style="display: none;">
-        <h3>Настройки OpenAI</h3>
+      <div class="card" id="llm-openai-config" style="display:none;">
+        <h3 class="card-heading">Настройки OpenAI</h3>
         <div class="form-group">
           <label for="llm-openai-key">API Key</label>
-          <input type="password" id="llm-openai-key" placeholder="sk-...">
+          <input type="password" id="llm-openai-key" class="input" placeholder="sk-...">
         </div>
         <div class="form-group">
           <label for="llm-openai-url">Base URL</label>
-          <input type="text" id="llm-openai-url" value="https://api.openai.com/v1" placeholder="https://api.openai.com/v1">
+          <input type="text" id="llm-openai-url" class="input" value="https://api.openai.com/v1" placeholder="https://api.openai.com/v1">
         </div>
         <div class="form-group">
           <label for="llm-openai-model">Model</label>
-          <input type="text" id="llm-openai-model" value="gpt-4o" placeholder="gpt-4o">
+          <input type="text" id="llm-openai-model" class="input" value="gpt-4o" placeholder="gpt-4o">
         </div>
-        <!--
-        EXPERIMENTAL FEATURE: Proxy Layer
-        <div class="proxy-section">
-          ...
-        </div>
-        -->
         <div class="form-group">
           <button class="btn btn-primary" onclick="testLlmConnection('openai')">Test Connection</button>
         </div>
         <div id="llm-openai-test-result"></div>
       </div>
-
-      <!--
-      EXPERIMENTAL FEATURE: Proxy Layer
-      <div class="password-section" id="llm-openrouter-config" style="display: none;">
-        <h3>Прокси для OpenRouter</h3>
-        <div class="proxy-section">
-          ...
-        </div>
-        <div class="form-group">
-          <button class="btn btn-primary" onclick="testLlmConnection('openrouter')">Test Connection</button>
-        </div>
-        <div id="llm-openrouter-test-result"></div>
-      </div>
-      -->
-
-      <div class="password-section" id="llm-openrouter-config" style="display: none;">
-        <h3>Настройки LLM Aggregator</h3>
+      <div class="card" id="llm-openrouter-config" style="display:none;">
+        <h3 class="card-heading">Настройки LLM Aggregator</h3>
         <div class="form-group">
           <label for="llm-aggregator-type">Aggregator Type</label>
-          <select id="llm-aggregator-type" onchange="onAggregatorTypeChange()">
+          <select id="llm-aggregator-type" class="input" onchange="onAggregatorTypeChange()">
             <option value="openrouter">OpenRouter</option>
             <option value="mixroute">MixRoute</option>
             <option value="custom">Custom</option>
@@ -1055,92 +368,78 @@
         </div>
         <div class="form-group">
           <label for="llm-aggregator-url">Base URL</label>
-          <input type="text" id="llm-aggregator-url" placeholder="https://openrouter.ai/api/v1">
+          <input type="text" id="llm-aggregator-url" class="input" placeholder="https://openrouter.ai/api/v1">
         </div>
         <div class="form-group">
           <label for="llm-aggregator-key">API Key</label>
-          <input type="password" id="llm-aggregator-key" placeholder="sk-...">
+          <input type="password" id="llm-aggregator-key" class="input" placeholder="sk-...">
         </div>
         <div class="form-group">
           <label for="llm-aggregator-model">Default Model</label>
-          <input type="text" id="llm-aggregator-model" placeholder="openai/gpt-4o-mini">
+          <input type="text" id="llm-aggregator-model" class="input" placeholder="openai/gpt-4o-mini">
         </div>
         <div class="form-group">
           <button class="btn btn-primary" onclick="testLlmConnection('openrouter')">Test Connection</button>
         </div>
         <div id="llm-test-result"></div>
       </div>
-
-      <div class="password-section">
+      <div class="card">
         <button class="btn btn-primary" onclick="saveLlmSettings()">Сохранить настройки</button>
       </div>
     </div>
   </div>
 
-  <!-- System Health -->
-  <div id="system-health-tab" class="tab-content">
+  <div id="system-health-tab" class="tab-content" style="display:none;">
     <h2>🩺 System Health</h2>
     <div id="system-health-message"></div>
-
     <div class="password-sections">
-      <div class="password-section">
-        <h3>1C MCP</h3>
-        <div id="health-mcp-status">
-          <p>Загрузка...</p>
-        </div>
-        <button class="btn btn-primary" onclick="checkMcp()" style="margin-top: 10px;">Проверить MCP</button>
+      <div class="card">
+        <h3 class="card-heading">1C MCP</h3>
+        <div id="health-mcp-status"><p>Загрузка...</p></div>
+        <button class="btn btn-primary" onclick="checkMcp()" style="margin-top:var(--space-3);">Проверить MCP</button>
       </div>
-
-      <div class="password-section">
-        <h3>PostgreSQL</h3>
-        <div id="health-database-status">
-          <p>Загрузка...</p>
-        </div>
+      <div class="card">
+        <h3 class="card-heading">PostgreSQL</h3>
+        <div id="health-database-status"><p>Загрузка...</p></div>
       </div>
-
-      <div class="password-section">
-        <h3>Knowledge Layer</h3>
-        <div id="health-knowledge-status">
-          <p>Загрузка...</p>
-        </div>
-        <button class="btn btn-primary" onclick="startKnowledgeImport()" style="margin-top: 10px;">Обновить знания</button>
+      <div class="card">
+        <h3 class="card-heading">Knowledge Layer</h3>
+        <div id="health-knowledge-status"><p>Загрузка...</p></div>
+        <button class="btn btn-primary" onclick="startKnowledgeImport()" style="margin-top:var(--space-3);">Обновить знания</button>
       </div>
     </div>
   </div>
 
   <script>
-    // Переключение вкладок
     function showTab(tabName) {
-      document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
-      document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+      document.querySelectorAll('.tab').forEach(btn => btn.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(content => content.style.display = 'none');
       
-      document.querySelector(`[onclick="showTab('${tabName}')"]`).classList.add('active');
-      document.getElementById(`${tabName}-tab`).classList.add('active');
+      document.querySelector(`.tab[onclick*="'${tabName}'"]`).classList.add('active');
+      document.getElementById(`${tabName}-tab`).style.display = 'block';
       
       if (tabName === 'users') loadUsers();
       if (tabName === 'models') { loadModelsCatalog(); loadModelsAssignments(); }
       if (tabName === 'rag') { loadRagProjects(); loadRagStats(); }
+      if (tabName === 'llm') loadLlmSettings();
+      if (tabName === 'system-health') loadSystemHealth();
+      if (tabName === 'passwords') loadUserLists();
     }
     
-    // Загрузка пользователей
     async function loadUsers() {
       try {
         const response = await fetch('/api/admin/users', { credentials: 'include' });
         if (!response.ok) {
-          if (response.status === 401 || response.status === 403) {
-            window.location.href = '/login.html';
-            return;
-          }
+          if (response.status === 401 || response.status === 403) { window.location.href = '/login.html'; return; }
           throw new Error('Ошибка загрузки пользователей');
         }
         const users = await response.json();
         renderUsers(users);
       } catch (err) {
-        document.getElementById('users-message').innerHTML = `<div class="error">${err.message}</div>`;
+        document.getElementById('users-message').innerHTML = `<div class="msg-box msg-box-error">${err.message}</div>`;
       }
     }
     
-    // Отображение пользователей
     function renderUsers(users) {
       const tbody = document.getElementById('users-table');
       if (users.length === 0) {
@@ -1154,74 +453,43 @@
           <td>${escapeHtml(user.username || '')}</td>
           <td>${escapeHtml(user.email || '')}</td>
           <td>${escapeHtml(user.name || '')}</td>
-          <td>
-            <span class="${user.is_approved ? 'status-approved' : 'status-pending'}">
-              ${user.is_approved ? 'Одобрен' : 'Ожидает'}
-            </span>
-          </td>
-          <td>
-            <span class="${user.is_admin ? 'status-admin' : ''}">
-              ${user.is_admin ? 'Админ' : '-'}
-            </span>
-          </td>
+          <td><span class="${user.is_approved ? 'status-approved' : 'status-pending'}">${user.is_approved ? 'Одобрен' : 'Ожидает'}</span></td>
+          <td><span class="${user.is_admin ? 'status-admin' : ''}">${user.is_admin ? 'Админ' : '-'}</span></td>
           <td>${new Date(user.created_at).toLocaleDateString()}</td>
           <td>
-            ${!user.is_approved ? `<button class="btn btn-approve" onclick="approveUser(${user.id})">Одобрить</button>` : ''}
-            ${!user.is_admin ? `<button class="btn btn-approve" onclick="makeAdmin(${user.id})" style="background: #28a745;">Админ</button>` : ''}
-            <button class="btn btn-edit" onclick="editUser(${user.id}, '${escapeHtml(user.username || '')}', '${escapeHtml(user.email || '')}', '${escapeHtml(user.name || '')}')">Ред.</button>
-            <button class="btn btn-delete" onclick="deleteUser(${user.id})">Удалить</button>
+            ${!user.is_approved ? `<button class="btn btn-success btn-sm" onclick="approveUser(${user.id})">Одобрить</button>` : ''}
+            ${!user.is_admin ? `<button class="btn btn-success btn-sm" onclick="makeAdmin(${user.id})" style="background:var(--accent-2);color:white;">Админ</button>` : ''}
+            <button class="btn btn-sm" onclick="editUser(${user.id}, '${escapeHtml(user.username || '')}', '${escapeHtml(user.email || '')}', '${escapeHtml(user.name || '')}')">Ред.</button>
+            <button class="btn btn-danger btn-sm" onclick="deleteUser(${user.id})">Удалить</button>
           </td>
         </tr>
       `).join('');
     }
     
-    // Одобрение пользователя
     async function approveUser(userId) {
       if (!confirm('Одобрить этого пользователя?')) return;
-      
       try {
-        const response = await fetch(`/api/admin/users/${userId}/approve`, {
-          method: 'PUT',
-          credentials: 'include'
-        });
-        
-        if (!response.ok) {
-          const data = await response.json();
-          throw new Error(data.error || 'Ошибка одобрения');
-        }
-        
-        document.getElementById('users-message').innerHTML = '<div class="success">Пользователь одобрен</div>';
+        const response = await fetch(`/api/admin/users/${userId}/approve`, { method: 'PUT', credentials: 'include' });
+        if (!response.ok) { const data = await response.json(); throw new Error(data.error || 'Ошибка одобрения'); }
+        document.getElementById('users-message').innerHTML = '<div class="msg-box msg-box-success">Пользователь одобрен</div>';
         loadUsers();
       } catch (err) {
-        document.getElementById('users-message').innerHTML = `<div class="error">${err.message}</div>`;
+        document.getElementById('users-message').innerHTML = `<div class="msg-box msg-box-error">${err.message}</div>`;
       }
     }
     
-    // Назначение пользователя админом
     async function makeAdmin(userId) {
-      if (!confirm('Назначить этого пользователя администратором? Он получит полный доступ к управлению пользователями.')) return;
-      
+      if (!confirm('Назначить этого пользователя администратором?')) return;
       try {
-        const response = await fetch(`/api/admin/users/${userId}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({ is_admin: true })
-        });
-        
-        if (!response.ok) {
-          const data = await response.json();
-          throw new Error(data.error || 'Ошибка назначения админом');
-        }
-        
-        document.getElementById('users-message').innerHTML = '<div class="success">Пользователь назначен администратором</div>';
+        const response = await fetch(`/api/admin/users/${userId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ is_admin: true }) });
+        if (!response.ok) { const data = await response.json(); throw new Error(data.error || 'Ошибка назначения админом'); }
+        document.getElementById('users-message').innerHTML = '<div class="msg-box msg-box-success">Пользователь назначен администратором</div>';
         loadUsers();
       } catch (err) {
-        document.getElementById('users-message').innerHTML = `<div class="error">${err.message}</div>`;
+        document.getElementById('users-message').innerHTML = `<div class="msg-box msg-box-error">${err.message}</div>`;
       }
     }
     
-    // Редактирование пользователя
     function editUser(id, username, email, name) {
       document.getElementById('edit-user-id').value = id;
       document.getElementById('edit-username').value = username;
@@ -1240,75 +508,49 @@
       const username = document.getElementById('edit-username').value;
       const email = document.getElementById('edit-email').value;
       const name = document.getElementById('edit-name').value;
-      
       try {
-        const response = await fetch(`/api/admin/users/${userId}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({ username, email, name })
-        });
-        
-        if (!response.ok) {
-          const data = await response.json();
-          throw new Error(data.error || 'Ошибка сохранения');
-        }
-        
+        const response = await fetch(`/api/admin/users/${userId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ username, email, name }) });
+        if (!response.ok) { const data = await response.json(); throw new Error(data.error || 'Ошибка сохранения'); }
         closeEditUserModal();
-        document.getElementById('users-message').innerHTML = '<div class="success">Изменения сохранены</div>';
+        document.getElementById('users-message').innerHTML = '<div class="msg-box msg-box-success">Изменения сохранены</div>';
         loadUsers();
       } catch (err) {
-        document.getElementById('users-message').innerHTML = `<div class="error">${err.message}</div>`;
+        document.getElementById('users-message').innerHTML = `<div class="msg-box msg-box-error">${err.message}</div>`;
       }
     };
     
-    // Удаление пользователя
     async function deleteUser(userId) {
-      if (!confirm('Вы уверены, что хотите удалить этого пользователя? Все его проекты и сообщения будут удалены.')) return;
-      
+      if (!confirm('Вы уверены, что хотите удалить этого пользователя?')) return;
       try {
-        const response = await fetch(`/api/admin/users/${userId}`, {
-          method: 'DELETE',
-          credentials: 'include'
-        });
-        
-        if (!response.ok) {
-          const data = await response.json();
-          throw new Error(data.error || 'Ошибка удаления');
-        }
-        
-        document.getElementById('users-message').innerHTML = '<div class="success">Пользователь удален</div>';
+        const response = await fetch(`/api/admin/users/${userId}`, { method: 'DELETE', credentials: 'include' });
+        if (!response.ok) { const data = await response.json(); throw new Error(data.error || 'Ошибка удаления'); }
+        document.getElementById('users-message').innerHTML = '<div class="msg-box msg-box-success">Пользователь удален</div>';
         loadUsers();
       } catch (err) {
-        document.getElementById('users-message').innerHTML = `<div class="error">${err.message}</div>`;
+        document.getElementById('users-message').innerHTML = `<div class="msg-box msg-box-error">${err.message}</div>`;
       }
     }
     
-    // Переключение подвкладок моделей
     function showModelsSubTab(subTab) {
-      document.querySelectorAll('#models-tab .tab-btn').forEach(btn => btn.classList.remove('active'));
+      document.querySelectorAll('#models-tab .tab').forEach(btn => btn.classList.remove('active'));
       document.getElementById('models-catalog').style.display = subTab === 'catalog' ? 'block' : 'none';
       document.getElementById('models-assignments').style.display = subTab === 'assignments' ? 'block' : 'none';
-      document.querySelector(`#models-tab .tab-btn[onclick*='${subTab}']`).classList.add('active');
+      document.querySelector(`#models-tab .tab[onclick*='${subTab}']`).classList.add('active');
       if (subTab === 'catalog') loadModelsCatalog();
       if (subTab === 'assignments') loadModelsAssignments();
     }
-
-    // Загрузка каталога моделей
+    
     async function loadModelsCatalog() {
       try {
         const response = await fetch('/api/admin/models/catalog', { credentials: 'include' });
-        if (!response.ok) {
-          if (response.status === 401 || response.status === 403) { window.location.href = '/login.html'; return; }
-          throw new Error('Ошибка загрузки каталога');
-        }
+        if (!response.ok) { if (response.status === 401 || response.status === 403) { window.location.href = '/login.html'; return; } throw new Error('Ошибка загрузки каталога'); }
         const data = await response.json();
         renderModelsCatalog(data.models);
       } catch (err) {
-        document.getElementById('models-message').innerHTML = `<div class="error">${err.message}</div>`;
+        document.getElementById('models-message').innerHTML = `<div class="msg-box msg-box-error">${err.message}</div>`;
       }
     }
-
+    
     function renderModelsCatalog(models) {
       const tbody = document.getElementById('models-catalog-table');
       if (!models || models.length === 0) {
@@ -1329,44 +571,28 @@
         </tr>
       `).join('');
     }
-
-    // Синхронизация с OpenRouter
+    
     async function syncModels() {
       const msgDiv = document.getElementById('models-message');
-      msgDiv.innerHTML = '<div class="loading">Синхронизация моделей...</div>';
+      msgDiv.innerHTML = '<div class="msg-box msg-box-info flex items-center gap-2"><div class="spinner"></div>Синхронизация моделей...</div>';
       try {
-        const response = await fetch('/api/admin/models/sync', {
-          method: 'POST',
-          credentials: 'include'
-        });
+        const response = await fetch('/api/admin/models/sync', { method: 'POST', credentials: 'include' });
         const data = await response.json();
-        if (data.success) {
-          msgDiv.innerHTML = `<div class="success">${data.message}</div>`;
-          loadModelsCatalog();
-        } else {
-          msgDiv.innerHTML = `<div class="error">${data.error || 'Ошибка синхронизации'}</div>`;
-        }
-      } catch (err) {
-        msgDiv.innerHTML = `<div class="error">${err.message}</div>`;
-      }
+        if (data.success) { msgDiv.innerHTML = `<div class="msg-box msg-box-success">${data.message}</div>`; loadModelsCatalog(); }
+        else { msgDiv.innerHTML = `<div class="msg-box msg-box-error">${data.error || 'Ошибка синхронизации'}</div>`; }
+      } catch (err) { msgDiv.innerHTML = `<div class="msg-box msg-box-error">${err.message}</div>`; }
     }
-
-    // Загрузка назначений моделей
+    
     let allModels = [];
     let currentAssignments = [];
-
+    
     async function loadModelsAssignments() {
       try {
         const [catRes, assignRes] = await Promise.all([
           fetch('/api/admin/models/catalog', { credentials: 'include' }),
           fetch('/api/admin/models/assignments', { credentials: 'include' })
         ]);
-        if (!catRes.ok || !assignRes.ok) {
-          if (catRes.status === 401 || assignRes.status === 401 || catRes.status === 403 || assignRes.status === 403) {
-            window.location.href = '/login.html'; return;
-          }
-          throw new Error('Ошибка загрузки');
-        }
+        if (!catRes.ok || !assignRes.ok) { if (catRes.status === 401 || assignRes.status === 401 || catRes.status === 403 || assignRes.status === 403) { window.location.href = '/login.html'; return; } throw new Error('Ошибка загрузки'); }
         const catData = await catRes.json();
         const assignData = await assignRes.json();
         allModels = catData.models || [];
@@ -1374,80 +600,52 @@
         const roles = assignData.roles || [];
         renderModelsAssignments(roles);
       } catch (err) {
-        document.getElementById('assignments-message').innerHTML = `<div class="error">${err.message}</div>`;
+        document.getElementById('assignments-message').innerHTML = `<div class="msg-box msg-box-error">${err.message}</div>`;
       }
     }
-
+    
     function renderModelsAssignments(roles) {
       const tbody = document.getElementById('models-assignments-table');
       const assignMap = {};
       currentAssignments.forEach(a => { assignMap[a.role] = a.model_id; });
-
-      if (!roles || roles.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="2">Нет ролей</td></tr>';
-        return;
-      }
-
+      if (!roles || roles.length === 0) { tbody.innerHTML = '<tr><td colspan="2">Нет ролей</td></tr>'; return; }
       const roleLabels = { chat: 'Chat', programming: 'Programming', reviewer: 'Reviewer', academy: 'Academy', summarizer: 'Summarizer', vision: 'Vision' };
-
       tbody.innerHTML = roles.map(role => `
         <tr>
           <td><strong>${roleLabels[role] || role}</strong></td>
           <td>
-            <select id="assign-${role}" style="width: 100%;">
+            <select id="assign-${role}" class="input">
               <option value="">— Не назначена —</option>
-              ${allModels.map(m => `
-                <option value="${escapeHtml(m.id)}" ${(assignMap[role] === m.id) ? 'selected' : ''}>
-                  ${escapeHtml(m.name || m.id)}
-                </option>
-              `).join('')}
+              ${allModels.map(m => `<option value="${escapeHtml(m.id)}" ${(assignMap[role] === m.id) ? 'selected' : ''}>${escapeHtml(m.name || m.id)}</option>`).join('')}
             </select>
           </td>
         </tr>
       `).join('');
     }
-
-    // Сохранение назначений
+    
     async function saveAssignments() {
       const roles = ['chat', 'programming', 'reviewer', 'academy', 'summarizer', 'vision'];
       const msgDiv = document.getElementById('assignments-message');
-      msgDiv.innerHTML = '<div class="loading">Сохранение...</div>';
-
+      msgDiv.innerHTML = '<div class="msg-box msg-box-info flex items-center gap-2"><div class="spinner"></div>Сохранение...</div>';
       try {
         for (const role of roles) {
           const select = document.getElementById(`assign-${role}`);
           if (!select) continue;
           const modelId = select.value;
           if (!modelId) continue;
-          const response = await fetch('/api/admin/models/assignments', {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            credentials: 'include',
-            body: JSON.stringify({ role, modelId })
-          });
-          if (!response.ok) {
-            const data = await response.json();
-            throw new Error(data.error || `Ошибка назначения ${role}`);
-          }
+          const response = await fetch('/api/admin/models/assignments', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ role, modelId }) });
+          if (!response.ok) { const data = await response.json(); throw new Error(data.error || `Ошибка назначения ${role}`); }
         }
-        msgDiv.innerHTML = '<div class="success">Назначения сохранены</div>';
+        msgDiv.innerHTML = '<div class="msg-box msg-box-success">Назначения сохранены</div>';
         loadModelsAssignments();
-      } catch (err) {
-        msgDiv.innerHTML = `<div class="error">${err.message}</div>`;
-      }
-    }
-
-    // Выход
-    async function logout() {
-      try {
-        await fetch('/logout', { method: 'POST', credentials: 'include' });
-        window.location.href = '/login.html';
-      } catch (err) {
-        window.location.href = '/login.html';
-      }
+      } catch (err) { msgDiv.innerHTML = `<div class="msg-box msg-box-error">${err.message}</div>`; }
     }
     
-    // Экранирование HTML
+    async function logout() {
+      try { await fetch('/logout', { method: 'POST', credentials: 'include' }); window.location.href = '/login.html'; }
+      catch (err) { window.location.href = '/login.html'; }
+    }
+    
     function escapeHtml(text) {
       if (!text) return '';
       const div = document.createElement('div');
@@ -1455,272 +653,146 @@
       return div.innerHTML;
     }
     
-    // Проверка авторизации при загрузке
     async function checkAuth() {
       try {
         const response = await fetch('/auth/check', { credentials: 'include' });
         const data = await response.json();
-        if (!data.authenticated) {
-          window.location.href = '/login.html';
-        }
-      } catch (err) {
-        window.location.href = '/login.html';
-      }
+        if (!data.authenticated) { window.location.href = '/login.html'; }
+      } catch (err) { window.location.href = '/login.html'; }
     }
     
-    // ========== ФУНКЦИИ ДЛЯ УПРАВЛЕНИЯ ПАРОЛЯМИ ==========
-    
-    // Показать вкладку паролей
-    function showPasswordTab() {
-      showTab('passwords');
-      loadUserLists();
-    }
-    
-    // Загрузка списков пользователей
+    // Password functions
     async function loadUserLists() {
       try {
         const response = await fetch('/api/admin/users', { credentials: 'include' });
         if (!response.ok) throw new Error('Ошибка загрузки пользователей');
-        
         const users = await response.json();
-        
-        // Заполняем выпадающий список для изменения пароля
         const userSelect = document.getElementById('user-select');
         const logUserSelect = document.getElementById('log-user-select');
-        
         userSelect.innerHTML = '<option value="">Выберите пользователя...</option>';
         logUserSelect.innerHTML = '<option value="">Все пользователи...</option>';
-        
         users.forEach(user => {
           const option = document.createElement('option');
           option.value = user.id;
           option.textContent = `${user.username} (${user.email || 'без email'})`;
-          
           const logOption = option.cloneNode(true);
-          
           userSelect.appendChild(option);
           logUserSelect.appendChild(logOption);
         });
-        
       } catch (err) {
-        document.getElementById('passwords-message').innerHTML = `<div class="error">Ошибка загрузки пользователей: ${err.message}</div>`;
+        document.getElementById('passwords-message').innerHTML = `<div class="msg-box msg-box-error">Ошибка загрузки пользователей: ${err.message}</div>`;
       }
     }
     
-    // Проверка лимитов попыток
     async function checkRateLimit() {
       try {
-        const response = await fetch('/api/password-change/rate-limit', { 
-          credentials: 'include' 
-        });
-        
+        const response = await fetch('/api/password-change/rate-limit', { credentials: 'include' });
         if (!response.ok) throw new Error('Ошибка проверки лимитов');
-        
         const data = await response.json();
         const rateLimit = data.rateLimit;
-        
         const infoDiv = document.getElementById('rate-limit-info');
         if (rateLimit.allowed) {
-          infoDiv.innerHTML = `
-            <div class="success">
-              <strong>Лимиты попыток:</strong> Доступно ${rateLimit.remainingAttempts} из 5 попыток
-            </div>
-          `;
+          infoDiv.innerHTML = `<div class="msg-box msg-box-success"><strong>Лимиты попыток:</strong> Доступно ${rateLimit.remainingAttempts} из 5 попыток</div>`;
         } else {
-          infoDiv.innerHTML = `
-            <div class="error">
-              <strong>Лимит превышен:</strong> Подождите ${rateLimit.timeLeft} минут(ы) перед следующей попыткой
-            </div>
-          `;
+          infoDiv.innerHTML = `<div class="msg-box msg-box-error"><strong>Лимит превышен:</strong> Подождите ${rateLimit.timeLeft} минут(ы) перед следующей попыткой</div>`;
         }
-        
       } catch (err) {
-        document.getElementById('change-own-password-message').innerHTML = `<div class="error">Ошибка проверки лимитов: ${err.message}</div>`;
+        document.getElementById('change-own-password-message').innerHTML = `<div class="msg-box msg-box-error">Ошибка проверки лимитов: ${err.message}</div>`;
       }
     }
     
-    // Изменение собственного пароля
     document.getElementById('change-own-password-form').onsubmit = async (e) => {
       e.preventDefault();
-      
       const currentPassword = document.getElementById('current-password').value;
       const newPassword = document.getElementById('new-password').value;
       const confirmPassword = document.getElementById('confirm-password').value;
-      
       const messageDiv = document.getElementById('change-own-password-message');
       messageDiv.innerHTML = '';
-      
       try {
-        const response = await fetch('/api/change-password', {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({ currentPassword, newPassword, confirmPassword })
-        });
-        
+        const response = await fetch('/api/change-password', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ currentPassword, newPassword, confirmPassword }) });
         const data = await response.json();
-        
         if (!response.ok) {
           let errorMessage = data.error || 'Ошибка при изменении пароля';
-          if (data.validationErrors) {
-            errorMessage += '<br>' + data.validationErrors.map(err => `• ${err}`).join('<br>');
-          }
-          if (data.remainingAttempts !== undefined) {
-            errorMessage += `<br>Осталось попыток: ${data.remainingAttempts}`;
-          }
-          if (data.timeLeft !== undefined) {
-            errorMessage += `<br>Подождите ${data.timeLeft} минут(ы)`;
-          }
-          
+          if (data.validationErrors) errorMessage += '<br>' + data.validationErrors.map(err => `• ${err}`).join('<br>');
+          if (data.remainingAttempts !== undefined) errorMessage += `<br>Осталось попыток: ${data.remainingAttempts}`;
+          if (data.timeLeft !== undefined) errorMessage += `<br>Подождите ${data.timeLeft} минут(ы)`;
           throw new Error(errorMessage);
         }
-        
-        messageDiv.innerHTML = '<div class="success">Пароль успешно изменен!</div>';
-        
-        // Очистка формы
+        messageDiv.innerHTML = '<div class="msg-box msg-box-success">Пароль успешно изменен!</div>';
         document.getElementById('current-password').value = '';
         document.getElementById('new-password').value = '';
         document.getElementById('confirm-password').value = '';
-        
-        // Обновление информации о лимитах
         checkRateLimit();
-        
-      } catch (err) {
-        messageDiv.innerHTML = `<div class="error">${err.message}</div>`;
-      }
+      } catch (err) { messageDiv.innerHTML = `<div class="msg-box msg-box-error">${err.message}</div>`; }
     };
     
-    // Изменение пароля пользователя администратором
     document.getElementById('change-user-password-form').onsubmit = async (e) => {
       e.preventDefault();
-      
       const userId = document.getElementById('user-select').value;
       const newPassword = document.getElementById('admin-new-password').value;
       const confirmPassword = document.getElementById('admin-confirm-password').value;
       const requireTwoFactor = document.getElementById('require-2fa').checked;
-      
-      if (!userId) {
-        document.getElementById('change-user-password-message').innerHTML = '<div class="error">Выберите пользователя</div>';
-        return;
-      }
-      
+      if (!userId) { document.getElementById('change-user-password-message').innerHTML = '<div class="msg-box msg-box-error">Выберите пользователя</div>'; return; }
       const messageDiv = document.getElementById('change-user-password-message');
       messageDiv.innerHTML = '';
-      
       try {
-        const response = await fetch(`/api/admin/users/${userId}/change-password`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({ newPassword, confirmPassword, requireTwoFactor })
-        });
-        
+        const response = await fetch(`/api/admin/users/${userId}/change-password`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ newPassword, confirmPassword, requireTwoFactor }) });
         const data = await response.json();
-        
         if (!response.ok) {
           let errorMessage = data.error || 'Ошибка при изменении пароля';
-          if (data.validationErrors) {
-            errorMessage += '<br>' + data.validationErrors.map(err => `• ${err}`).join('<br>');
-          }
+          if (data.validationErrors) errorMessage += '<br>' + data.validationErrors.map(err => `• ${err}`).join('<br>');
           throw new Error(errorMessage);
         }
-        
-        messageDiv.innerHTML = `<div class="success">${data.message}</div>`;
-        
-        // Очистка формы
+        messageDiv.innerHTML = `<div class="msg-box msg-box-success">${data.message}</div>`;
         document.getElementById('admin-new-password').value = '';
         document.getElementById('admin-confirm-password').value = '';
         document.getElementById('require-2fa').checked = false;
-        
-      } catch (err) {
-        messageDiv.innerHTML = `<div class="error">${err.message}</div>`;
-      }
+      } catch (err) { messageDiv.innerHTML = `<div class="msg-box msg-box-error">${err.message}</div>`; }
     };
     
-    // Загрузка логов изменения паролей
     async function loadPasswordLogs() {
       const userId = document.getElementById('log-user-select').value;
       const messageDiv = document.getElementById('password-logs-message');
       const tableBody = document.getElementById('password-logs-table');
-      
       messageDiv.innerHTML = '';
       tableBody.innerHTML = '<tr><td colspan="6">Загрузка...</td></tr>';
-      
       try {
         let url = '/api/admin/users/password-logs';
-        if (userId) {
-          url = `/api/admin/users/${userId}/password-logs`;
-        }
-        
+        if (userId) url = `/api/admin/users/${userId}/password-logs`;
         const response = await fetch(url, { credentials: 'include' });
-        
         if (!response.ok) {
-          if (response.status === 404 && userId) {
-            // Если логов нет для конкретного пользователя
-            tableBody.innerHTML = '<tr><td colspan="6">Нет логов изменения пароля для этого пользователя</td></tr>';
-            return;
-          }
+          if (response.status === 404 && userId) { tableBody.innerHTML = '<tr><td colspan="6">Нет логов изменения пароля для этого пользователя</td></tr>'; return; }
           throw new Error('Ошибка загрузки логов');
         }
-        
         const data = await response.json();
-        
-        if (data.logs.length === 0) {
-          tableBody.innerHTML = '<tr><td colspan="6">Нет логов изменения пароля</td></tr>';
-          return;
-        }
-        
+        if (data.logs.length === 0) { tableBody.innerHTML = '<tr><td colspan="6">Нет логов изменения пароля</td></tr>'; return; }
         tableBody.innerHTML = data.logs.map(log => `
           <tr>
             <td>${new Date(log.created_at).toLocaleString()}</td>
             <td>${escapeHtml(log.user_username || 'N/A')}</td>
             <td>${log.changed_by_username ? escapeHtml(log.changed_by_username) : 'Сам пользователь'}</td>
             <td>${log.ip_address || 'N/A'}</td>
-            <td>
-              <span class="${log.success ? 'status-approved' : 'status-pending'}">
-                ${log.success ? 'Успешно' : 'Ошибка'}
-              </span>
-            </td>
+            <td><span class="${log.success ? 'status-approved' : 'status-pending'}">${log.success ? 'Успешно' : 'Ошибка'}</span></td>
             <td>${log.error_message ? escapeHtml(log.error_message) : '-'}</td>
           </tr>
         `).join('');
-        
       } catch (err) {
-        messageDiv.innerHTML = `<div class="error">Ошибка загрузки логов: ${err.message}</div>`;
+        messageDiv.innerHTML = `<div class="msg-box msg-box-error">Ошибка загрузки логов: ${err.message}</div>`;
         tableBody.innerHTML = '<tr><td colspan="6">Ошибка загрузки</td></tr>';
       }
     }
     
-    // Обновление функции showTab для загрузки пользователей при переключении на вкладку паролей
-    const originalShowTab = showTab;
-    showTab = function(tabName) {
-      originalShowTab(tabName);
-      if (tabName === 'passwords') {
-        loadUserLists();
-      }
-    };
-    
-    // ========== RAG ФУНКЦИИ ==========
-    
-    // Загрузка проектов для RAG
+    // RAG functions
     async function loadRagProjects() {
       try {
         const response = await fetch('/projects', { credentials: 'include' });
         const projects = await response.json();
         const select = document.getElementById('rag-project');
         select.innerHTML = '<option value="">Общая база (без привязки)</option>';
-        projects.forEach(project => {
-          const option = document.createElement('option');
-          option.value = project.id;
-          option.textContent = project.name;
-          select.appendChild(option);
-        });
-      } catch (err) {
-        console.error('Error loading projects for RAG:', err);
-      }
+        projects.forEach(project => { const opt = document.createElement('option'); opt.value = project.id; opt.textContent = project.name; select.appendChild(opt); });
+      } catch (err) { console.error('Error loading projects for RAG:', err); }
     }
     
-    // Загрузка статистики RAG
     async function loadRagStats() {
       try {
         const response = await fetch('/api/rag/stats', { credentials: 'include' });
@@ -1731,172 +803,103 @@
           document.getElementById('rag-stat-docs').textContent = data.stats.documents || 0;
           document.getElementById('rag-stat-code').textContent = data.stats.code_files || 0;
         }
-      } catch (err) {
-        console.error('Error loading RAG stats:', err);
-      }
+      } catch (err) { console.error('Error loading RAG stats:', err); }
     }
     
-    // Загрузка файла в RAG
     async function uploadRagFile() {
       const fileInput = document.getElementById('rag-file');
       const file = fileInput.files[0];
-      
-      if (!file) {
-        document.getElementById('rag-message').innerHTML = '<div class="message error">Выберите файл</div>';
-        return;
-      }
-      
+      if (!file) { document.getElementById('rag-message').innerHTML = '<div class="msg-box msg-box-error">Выберите файл</div>'; return; }
       const messageDiv = document.getElementById('rag-message');
-      messageDiv.innerHTML = '<div class="message" style="background: #fff3cd; color: #856404;">Загрузка и индексация...</div>';
-      
+      messageDiv.innerHTML = '<div class="msg-box msg-box-warning">Загрузка и индексация...</div>';
       const formData = new FormData();
       formData.append('file', file);
-      
       const projectId = document.getElementById('rag-project').value;
       if (projectId) formData.append('projectId', projectId);
-      
       const category = document.getElementById('rag-category').value;
       const tags = document.getElementById('rag-tags').value;
       if (category) formData.append('category', category);
       if (tags) formData.append('tags', tags);
-      
       try {
-        const response = await fetch('/api/rag/index-file', {
-          method: 'POST',
-          credentials: 'include',
-          body: formData
-        });
-        
+        const response = await fetch('/api/rag/index-file', { method: 'POST', credentials: 'include', body: formData });
         const result = await response.json();
-        
-        if (result.success) {
-          messageDiv.innerHTML = '<div class="message success">✅ Файл успешно индексирован! Создано чанков: ' + result.chunksCount + '</div>';
-          loadRagStats();
-          fileInput.value = '';
-        } else {
-          messageDiv.innerHTML = '<div class="message error">❌ Ошибка: ' + result.error + '</div>';
-        }
-      } catch (err) {
-        messageDiv.innerHTML = '<div class="message error">❌ Ошибка: ' + err.message + '</div>';
-      }
+        if (result.success) { messageDiv.innerHTML = '<div class="msg-box msg-box-success">✅ Файл успешно индексирован! Создано чанков: ' + result.chunksCount + '</div>'; loadRagStats(); fileInput.value = ''; }
+        else { messageDiv.innerHTML = '<div class="msg-box msg-box-error">❌ Ошибка: ' + result.error + '</div>'; }
+      } catch (err) { messageDiv.innerHTML = '<div class="msg-box msg-box-error">❌ Ошибка: ' + err.message + '</div>'; }
     }
     
-    // Поиск по RAG базе
     async function searchRag() {
       const query = document.getElementById('rag-search-query').value.trim();
       const limit = document.getElementById('rag-search-limit').value;
       const resultsDiv = document.getElementById('rag-search-results');
-      
-      if (!query) {
-        resultsDiv.innerHTML = '<div class="message error">Введите запрос</div>';
-        return;
-      }
-      
-      resultsDiv.innerHTML = '<div class="loading"><div class="spinner"></div>Поиск...</div>';
-      
+      if (!query) { resultsDiv.innerHTML = '<div class="msg-box msg-box-error">Введите запрос</div>'; return; }
+      resultsDiv.innerHTML = '<div class="msg-box msg-box-info flex items-center gap-2"><div class="spinner"></div>Поиск...</div>';
       try {
         const response = await fetch('/api/rag/search?q=' + encodeURIComponent(query) + '&limit=' + limit, { credentials: 'include' });
         const data = await response.json();
-        
         if (data.success && data.results.length > 0) {
-          let html = '<h4 style="margin: 15px 0 10px;">Найдено: ' + data.count + '</h4>';
+          let html = '<h4 style="margin:var(--space-4) 0 var(--space-2);">Найдено: ' + data.count + '</h4>';
           data.results.forEach((result, i) => {
-            html += '<div class="result-item" style="background: #f8f9ff; padding: 12px; border-radius: 6px; margin-bottom: 10px; border-left: 3px solid #667eea;">';
-            html += '<div style="display: flex; justify-content: space-between; margin-bottom: 8px;">';
+            html += '<div class="result-item">';
+            html += '<div class="flex items-center justify-between" style="margin-bottom:var(--space-2);">';
             html += '<strong>Результат #' + (i + 1) + '</strong>';
-            html += '<span style="background: #667eea; color: white; padding: 2px 8px; border-radius: 4px; font-size: 12px;">' + (result.similarity * 100).toFixed(0) + '%</span>';
+            html += '<span class="badge badge-accent">' + (result.similarity * 100).toFixed(0) + '%</span>';
             html += '</div>';
-            html += '<div style="color: #333; font-size: 14px; line-height: 1.5; max-height: 80px; overflow-y: auto;">' + escapeHtml(result.content.substring(0, 250)) + (result.content.length > 250 ? '...' : '') + '</div>';
+            html += '<div class="text-small" style="max-height:80px;overflow-y:auto;line-height:var(--leading-relaxed);">' + escapeHtml(result.content.substring(0, 250)) + (result.content.length > 250 ? '...' : '') + '</div>';
             if (result.metadata && result.metadata.fileName) {
-              html += '<div style="margin-top: 8px; font-size: 12px; color: #666;">📄 ' + escapeHtml(result.metadata.fileName) + (result.source && result.source.projectName ? ' | Проект: ' + escapeHtml(result.source.projectName) : '') + '</div>';
+              html += '<div class="text-small" style="margin-top:var(--space-2);color:var(--text-tertiary);">📄 ' + escapeHtml(result.metadata.fileName) + (result.source && result.source.projectName ? ' | Проект: ' + escapeHtml(result.source.projectName) : '') + '</div>';
             }
             html += '</div>';
           });
           resultsDiv.innerHTML = html;
-        } else {
-          resultsDiv.innerHTML = '<div class="message" style="background: #fff3cd; color: #856404;">Ничего не найдено</div>';
-        }
-      } catch (err) {
-        resultsDiv.innerHTML = '<div class="message error">Ошибка: ' + err.message + '</div>';
-      }
+        } else { resultsDiv.innerHTML = '<div class="msg-box msg-box-warning">Ничего не найдено</div>'; }
+      } catch (err) { resultsDiv.innerHTML = '<div class="msg-box msg-box-error">Ошибка: ' + err.message + '</div>'; }
     }
     
-    // Поиск по Enter
     document.addEventListener('DOMContentLoaded', () => {
       const searchInput = document.getElementById('rag-search-query');
-      if (searchInput) {
-        searchInput.addEventListener('keypress', (e) => {
-          if (e.key === 'Enter') searchRag();
-        });
-      }
+      if (searchInput) { searchInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') searchRag(); }); }
     });
     
-    // ========== LLM PROVIDER FUNCTIONS ==========
-
+    // LLM Provider functions
     let llmSettingsData = null;
-
+    
     async function loadLlmSettings() {
       try {
         const response = await fetch('/api/settings/llm', { credentials: 'include' });
-        if (!response.ok) {
-          if (response.status === 401 || response.status === 403) { window.location.href = '/login.html'; return; }
-          throw new Error('Ошибка загрузки настроек LLM');
-        }
+        if (!response.ok) { if (response.status === 401 || response.status === 403) { window.location.href = '/login.html'; return; } throw new Error('Ошибка загрузки настроек LLM'); }
         const data = await response.json();
         llmSettingsData = data;
         renderLlmProviders(data);
-      } catch (err) {
-        document.getElementById('llm-message').innerHTML = `<div class="error">${err.message}</div>`;
-      }
+      } catch (err) { document.getElementById('llm-message').innerHTML = `<div class="msg-box msg-box-error">${err.message}</div>`; }
     }
-
+    
     function renderLlmProviders(data) {
       const container = document.getElementById('llm-providers-list');
       const providers = data.availableProviders || ['openai', 'openrouter', 'lmstudio'];
       const activeProvider = data.activeProvider || 'openrouter';
       const config = data.config || {};
-
       const labels = { openai: 'OpenAI', openrouter: 'LLM Aggregator', lmstudio: 'LM Studio' };
-
       container.innerHTML = providers.map(name => `
-        <label style="display: block; padding: 10px; margin: 5px 0; background: #f8f9fa; border-radius: 4px; cursor: pointer; border: 2px solid ${activeProvider === name ? '#007bff' : 'transparent'};">
-          <input type="radio" name="llm-provider" value="${name}" ${activeProvider === name ? 'checked' : ''} onchange="onLlmProviderChange('${name}')" style="margin-right: 10px;">
+        <label class="card" style="display:block;padding:var(--space-3);margin:var(--space-2) 0;cursor:pointer;border:2px solid ${activeProvider === name ? 'var(--accent)' : 'var(--border-primary)'};">
+          <input type="radio" name="llm-provider" value="${name}" ${activeProvider === name ? 'checked' : ''} onchange="onLlmProviderChange('${name}')" style="margin-right:var(--space-2);">
           <strong>${labels[name] || name}</strong>
         </label>
       `).join('');
-
       onLlmProviderChange(activeProvider);
     }
-
-    /*
-    EXPERIMENTAL FEATURE: Proxy Layer
-    Функциональность временно отключена.
-    При необходимости раскомментировать блоки proxy-section в HTML и функции ниже.
-    См. services/llm/proxyAgent.js
-
-    function getProxyConfig(prefix) { ... }
-    function setProxyFields(prefix, proxy) { ... }
-    function toggleLmStudioProxy() { ... }
-    function toggleOpenAIProxy() { ... }
-    function toggleOpenRouterProxy() { ... }
-    function getProxyTestConfig(prefix) { ... }
-    */
-
+    
     function onAggregatorTypeChange() {
       const type = document.getElementById('llm-aggregator-type').value;
       const urlInput = document.getElementById('llm-aggregator-url');
-      if (type === 'openrouter') {
-        urlInput.value = 'https://openrouter.ai/api/v1';
-      } else if (type === 'mixroute') {
-        urlInput.value = 'https://api.mixroute.ai/v1';
-      }
+      if (type === 'openrouter') urlInput.value = 'https://openrouter.ai/api/v1';
+      else if (type === 'mixroute') urlInput.value = 'https://api.mixroute.ai/v1';
     }
-
+    
     function onLlmProviderChange(provider) {
       document.getElementById('llm-lmstudio-config').style.display = provider === 'lmstudio' ? 'block' : 'none';
       document.getElementById('llm-openai-config').style.display = provider === 'openai' ? 'block' : 'none';
       document.getElementById('llm-openrouter-config').style.display = provider === 'openrouter' ? 'block' : 'none';
-
       if (llmSettingsData && llmSettingsData.config) {
         const cfg = llmSettingsData.config;
         if (cfg.lmstudio) {
@@ -1917,232 +920,89 @@
         }
       }
     }
-
+    
     async function saveLlmSettings() {
       const msgDiv = document.getElementById('llm-message');
-      msgDiv.innerHTML = '<div class="loading">Сохранение...</div>';
-
+      msgDiv.innerHTML = '<div class="msg-box msg-box-info flex items-center gap-2"><div class="spinner"></div>Сохранение...</div>';
       const selectedRadio = document.querySelector('input[name="llm-provider"]:checked');
-      if (!selectedRadio) {
-        msgDiv.innerHTML = '<div class="error">Выберите провайдера</div>';
-        return;
-      }
-
+      if (!selectedRadio) { msgDiv.innerHTML = '<div class="msg-box msg-box-error">Выберите провайдера</div>'; return; }
       const activeProvider = selectedRadio.value;
       const config = {};
-
-      if (activeProvider === 'lmstudio') {
-        config.lmstudio = {
-          baseURL: document.getElementById('llm-lmstudio-url').value.trim(),
-          model: document.getElementById('llm-lmstudio-model').value.trim()
-          // EXPERIMENTAL FEATURE: Proxy Layer — add proxy: getProxyConfig('llm-lmstudio')
-        };
-      } else if (activeProvider === 'openai') {
-        config.openai = {
-          apiKey: document.getElementById('llm-openai-key').value.trim(),
-          baseURL: document.getElementById('llm-openai-url').value.trim(),
-          model: document.getElementById('llm-openai-model').value.trim()
-          // EXPERIMENTAL FEATURE: Proxy Layer — add proxy: getProxyConfig('llm-openai')
-        };
-      } else if (activeProvider === 'openrouter') {
-        config.openrouter = {
-          aggregatorType: document.getElementById('llm-aggregator-type').value,
-          baseURL: document.getElementById('llm-aggregator-url').value.trim(),
-          apiKey: document.getElementById('llm-aggregator-key').value.trim(),
-          model: document.getElementById('llm-aggregator-model').value.trim()
-        };
-      }
-      // EXPERIMENTAL FEATURE: Proxy Layer — openrouter save block removed
-      // config.openrouter = { proxy: getProxyConfig('llm-openrouter') };
-
+      if (activeProvider === 'lmstudio') { config.lmstudio = { baseURL: document.getElementById('llm-lmstudio-url').value.trim(), model: document.getElementById('llm-lmstudio-model').value.trim() }; }
+      else if (activeProvider === 'openai') { config.openai = { apiKey: document.getElementById('llm-openai-key').value.trim(), baseURL: document.getElementById('llm-openai-url').value.trim(), model: document.getElementById('llm-openai-model').value.trim() }; }
+      else if (activeProvider === 'openrouter') { config.openrouter = { aggregatorType: document.getElementById('llm-aggregator-type').value, baseURL: document.getElementById('llm-aggregator-url').value.trim(), apiKey: document.getElementById('llm-aggregator-key').value.trim(), model: document.getElementById('llm-aggregator-model').value.trim() }; }
       try {
-        const response = await fetch('/api/settings/llm', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({ activeProvider, config })
-        });
+        const response = await fetch('/api/settings/llm', { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ activeProvider, config }) });
         const result = await response.json();
-        if (result.success) {
-          msgDiv.innerHTML = '<div class="success">Настройки сохранены</div>';
-          loadLlmSettings();
-          loadModelsCatalog();
-          loadModelsAssignments();
-        } else {
-          msgDiv.innerHTML = `<div class="error">${result.error || 'Ошибка сохранения'}</div>`;
-        }
-      } catch (err) {
-        msgDiv.innerHTML = `<div class="error">${err.message}</div>`;
-      }
+        if (result.success) { msgDiv.innerHTML = '<div class="msg-box msg-box-success">Настройки сохранены</div>'; loadLlmSettings(); loadModelsCatalog(); loadModelsAssignments(); }
+        else { msgDiv.innerHTML = `<div class="msg-box msg-box-error">${result.error || 'Ошибка сохранения'}</div>`; }
+      } catch (err) { msgDiv.innerHTML = `<div class="msg-box msg-box-error">${err.message}</div>`; }
     }
-
-    function getProxyTestConfig(prefix) {
-      const enabled = document.getElementById(prefix + '-proxy-enabled').checked;
-      if (!enabled) return undefined;
-      return {
-        enabled: true,
-        type: document.getElementById(prefix + '-proxy-type').value,
-        host: document.getElementById(prefix + '-proxy-host').value.trim(),
-        port: parseInt(document.getElementById(prefix + '-proxy-port').value, 10) || 0,
-        username: document.getElementById(prefix + '-proxy-username').value.trim(),
-        password: document.getElementById(prefix + '-proxy-password').value
-      };
-    }
-
+    
     async function testLlmConnection(provider) {
       const config = {};
       let resultDivId = 'llm-test-result';
-
-      if (provider === 'lmstudio') {
-        config.baseURL = document.getElementById('llm-lmstudio-url').value.trim();
-        config.model = document.getElementById('llm-lmstudio-model').value.trim();
-        // EXPERIMENTAL FEATURE: Proxy Layer — add config.proxy = getProxyTestConfig('llm-lmstudio')
-        resultDivId = 'llm-test-result';
-      } else if (provider === 'openai') {
-        config.apiKey = document.getElementById('llm-openai-key').value.trim();
-        config.baseURL = document.getElementById('llm-openai-url').value.trim();
-        config.model = document.getElementById('llm-openai-model').value.trim();
-        // EXPERIMENTAL FEATURE: Proxy Layer — add config.proxy = getProxyTestConfig('llm-openai')
-        resultDivId = 'llm-openai-test-result';
-      } else if (provider === 'openrouter') {
-        config.apiKey = document.getElementById('llm-aggregator-key').value.trim();
-        config.baseURL = document.getElementById('llm-aggregator-url').value.trim();
-        config.model = document.getElementById('llm-aggregator-model').value.trim();
-        resultDivId = 'llm-test-result';
-      }
-      // EXPERIMENTAL FEATURE: Proxy Layer — openrouter test connection removed
-      // else if (provider === 'openrouter') { ... }
-
+      if (provider === 'lmstudio') { config.baseURL = document.getElementById('llm-lmstudio-url').value.trim(); config.model = document.getElementById('llm-lmstudio-model').value.trim(); resultDivId = 'llm-test-result'; }
+      else if (provider === 'openai') { config.apiKey = document.getElementById('llm-openai-key').value.trim(); config.baseURL = document.getElementById('llm-openai-url').value.trim(); config.model = document.getElementById('llm-openai-model').value.trim(); resultDivId = 'llm-openai-test-result'; }
+      else if (provider === 'openrouter') { config.apiKey = document.getElementById('llm-aggregator-key').value.trim(); config.baseURL = document.getElementById('llm-aggregator-url').value.trim(); config.model = document.getElementById('llm-aggregator-model').value.trim(); resultDivId = 'llm-test-result'; }
       const resultDiv = document.getElementById(resultDivId);
-      resultDiv.innerHTML = '<div class="loading"><div class="spinner"></div>Проверка соединения...</div>';
-
+      resultDiv.innerHTML = '<div class="msg-box msg-box-info flex items-center gap-2"><div class="spinner"></div>Проверка соединения...</div>';
       try {
-        const response = await fetch('/api/settings/llm/test', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({ provider, config })
-        });
+        const response = await fetch('/api/settings/llm/test', { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ provider, config }) });
         const result = await response.json();
-
         if (result.status === 'ok') {
           let modelsHtml = '';
-          if (result.modelsList && result.modelsList.length > 0) {
-            modelsHtml = '<br><small>Доступные модели:</small><br>' +
-              result.modelsList.map(m => '<small>• ' + m + '</small>').join('<br>');
-          }
-          resultDiv.innerHTML = `<div class="success">✅ Соединение установлено. Найдено моделей: ${result.models}${modelsHtml}</div>`;
-        } else {
-          resultDiv.innerHTML = `<div class="error">❌ Ошибка: ${result.message}</div>`;
-        }
-      } catch (err) {
-        resultDiv.innerHTML = `<div class="error">❌ Ошибка: ${err.message}</div>`;
-      }
+          if (result.modelsList && result.modelsList.length > 0) { modelsHtml = '<br><small>Доступные модели:</small><br>' + result.modelsList.map(m => '<small>• ' + m + '</small>').join('<br>'); }
+          resultDiv.innerHTML = `<div class="msg-box msg-box-success">✅ Соединение установлено. Найдено моделей: ${result.models}${modelsHtml}</div>`;
+        } else { resultDiv.innerHTML = `<div class="msg-box msg-box-error">❌ Ошибка: ${result.message}</div>`; }
+      } catch (err) { resultDiv.innerHTML = `<div class="msg-box msg-box-error">❌ Ошибка: ${err.message}</div>`; }
     }
-
+    
     // System Health
     async function loadSystemHealth() {
       const mcpDiv = document.getElementById('health-mcp-status');
       const dbDiv = document.getElementById('health-database-status');
       const knDiv = document.getElementById('health-knowledge-status');
-      const msgDiv = document.getElementById('system-health-message');
-      msgDiv.innerHTML = '';
-
       try {
         const response = await fetch('/api/admin/system/health', { credentials: 'include' });
-        if (!response.ok) {
-          if (response.status === 401 || response.status === 403) { window.location.href = '/login.html'; return; }
-          throw new Error('Ошибка загрузки health');
-        }
+        if (!response.ok) { if (response.status === 401 || response.status === 403) { window.location.href = '/login.html'; return; } throw new Error('Ошибка загрузки health'); }
         const data = await response.json();
-
         const mcp = data.mcp || {};
         const db = data.database || {};
         const kn = data.knowledge || {};
-
         const mcpIcon = mcp.connected ? '🟢' : '🔴';
-        const mcpText = mcp.connected ? 'Connected' : (mcp.enabled ? 'Disconnected' : 'Disabled');
-        const latencyText = mcp.latency !== null ? `${mcp.latency} ms` : '—';
-
-        mcpDiv.innerHTML = `
-          <p style="font-size: 18px; margin: 8px 0;">${mcpIcon} <strong>${mcpText}</strong></p>
-          <p style="margin: 4px 0; color: #555;">Latency: <strong>${latencyText}</strong></p>
-        `;
-
-        const dbIcon = db.connected ? '🟢' : '🔴';
-        const dbText = db.connected ? 'Connected' : 'Disconnected';
-        const dbLatencyText = db.latency !== null ? `${db.latency} ms` : '—';
-
-        dbDiv.innerHTML = `
-          <p style="font-size: 18px; margin: 8px 0;">${dbIcon} <strong>${dbText}</strong></p>
-          <p style="margin: 4px 0; color: #555;">Latency: <strong>${dbLatencyText}</strong></p>
-        `;
-
-        const statusText = kn.status === 'ready' ? 'Ready' : 'Empty';
-        const objectsText = kn.objects != null ? kn.objects.toLocaleString() : '—';
-        const fieldsText = kn.fields != null ? kn.fields.toLocaleString() : '—';
-        const dateText = kn.importedAt ? new Date(kn.importedAt).toLocaleString() : '—';
-
-        knDiv.innerHTML = `
-          <p style="margin: 4px 0;">Status: <strong>${statusText}</strong></p>
-          <p style="margin: 4px 0;">Objects: <strong>${objectsText}</strong></p>
-          <p style="margin: 4px 0;">Fields: <strong>${fieldsText}</strong></p>
-          <p style="margin: 4px 0;">Last Import: <strong>${dateText}</strong></p>
-        `;
+        mcpDiv.innerHTML = `<p class="health-status">${mcpIcon} <strong>${mcp.connected ? 'Connected' : (mcp.enabled ? 'Disconnected' : 'Disabled')}</strong></p><p class="health-label">Latency: <strong>${mcp.latency !== null ? mcp.latency + ' ms' : '—'}</strong></p>`;
+        dbDiv.innerHTML = `<p class="health-status">${db.connected ? '🟢' : '🔴'} <strong>${db.connected ? 'Connected' : 'Disconnected'}</strong></p><p class="health-label">Latency: <strong>${db.latency !== null ? db.latency + ' ms' : '—'}</strong></p>`;
+        knDiv.innerHTML = `<p class="health-label">Status: <strong>${kn.status === 'ready' ? 'Ready' : 'Empty'}</strong></p><p class="health-label">Objects: <strong>${kn.objects != null ? kn.objects.toLocaleString() : '—'}</strong></p><p class="health-label">Fields: <strong>${kn.fields != null ? kn.fields.toLocaleString() : '—'}</strong></p><p class="health-label">Last Import: <strong>${kn.importedAt ? new Date(kn.importedAt).toLocaleString() : '—'}</strong></p>`;
       } catch (err) {
-        mcpDiv.innerHTML = `<p class="error">${err.message}</p>`;
-        dbDiv.innerHTML = `<p class="error">${err.message}</p>`;
-        knDiv.innerHTML = `<p class="error">${err.message}</p>`;
+        mcpDiv.innerHTML = `<p class="text-danger">${err.message}</p>`;
+        dbDiv.innerHTML = `<p class="text-danger">${err.message}</p>`;
+        knDiv.innerHTML = `<p class="text-danger">${err.message}</p>`;
       }
     }
-
+    
     async function checkMcp() {
       const msgDiv = document.getElementById('system-health-message');
-      msgDiv.innerHTML = '<div class="loading"><div class="spinner"></div>Проверка MCP...</div>';
+      msgDiv.innerHTML = '<div class="msg-box msg-box-info flex items-center gap-2"><div class="spinner"></div>Проверка MCP...</div>';
       await loadSystemHealth();
-      msgDiv.innerHTML = '<div class="success">MCP проверен</div>';
+      msgDiv.innerHTML = '<div class="msg-box msg-box-success">MCP проверен</div>';
       setTimeout(() => msgDiv.innerHTML = '', 3000);
     }
-
+    
     async function startKnowledgeImport() {
       const msgDiv = document.getElementById('system-health-message');
-      msgDiv.innerHTML = '<div class="loading"><div class="spinner"></div>Импорт запущен</div>';
-
+      msgDiv.innerHTML = '<div class="msg-box msg-box-info flex items-center gap-2"><div class="spinner"></div>Импорт запущен</div>';
       try {
-        const response = await fetch('/api/admin/knowledge/import', {
-          method: 'POST',
-          credentials: 'include'
-        });
-        if (!response.ok) {
-          if (response.status === 401 || response.status === 403) { window.location.href = '/login.html'; return; }
-          throw new Error('Ошибка запуска импорта');
-        }
+        const response = await fetch('/api/admin/knowledge/import', { method: 'POST', credentials: 'include' });
+        if (!response.ok) { if (response.status === 401 || response.status === 403) { window.location.href = '/login.html'; return; } throw new Error('Ошибка запуска импорта'); }
         const data = await response.json();
         if (data.started) {
-          msgDiv.innerHTML = '<div class="success">Импорт запущен. Данные обновятся после завершения.</div>';
-          setTimeout(() => {
-            msgDiv.innerHTML = '<div class="loading"><div class="spinner"></div>Обновление данных...</div>';
-            loadSystemHealth();
-          }, 2000);
+          msgDiv.innerHTML = '<div class="msg-box msg-box-success">Импорт запущен. Данные обновятся после завершения.</div>';
+          setTimeout(() => { msgDiv.innerHTML = '<div class="msg-box msg-box-info flex items-center gap-2"><div class="spinner"></div>Обновление данных...</div>'; loadSystemHealth(); }, 2000);
         }
-      } catch (err) {
-        msgDiv.innerHTML = `<div class="error">${err.message}</div>`;
-      }
+      } catch (err) { msgDiv.innerHTML = `<div class="msg-box msg-box-error">${err.message}</div>`; }
     }
-
-    // Обновляем showTab для загрузки LLM настроек
-    const originalShowTab2 = showTab;
-    showTab = function(tabName) {
-      originalShowTab2(tabName);
-      if (tabName === 'llm') {
-        loadLlmSettings();
-      }
-      if (tabName === 'system-health') {
-        loadSystemHealth();
-      }
-    };
-
-    // Инициализация
+    
     checkAuth().then(() => loadUsers());
   </script>
 </body>

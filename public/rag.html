@@ -1,198 +1,121 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="ru" data-theme="dark">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>RAG База Знаний</title>
   <link rel="icon" type="image/svg+xml" href="/icons/favicon.svg" />
+  <link rel="stylesheet" href="/css/design-tokens.css" />
+  <link rel="stylesheet" href="/css/base.css" />
+  <link rel="stylesheet" href="/css/components.css" />
+  <link rel="stylesheet" href="/css/responsive.css" />
+  <script src="/scripts/theme.js"></script>
   <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      background: var(--bg);
       min-height: 100vh;
       padding: 20px;
+      overflow-y: auto;
     }
     .container { max-width: 1200px; margin: 0 auto; }
-    .header {
-      background: white;
-      padding: 20px 30px;
-      border-radius: 12px;
-      margin-bottom: 20px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-    }
-    .header h1 { color: #333; font-size: 24px; }
-    .header-actions { display: flex; gap: 10px; }
-    .btn {
-      padding: 10px 20px;
-      border: none;
-      border-radius: 8px;
-      cursor: pointer;
-      font-size: 14px;
-      font-weight: 500;
-      transition: all 0.2s;
-    }
-    .btn-primary { background: #667eea; color: white; }
-    .btn-primary:hover { background: #5568d3; }
-    .btn-secondary { background: #6c757d; color: white; }
-    .btn-secondary:hover { background: #5a6268; }
-    .btn-danger { background: #dc3545; color: white; }
-    .btn-danger:hover { background: #c82333; }
-    .main-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-    .card {
-      background: white;
-      border-radius: 12px;
-      padding: 25px;
-      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-    }
-    .card h2 {
-      color: #333;
-      font-size: 18px;
-      margin-bottom: 20px;
-      padding-bottom: 10px;
-      border-bottom: 2px solid #f0f0f0;
-    }
-    .form-group { margin-bottom: 15px; }
-    .form-group label { display: block; margin-bottom: 5px; color: #555; font-weight: 500; }
-    .form-group input, .form-group select, .form-group textarea {
-      width: 100%;
-      padding: 10px 12px;
-      border: 1px solid #ddd;
-      border-radius: 6px;
-      font-size: 14px;
-      font-family: inherit;
-    }
-    .form-group textarea { min-height: 150px; resize: vertical; }
-    .form-group input:focus, .form-group select:focus, .form-group textarea:focus {
-      outline: none;
-      border-color: #667eea;
-      box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
-    }
     .file-drop {
-      border: 2px dashed #ddd;
-      border-radius: 8px;
-      padding: 30px;
+      border: 2px dashed var(--border-primary);
+      border-radius: var(--radius-md);
+      padding: var(--space-8);
       text-align: center;
       cursor: pointer;
-      transition: all 0.2s;
+      transition: all var(--transition-fast);
     }
-    .file-drop:hover { border-color: #667eea; background: #f8f9ff; }
-    .file-drop.dragover { border-color: #667eea; background: #eef2ff; }
+    .file-drop:hover { border-color: var(--accent); background: var(--accent-subtle); }
+    .file-drop.dragover { border-color: var(--accent); background: var(--accent-subtle); }
     .file-drop input { display: none; }
-    .file-drop-icon { font-size: 48px; color: #667eea; margin-bottom: 10px; }
-    .file-drop-text { color: #666; }
-    .message { padding: 12px; border-radius: 6px; margin-top: 15px; font-size: 14px; }
-    .message.success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
-    .message.error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
-    .stats-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; margin-bottom: 20px; }
-    .stat-item { background: #f8f9ff; padding: 15px; border-radius: 8px; text-align: center; }
-    .stat-value { font-size: 24px; font-weight: bold; color: #667eea; }
-    .stat-label { font-size: 12px; color: #666; margin-top: 5px; }
-    .search-results { margin-top: 15px; }
-    .result-item {
-      background: #f8f9ff;
-      padding: 15px;
-      border-radius: 8px;
-      margin-bottom: 10px;
-      border-left: 4px solid #667eea;
-    }
-    .result-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
-    .result-similarity { background: #667eea; color: white; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; }
-    .result-content { color: #333; font-size: 14px; line-height: 1.5; max-height: 100px; overflow-y: auto; }
-    .result-meta { margin-top: 8px; font-size: 12px; color: #666; }
-    .loading { text-align: center; padding: 20px; color: #666; }
-    .spinner {
-      border: 3px solid #f3f3f3;
-      border-top: 3px solid #667eea;
-      border-radius: 50%;
-      width: 30px;
-      height: 30px;
-      animation: spin 1s linear infinite;
-      margin: 0 auto 10px;
-    }
-    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    .file-drop-icon { font-size: 48px; color: var(--accent); margin-bottom: var(--space-3); }
+    .file-drop-text { color: var(--text-secondary); }
+    .result-content { color: var(--text-primary); font-size: var(--text-sm); line-height: var(--leading-relaxed); max-height: 100px; overflow-y: auto; }
+    .result-meta { margin-top: var(--space-2); font-size: var(--text-xs); color: var(--text-tertiary); }
     @media (max-width: 768px) {
-      .main-grid { grid-template-columns: 1fr; }
-      .header { flex-direction: column; gap: 15px; text-align: center; }
-      .stats-grid { grid-template-columns: 1fr; }
+      body { padding: 0; }
     }
   </style>
 </head>
 <body>
   <div class="container">
-    <div class="header">
-      <h1>🧠 RAG База Знаний</h1>
-      <div class="header-actions">
-        <button class="btn btn-secondary" onclick="window.location.href='/index.html'">К чату</button>
-        <button class="btn btn-secondary" onclick="window.location.href='/admin.html'">Админка</button>
-        <button class="btn btn-danger" onclick="logout()">Выход</button>
+    <header class="app-header" style="position:static;border-radius:var(--radius-lg);margin-bottom:20px;border:1px solid var(--border-primary);">
+      <div class="flex items-center gap-3">
+        <h1 style="font-size:var(--text-xl);margin:0;">🧠 RAG База Знаний</h1>
       </div>
+      <div class="flex items-center gap-2">
+        <button class="btn btn-icon" id="themeToggle" aria-label="Toggle theme" title="Toggle theme">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+        </button>
+        <button class="btn btn-sm" onclick="window.location.href='/index.html'">К чату</button>
+        <button class="btn btn-sm" onclick="window.location.href='/admin.html'">Админка</button>
+        <button class="btn btn-danger btn-sm" onclick="logout()">Выход</button>
+      </div>
+    </header>
+
+    <div class="stats-grid" id="stats-container">
+      <div class="stat-item"><div class="stat-value" id="stat-total">-</div><div class="stat-label">Документов</div></div>
+      <div class="stat-item"><div class="stat-value" id="stat-projects">-</div><div class="stat-label">Проектов</div></div>
+      <div class="stat-item"><div class="stat-value" id="stat-docs">-</div><div class="stat-label">Текстовых файлов</div></div>
+      <div class="stat-item"><div class="stat-value" id="stat-code">-</div><div class="stat-label">Файлов кода</div></div>
     </div>
-    <div class="main-grid">
-      <div class="card">
-        <h2>📤 Загрузка документов</h2>
-        <div class="form-group">
-          <label for="rag-project">Проект (опционально)</label>
-          <select id="rag-project"><option value="">Общая база (без привязки)</option></select>
-        </div>
-        <div class="form-group">
-          <label>Способ загрузки</label>
-          <div class="file-drop" id="file-drop" onclick="document.getElementById('file-input').click()">
-            <div class="file-drop-icon">📁</div>
-            <div class="file-drop-text">
-              <strong>Перетащите файл сюда</strong><br>или кликните для выбора<br>
-              <small>Поддерживаются: TXT, MD, JSON, JS, TS, PY, SQL, PDF, DOCX</small>
-            </div>
-            <input type="file" id="file-input" accept=".txt,.md,.json,.js,.ts,.py,.sql,.pdf,.docx,.doc,.html,.css,.yaml,.yml">
+
+    <div class="card" style="margin-top:var(--space-5);">
+      <h2 style="padding-bottom:12px;border-bottom:1px solid var(--border-primary);margin-bottom:var(--space-5);">📤 Загрузка документов</h2>
+      <div class="form-group">
+        <label for="rag-project">Проект (опционально)</label>
+        <select id="rag-project" class="input"><option value="">Общая база (без привязки)</option></select>
+      </div>
+      <div class="form-group">
+        <label>Способ загрузки</label>
+        <div class="file-drop" id="file-drop" onclick="document.getElementById('file-input').click()">
+          <div class="file-drop-icon">📁</div>
+          <div class="file-drop-text">
+            <strong>Перетащите файл сюда</strong><br>или кликните для выбора<br>
+            <small>Поддерживаются: TXT, MD, JSON, JS, TS, PY, SQL, PDF, DOCX</small>
           </div>
-          <div id="file-name" style="margin-top: 10px; color: #666; font-size: 14px;"></div>
+          <input type="file" id="file-input" accept=".txt,.md,.json,.js,.ts,.py,.sql,.pdf,.docx,.doc,.html,.css,.yaml,.yml">
         </div>
-        <div class="form-group">
-          <label for="rag-category">Категория</label>
-          <select id="rag-category">
-            <option value="documentation">Документация</option>
-            <option value="code">Код</option>
-            <option value="faq">FAQ</option>
-            <option value="guide">Гайд</option>
-            <option value="general">Общее</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label for="rag-tags">Теги (через запятую)</label>
-          <input type="text" id="rag-tags" placeholder="api, auth, example">
-        </div>
-        <div id="upload-message"></div>
+        <div id="file-name" class="text-small" style="margin-top:var(--space-2);"></div>
       </div>
-      <div class="card">
-        <h2>🔍 Поиск по базе знаний</h2>
-        <div class="form-group">
-          <label for="search-query">Поисковый запрос</label>
-          <input type="text" id="search-query" placeholder="Введите запрос для поиска...">
-        </div>
-        <div class="form-group">
-          <label for="search-limit">Количество результатов</label>
-          <select id="search-limit">
-            <option value="3">3</option>
-            <option value="5" selected>5</option>
-            <option value="10">10</option>
-            <option value="20">20</option>
-          </select>
-        </div>
-        <button class="btn btn-primary" style="width: 100%;" onclick="searchKnowledge()">Найти</button>
-        <div id="search-results" class="search-results"></div>
-        <h2 style="margin-top: 30px;">📊 Статистика</h2>
-        <div class="stats-grid" id="stats-container">
-          <div class="stat-item"><div class="stat-value" id="stat-total">-</div><div class="stat-label">Документов</div></div>
-          <div class="stat-item"><div class="stat-value" id="stat-projects">-</div><div class="stat-label">Проектов</div></div>
-          <div class="stat-item"><div class="stat-value" id="stat-docs">-</div><div class="stat-label">Текстовых файлов</div></div>
-          <div class="stat-item"><div class="stat-value" id="stat-code">-</div><div class="stat-label">Файлов кода</div></div>
-        </div>
+      <div class="form-group">
+        <label for="rag-category">Категория</label>
+        <select id="rag-category" class="input">
+          <option value="documentation">Документация</option>
+          <option value="code">Код</option>
+          <option value="faq">FAQ</option>
+          <option value="guide">Гайд</option>
+          <option value="general">Общее</option>
+        </select>
       </div>
+      <div class="form-group">
+        <label for="rag-tags">Теги (через запятую)</label>
+        <input type="text" id="rag-tags" class="input" placeholder="api, auth, example">
+      </div>
+<div id="upload-message"></div>
+    </div>
+
+    <div class="card" style="margin-top:var(--space-5);">
+      <h2 style="padding-bottom:12px;border-bottom:1px solid var(--border-primary);margin-bottom:var(--space-5);">🔍 Поиск по базе знаний</h2>
+      <div class="form-group">
+        <label for="search-query">Поисковый запрос</label>
+        <input type="text" id="search-query" class="input" placeholder="Введите запрос для поиска...">
+      </div>
+      <div class="form-group">
+        <label for="search-limit">Количество результатов</label>
+        <select id="search-limit" class="input">
+          <option value="3">3</option>
+          <option value="5" selected>5</option>
+          <option value="10">10</option>
+          <option value="20">20</option>
+        </select>
+      </div>
+      <button class="btn btn-primary btn-full" onclick="searchKnowledge()">Найти</button>
+      <div id="search-results" style="margin-top:var(--space-4);"></div>
     </div>
   </div>
+
   <script>
     let currentUser = null;
     async function checkAuth() {
@@ -248,7 +171,7 @@
     function handleFile(file) { fileName.textContent = 'Выбран файл: ' + file.name + ' (' + (file.size / 1024).toFixed(1) + ' KB)'; }
     async function uploadFile(file) {
       const messageDiv = document.getElementById('upload-message');
-      messageDiv.innerHTML = '<div class="message" style="background: #fff3cd; color: #856404; border: 1px solid #ffeeba;">Загрузка и индексация...</div>';
+      messageDiv.innerHTML = '<div class="msg-box msg-box-warning">Загрузка и индексация...</div>';
       const formData = new FormData();
       formData.append('file', file);
       const projectId = document.getElementById('rag-project').value;
@@ -261,32 +184,32 @@
         const response = await fetch('/api/rag/index-file', { method: 'POST', credentials: 'include', body: formData });
         const result = await response.json();
         if (result.success) {
-          messageDiv.innerHTML = '<div class="message success">✅ Файл успешно индексирован!<br>Создано чанков: ' + result.chunksCount + '</div>';
+          messageDiv.innerHTML = '<div class="msg-box msg-box-success">✅ Файл успешно индексирован!<br>Создано чанков: ' + result.chunksCount + '</div>';
           loadStats();
           fileInput.value = '';
           fileName.textContent = '';
         } else {
-          messageDiv.innerHTML = '<div class="message error">❌ Ошибка: ' + result.error + '</div>';
+          messageDiv.innerHTML = '<div class="msg-box msg-box-error">❌ Ошибка: ' + result.error + '</div>';
         }
       } catch (err) {
-        messageDiv.innerHTML = '<div class="message error">❌ Ошибка загрузки: ' + err.message + '</div>';
+        messageDiv.innerHTML = '<div class="msg-box msg-box-error">❌ Ошибка загрузки: ' + err.message + '</div>';
       }
     }
     async function searchKnowledge() {
       const query = document.getElementById('search-query').value.trim();
       const limit = document.getElementById('search-limit').value;
       const resultsDiv = document.getElementById('search-results');
-      if (!query) { resultsDiv.innerHTML = '<div class="message error">Введите поисковый запрос</div>'; return; }
-      resultsDiv.innerHTML = '<div class="loading"><div class="spinner"></div>Поиск...</div>';
+      if (!query) { resultsDiv.innerHTML = '<div class="msg-box msg-box-error">Введите поисковый запрос</div>'; return; }
+      resultsDiv.innerHTML = '<div class="flex items-center gap-2 msg-box msg-box-info"><div class="spinner"></div><span>Поиск...</span></div>';
       try {
         const response = await fetch('/api/rag/search?q=' + encodeURIComponent(query) + '&limit=' + limit, { credentials: 'include' });
         const data = await response.json();
         if (data.success && data.results.length > 0) {
-          let html = '<h3 style="margin-bottom: 15px;">Найдено результатов: ' + data.count + '</h3>';
+          let html = '<h3 style="margin-bottom:var(--space-4);">Найдено результатов: ' + data.count + '</h3>';
           data.results.forEach((result, index) => {
             html += '<div class="result-item">';
-            html += '<div class="result-header"><strong>Результат #' + (index + 1) + '</strong>';
-            html += '<span class="result-similarity">' + (result.similarity * 100).toFixed(0) + '%</span></div>';
+            html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--space-2);"><strong>Результат #' + (index + 1) + '</strong>';
+            html += '<span class="badge badge-accent">' + (result.similarity * 100).toFixed(0) + '%</span></div>';
             html += '<div class="result-content">' + escapeHtml(result.content.substring(0, 300)) + (result.content.length > 300 ? '...' : '') + '</div>';
             html += '<div class="result-meta">';
             if (result.metadata && result.metadata.fileName) html += 'Файл: ' + escapeHtml(result.metadata.fileName) + ' | ';
@@ -296,10 +219,10 @@
           });
           resultsDiv.innerHTML = html;
         } else {
-          resultsDiv.innerHTML = '<div class="message" style="background: #fff3cd; color: #856404; border: 1px solid #ffeeba;">Ничего не найдено</div>';
+          resultsDiv.innerHTML = '<div class="msg-box msg-box-warning">Ничего не найдено</div>';
         }
       } catch (err) {
-        resultsDiv.innerHTML = '<div class="message error">Ошибка поиска: ' + err.message + '</div>';
+        resultsDiv.innerHTML = '<div class="msg-box msg-box-error">Ошибка поиска: ' + err.message + '</div>';
       }
     }
     function escapeHtml(text) { const div = document.createElement('div'); div.textContent = text; return div.innerHTML; }

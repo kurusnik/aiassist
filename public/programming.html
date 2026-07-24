@@ -1,249 +1,87 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="ru" data-theme="dark">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Programming Engine</title>
   <link rel="icon" type="image/svg+xml" href="/icons/favicon.svg" />
+  <link rel="stylesheet" href="/css/design-tokens.css" />
+  <link rel="stylesheet" href="/css/base.css" />
+  <link rel="stylesheet" href="/css/components.css" />
+  <link rel="stylesheet" href="/css/responsive.css" />
+  <script src="/scripts/theme.js"></script>
   <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      background: linear-gradient(135deg, #0f1216 0%, #141a22 100%);
+      background: var(--bg);
       min-height: 100vh;
       padding: 20px;
-      color: #e6edf3;
+      color: var(--text-primary);
+      overflow-y: auto;
     }
     .container { max-width: 900px; margin: 0 auto; }
-    .header {
-      background: linear-gradient(180deg, #141a22, #18202a);
-      padding: 24px 30px;
-      border-radius: 14px;
-      margin-bottom: 20px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      border: 1px solid #243041;
-    }
-    .header h1 { margin: 0; font-size: 24px; }
-    .header-actions { display: flex; gap: 10px; }
-    .btn {
-      padding: 10px 20px;
-      border: 1px solid #243041;
-      border-radius: 10px;
-      cursor: pointer;
-      font-size: 14px;
-      font-weight: 500;
-      background: #101722;
-      color: #e6edf3;
-      text-decoration: none;
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      transition: .15s ease;
-    }
-    .btn:hover { border-color: #4ea1ff; }
-    .btn:disabled { opacity: .5; cursor: not-allowed; border-color: #243041; }
-    .btn-danger { background: #2a1518; border-color: #542127; color: #ffb3b3; }
-    .btn-primary {
-      background: linear-gradient(135deg, #3a7bd9, #7f5af0);
-      border-color: transparent;
-      color: #fff;
-    }
-    .btn-primary:hover { filter: brightness(1.05); }
-    .btn-primary:disabled { filter: none; opacity: .6; }
-
-    .card {
-      background: linear-gradient(180deg, #141a22, #18202a);
-      border-radius: 14px;
-      padding: 30px;
-      border: 1px solid #243041;
-      margin-bottom: 20px;
-    }
-    .card h2 {
-      font-size: 28px;
-      margin-bottom: 10px;
-      background: linear-gradient(135deg, #4ea1ff, #7f5af0);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-    }
-    .card .version {
-      color: #9fb0c0;
-      font-size: 16px;
-      margin-bottom: 24px;
-    }
-
-    textarea {
-      width: 100%;
-      background: #0f141b;
-      color: #e6edf3;
-      border: 1px solid #243041;
-      border-radius: 10px;
-      padding: 14px 16px;
-      outline: none;
-      font-size: 15px;
-      font-family: inherit;
-      line-height: 1.6;
-      resize: vertical;
-      transition: .15s ease;
-    }
-    textarea:focus { border-color: #4ea1ff; box-shadow: 0 0 0 3px rgba(78,161,255,.15); }
-
-    .generate-row {
-      display: flex;
-      gap: 12px;
-      align-items: flex-start;
-      margin-top: 16px;
-    }
-    .generate-row .btn { padding: 12px 28px; font-size: 15px; white-space: nowrap; }
-
-    .status-bar {
-      display: none;
-      align-items: center;
-      gap: 10px;
-      padding: 12px 16px;
-      background: #0f141b;
-      border: 1px solid #243041;
-      border-radius: 10px;
-      margin-top: 16px;
-      font-size: 14px;
-    }
-    .status-bar.visible { display: flex; }
-    .status-bar .spinner {
-      width: 16px; height: 16px;
-      border: 2px solid #2d3a4d;
-      border-top-color: #4ea1ff;
-      border-radius: 50%;
-      animation: spin .9s linear infinite;
-      flex-shrink: 0;
-    }
-    @keyframes spin { to { transform: rotate(360deg); } }
-    .status-bar .dot {
-      width: 8px; height: 8px; border-radius: 50%;
-      background: #16c47f;
-      box-shadow: 0 0 10px rgba(22,196,127,.6);
-      flex-shrink: 0;
-    }
-    .status-bar.done { border-color: #1a3a2a; }
-
-    .result-block {
-      background: linear-gradient(180deg, #141a22, #18202a);
-      border-radius: 14px;
-      border: 1px solid #243041;
-      margin-bottom: 20px;
-      overflow: hidden;
-    }
-    .result-block .result-header {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      padding: 16px 20px;
-      border-bottom: 1px solid #243041;
-      font-size: 14px;
-      font-weight: 600;
-      color: #9fb0c0;
-    }
-    .result-block .result-header .icon { font-size: 18px; }
-    .result-block .result-body { padding: 0; }
-    .result-block pre {
-      margin: 0;
-      padding: 20px;
-      overflow-x: auto;
-      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-      font-size: 14px;
-      line-height: 1.6;
-      color: #e6edf3;
-      background: #0b1118;
-    }
-    .result-block pre code { font-family: inherit; }
-    .result-block .explanation-body {
-      padding: 20px;
-      line-height: 1.7;
-      font-size: 15px;
-      white-space: pre-wrap;
-    }
-    .result-block.hidden { display: none; }
-
-    .error-block {
-      background: #2a1518;
-      border: 1px solid #542127;
-      border-radius: 10px;
-      padding: 16px 20px;
-      margin-bottom: 20px;
-      color: #ffb3b3;
-      font-size: 14px;
-      line-height: 1.6;
-    }
-    .error-block.hidden { display: none; }
-
+    .version { color: var(--text-secondary); font-size: var(--text-md); margin-bottom: var(--space-6); }
     @media (max-width: 768px) {
-      .header { flex-direction: column; gap: 12px; text-align: center; }
-      .generate-row { flex-direction: column; }
-      .generate-row .btn { width: 100%; justify-content: center; }
-      .card { padding: 20px; }
-      .result-block pre { padding: 14px; font-size: 13px; }
+      body { padding: 0; margin: 0; }
     }
   </style>
 </head>
 <body>
   <div class="container">
-    <div class="header">
-      <h1>Programming Engine</h1>
-      <div class="header-actions">
-        <button class="btn" onclick="window.location.href='/index.html'">Чат</button>
-        <button class="btn" onclick="window.location.href='/rag.html'">RAG</button>
-        <button class="btn" onclick="window.location.href='/admin.html'">Админка</button>
-        <button class="btn btn-danger" onclick="logout()">Выход</button>
+    <div class="app-header" style="position:static;border-radius:var(--radius-lg);margin-bottom:20px;border:1px solid var(--border-primary);">
+      <h1 style="font-size:var(--text-xl);margin:0;">Programming Engine</h1>
+      <div class="flex items-center gap-2">
+        <button class="btn btn-icon" id="themeToggle" aria-label="Toggle theme" title="Toggle theme">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+        </button>
+        <button class="btn btn-sm" onclick="window.location.href='/index.html'">Чат</button>
+        <button class="btn btn-sm" onclick="window.location.href='/admin.html'">Админка</button>
+        <button class="btn btn-danger btn-sm" onclick="logout()">Выход</button>
       </div>
     </div>
 
     <div class="card">
       <h2>Генерация кода</h2>
-      <div class="version">Опишите задачу — Engine выполнит Pipeline</div>
+      <div class="version" style="color:var(--text-tertiary);font-size:var(--text-sm);margin-bottom:var(--space-6);">Опишите задачу — Engine выполнит Pipeline</div>
 
-      <div style="margin-bottom: 16px;">
-        <label style="display:block;margin-bottom:6px;color:#9fb0c0;font-size:14px;">Проект</label>
-        <select id="projectSelect" style="width:100%;background:#0f141b;color:#e6edf3;border:1px solid #243041;border-radius:10px;padding:12px 16px;outline:none;font-size:15px;">
+      <div class="form-group">
+        <label for="projectSelect">Проект</label>
+        <select id="projectSelect" class="input">
           <option value="">— Без проекта —</option>
         </select>
       </div>
 
-      <textarea id="taskInput" rows="6" placeholder="Опишите задачу...
+      <div class="form-group">
+        <textarea id="taskInput" class="input" rows="6" placeholder="Опишите задачу...
 
 Например:
 Создай обработку инвентаризации товаров."></textarea>
-
-      <div class="generate-row">
-        <button class="btn btn-primary" id="generateBtn">Сгенерировать</button>
       </div>
 
-      <div class="status-bar" id="statusBar">
+      <button class="btn btn-primary btn-lg" id="generateBtn">Сгенерировать</button>
+
+      <div class="flex items-center gap-2 msg-box msg-box-info" id="statusBar" style="display:none;">
         <div class="spinner" id="statusSpinner"></div>
-        <span id="statusText">Выполняется генерации...</span>
+        <span id="statusText">Выполняется генерация...</span>
       </div>
     </div>
 
-    <div class="result-block hidden" id="codeBlock">
-      <div class="result-header">
-        <span class="icon">&#x1F4C4;</span>
+    <div class="card" id="codeBlock" style="display:none;padding:0;overflow:hidden;">
+      <div style="display:flex;align-items:center;gap:var(--space-2);padding:var(--space-4);border-bottom:1px solid var(--border-primary);font-weight:600;color:var(--text-secondary);font-size:var(--text-sm);">
+        <span>📄</span>
         <span>Сгенерированный код</span>
       </div>
-      <div class="result-body">
-        <pre><code id="codeContent"></code></pre>
-      </div>
+      <pre style="margin:0;padding:var(--space-5);overflow-x:auto;background:var(--bg-inset);"><code id="codeContent"></code></pre>
     </div>
 
-    <div class="result-block hidden" id="explanationBlock">
-      <div class="result-header">
-        <span class="icon">&#x1F4DD;</span>
+    <div class="card" id="explanationBlock" style="display:none;padding:0;overflow:hidden;">
+      <div style="display:flex;align-items:center;gap:var(--space-2);padding:var(--space-4);border-bottom:1px solid var(--border-primary);font-weight:600;color:var(--text-secondary);font-size:var(--text-sm);">
+        <span>📝</span>
         <span>Объяснение</span>
       </div>
-      <div class="result-body">
-        <div class="explanation-body" id="explanationContent"></div>
-      </div>
+      <div style="padding:var(--space-5);line-height:var(--leading-relaxed);font-size:var(--text-md);white-space:pre-wrap;" id="explanationContent"></div>
     </div>
 
-    <div class="error-block hidden" id="errorBlock">
+    <div class="msg-box msg-box-error" id="errorBlock" style="display:none;">
       <div id="errorContent"></div>
     </div>
   </div>
@@ -257,6 +95,7 @@
         return data.user;
       } catch (err) { window.location.href = '/login.html'; return null; }
     }
+    
     async function logout() {
       await fetch('/logout', { method: 'POST', credentials: 'include' });
       window.location.href = '/login.html';
@@ -276,47 +115,44 @@
     const errorContent = document.getElementById('errorContent');
 
     function setStatus(text, done) {
-      statusBar.classList.add('visible');
+      statusBar.style.display = 'flex';
       statusText.textContent = text;
       statusSpinner.style.display = done ? 'none' : '';
-      statusBar.classList.toggle('done', !!done);
+      statusBar.className = done ? 'flex items-center gap-2 msg-box msg-box-success' : 'flex items-center gap-2 msg-box msg-box-info';
     }
 
     function hideStatus() {
-      statusBar.classList.remove('visible');
+      statusBar.style.display = 'none';
     }
 
     function showError(msg) {
       errorContent.textContent = msg;
-      errorBlock.classList.remove('hidden');
+      errorBlock.style.display = 'block';
     }
 
     function hideError() {
-      errorBlock.classList.add('hidden');
+      errorBlock.style.display = 'none';
     }
 
     function showResult(data) {
       if (data.code) {
         codeContent.textContent = data.code;
-        codeBlock.classList.remove('hidden');
+        codeBlock.style.display = 'block';
       }
       if (data.explanation) {
         explanationContent.textContent = data.explanation;
-        explanationBlock.classList.remove('hidden');
+        explanationBlock.style.display = 'block';
       }
     }
 
     function hideResults() {
-      codeBlock.classList.add('hidden');
-      explanationBlock.classList.add('hidden');
+      codeBlock.style.display = 'none';
+      explanationBlock.style.display = 'none';
     }
 
     generateBtn.addEventListener('click', async () => {
       const text = taskInput.value.trim();
-      if (!text) {
-        showError('Пожалуйста, опишите задачу.');
-        return;
-      }
+      if (!text) { showError('Пожалуйста, опишите задачу.'); return; }
 
       hideError();
       hideResults();

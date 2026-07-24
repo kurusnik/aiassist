@@ -1,0 +1,175 @@
+:root {
+  /* --- Typography --- */
+  --font-sans: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text',
+    'Helvetica Neue', 'Segoe UI', Roboto, Arial, sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Monaco,
+    Consolas, 'Liberation Mono', 'Courier New', monospace;
+
+  --text-xs: 11px;
+  --text-sm: 13px;
+  --text-base: 14px;
+  --text-md: 15px;
+  --text-lg: 16px;
+  --text-xl: 20px;
+  --text-2xl: 24px;
+  --text-3xl: 28px;
+
+  --leading-tight: 1.25;
+  --leading-normal: 1.5;
+  --leading-relaxed: 1.6;
+  --leading-loose: 1.75;
+
+  --tracking-tight: -0.02em;
+  --tracking-normal: 0;
+  --tracking-wide: 0.02em;
+
+  /* --- Spacing --- */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+
+  /* --- Radii --- */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 20px;
+  --radius-full: 9999px;
+
+  /* --- Shadows --- */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.06);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 8px 30px rgba(0, 0, 0, 0.12);
+  --shadow-xl: 0 12px 40px rgba(0, 0, 0, 0.2);
+  --shadow-glow: 0 0 20px rgba(78, 161, 255, 0.15);
+
+  /* --- Transitions (Emil Kowalski-inspired strong easings) --- */
+  --ease-out-strong: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out-strong: cubic-bezier(0.77, 0, 0.175, 1);
+  --ease-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-in: cubic-bezier(0.4, 0, 1, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  --transition-fast: 150ms var(--ease-out);
+  --transition-base: 200ms var(--ease-out);
+  --transition-slow: 300ms var(--ease-out);
+  --transition-spring: 400ms var(--ease-spring);
+  --transition-theme: 400ms var(--ease-out-strong);
+
+  /* --- Z-index --- */
+  --z-sidebar: 100;
+  --z-header: 200;
+  --z-modal: 1000;
+  --z-toast: 1100;
+  --z-tooltip: 1200;
+
+  /* --- Layout --- */
+  --sidebar-width: 300px;
+  --header-height: 56px;
+}
+
+/* ========== DARK THEME (default) ========== */
+:root,
+[data-theme='dark'] {
+  --bg: #0a0a0b;
+  --bg-elevated: #0f0f11;
+  --bg-surface: #141415;
+  --bg-surface-2: #1a1a1c;
+  --bg-inset: #060607;
+
+  --text-primary: #f5f5f7;
+  --text-secondary: #a1a1a6;
+  --text-tertiary: #6e6e73;
+  --text-inverse: #0a0a0b;
+
+  --border-primary: rgba(255, 255, 255, 0.08);
+  --border-secondary: rgba(255, 255, 255, 0.05);
+  --border-hover: rgba(255, 255, 255, 0.12);
+
+  --accent: #4ea1ff;
+  --accent-hover: #6bb3ff;
+  --accent-subtle: rgba(78, 161, 255, 0.1);
+  --accent-2: #7f5af0;
+  --accent-2-hover: #9b7bf5;
+  --accent-gradient: linear-gradient(135deg, var(--accent), var(--accent-2));
+
+  --success: #30d158;
+  --success-subtle: rgba(48, 209, 88, 0.1);
+  --warning: #ff9f0a;
+  --warning-subtle: rgba(255, 159, 10, 0.1);
+  --danger: #ff453a;
+  --danger-subtle: rgba(255, 69, 58, 0.1);
+  --danger-hover: #ff645a;
+
+  --overlay: rgba(0, 0, 0, 0.6);
+  --glass: rgba(20, 20, 21, 0.8);
+  --glass-border: rgba(255, 255, 255, 0.06);
+
+  --chat-user: #1c1c1e;
+  --chat-assistant: #141415;
+  --chat-user-border: rgba(255, 255, 255, 0.06);
+  --chat-assistant-border: rgba(255, 255, 255, 0.04);
+
+  --scrollbar-thumb: rgba(255, 255, 255, 0.12);
+  --scrollbar-track: transparent;
+
+  --skeleton: rgba(255, 255, 255, 0.06);
+  --skeleton-shine: rgba(255, 255, 255, 0.03);
+
+  color-scheme: dark;
+}
+
+/* ========== LIGHT THEME ========== */
+[data-theme='light'] {
+  --bg: #f5f5f7;
+  --bg-elevated: #ffffff;
+  --bg-surface: #ffffff;
+  --bg-surface-2: #f0f0f2;
+  --bg-inset: #e8e8ec;
+
+  --text-primary: #1d1d1f;
+  --text-secondary: #6e6e73;
+  --text-tertiary: #a1a1a6;
+  --text-inverse: #ffffff;
+
+  --border-primary: rgba(0, 0, 0, 0.08);
+  --border-secondary: rgba(0, 0, 0, 0.05);
+  --border-hover: rgba(0, 0, 0, 0.12);
+
+  --accent: #0071e3;
+  --accent-hover: #0077ed;
+  --accent-subtle: rgba(0, 113, 227, 0.08);
+  --accent-2: #7f5af0;
+  --accent-2-hover: #6b4ad6;
+  --accent-gradient: linear-gradient(135deg, var(--accent), var(--accent-2));
+
+  --success: #248a3d;
+  --success-subtle: rgba(36, 138, 61, 0.08);
+  --warning: #b76200;
+  --warning-subtle: rgba(183, 98, 0, 0.08);
+  --danger: #d70015;
+  --danger-subtle: rgba(215, 0, 21, 0.08);
+  --danger-hover: #f0001a;
+
+  --overlay: rgba(0, 0, 0, 0.3);
+  --glass: rgba(255, 255, 255, 0.8);
+  --glass-border: rgba(0, 0, 0, 0.06);
+
+  --chat-user: #e8e8ec;
+  --chat-assistant: #ffffff;
+  --chat-user-border: rgba(0, 0, 0, 0.06);
+  --chat-assistant-border: rgba(0, 0, 0, 0.04);
+
+  --scrollbar-thumb: rgba(0, 0, 0, 0.12);
+  --scrollbar-track: transparent;
+
+  --skeleton: rgba(0, 0, 0, 0.06);
+  --skeleton-shine: rgba(0, 0, 0, 0.03);
+
+  color-scheme: light;
+}

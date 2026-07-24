@@ -1,0 +1,239 @@
+@media (max-width: 1024px) {
+  .app {
+    grid-template-columns: 240px 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  .app {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr;
+    margin: 0;
+  }
+
+  .app-header {
+    padding: var(--space-3) var(--space-4);
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    height: auto;
+    min-height: var(--header-height);
+  }
+
+  .app-sidebar {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: var(--z-sidebar);
+    border-right: none;
+    padding: var(--space-4);
+    background: var(--bg);
+    overflow-y: auto;
+  }
+
+  .app-sidebar.open {
+    display: block;
+    animation: fadeIn var(--transition-base) ease both;
+  }
+
+  .app-content {
+    height: calc(100vh - var(--header-height));
+  }
+
+  .chat {
+    padding: var(--space-4);
+    height: auto;
+  }
+
+  .bubble {
+    max-width: 90%;
+    padding: var(--space-3);
+    font-size: var(--text-md);
+  }
+
+  .composer {
+    padding: var(--space-3);
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+
+  .composer textarea {
+    min-height: 44px;
+    width: 100%;
+  }
+
+  .composer > div:last-child {
+    width: 100%;
+  }
+
+  .composer .btn {
+    min-height: 44px;
+  }
+
+  .toolbar {
+    width: 100%;
+    justify-content: space-between;
+    flex-wrap: wrap;
+  }
+
+  .sidebar-section {
+    margin-bottom: var(--space-4);
+  }
+
+  .panel {
+    border-radius: 0;
+  }
+
+  .login-box {
+    padding: var(--space-6);
+    max-width: 100%;
+  }
+
+  .modal-content {
+    padding: var(--space-6);
+    width: 95vw;
+  }
+
+  .credits-panel {
+    bottom: var(--space-3);
+    right: var(--space-3);
+    font-size: var(--text-xs);
+    padding: var(--space-2) var(--space-3);
+  }
+
+  #loading-ocr {
+    margin: var(--space-2);
+    padding: var(--space-3);
+    font-size: var(--text-sm);
+  }
+
+  .rag-page {
+    padding: var(--space-4);
+    height: auto;
+    min-height: 100vh;
+  }
+
+  .rag-header {
+    flex-direction: column;
+    gap: var(--space-3);
+    align-items: flex-start;
+  }
+
+  .header-section {
+    flex-direction: column;
+    gap: var(--space-3);
+  }
+
+  .stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .table-wrap {
+    border-radius: 0;
+    border-left: none;
+    border-right: none;
+  }
+}
+
+@media (max-width: 480px) {
+  .app-header {
+    padding: var(--space-2) var(--space-3);
+  }
+
+  .chat {
+    padding: var(--space-3);
+  }
+
+  .bubble {
+    max-width: 95%;
+    padding: var(--space-2) var(--space-3);
+    font-size: var(--text-base);
+    border-radius: var(--radius-md);
+  }
+
+  .avatar {
+    width: 28px;
+    height: 28px;
+    font-size: 11px;
+  }
+
+  .composer {
+    padding: var(--space-2);
+  }
+
+  .composer textarea {
+    min-height: 40px;
+    font-size: var(--text-md);
+  }
+
+  .btn {
+    padding: var(--space-2) var(--space-3);
+    font-size: var(--text-sm);
+    min-height: 40px;
+  }
+
+  .btn-sm {
+    padding: var(--space-1) var(--space-2);
+    min-height: 36px;
+  }
+
+  .empty-state {
+    padding: var(--space-8) var(--space-4);
+  }
+
+  .empty-state-icon {
+    font-size: 36px;
+  }
+
+  .modal-content {
+    padding: var(--space-5);
+    border-radius: var(--radius-lg);
+  }
+
+  .toast {
+    bottom: var(--space-4);
+    width: 90%;
+    max-width: 340px;
+    font-size: var(--text-sm);
+    padding: var(--space-2) var(--space-4);
+  }
+
+  .login-container {
+    padding: var(--space-3);
+    align-items: flex-start;
+    padding-top: var(--space-10);
+  }
+
+  .login-box {
+    padding: var(--space-5);
+    border-radius: var(--radius-lg);
+  }
+
+  .login-logo h1 {
+    font-size: var(--text-2xl);
+  }
+
+  .sidebar-section {
+    margin-bottom: var(--space-3);
+  }
+}
+
+@media (max-width: 360px) {
+  .bubble {
+    font-size: var(--text-sm);
+    padding: var(--space-2);
+  }
+
+  .btn {
+    font-size: var(--text-sm);
+    padding: var(--space-2) var(--space-3);
+  }
+
+  .avatar {
+    width: 24px;
+    height: 24px;
+    font-size: 10px;
+  }
+
+  h1 { font-size: var(--text-xl); }
+  h2 { font-size: var(--text-lg); }
+}
