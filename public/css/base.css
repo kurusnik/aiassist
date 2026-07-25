@@ -44,11 +44,12 @@ a:hover {
 button {
   font-family: inherit;
   cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
 }
 
 input, textarea, select {
   font-family: inherit;
-  font-size: inherit;
+  font-size: 16px; /* prevents iOS zoom */
 }
 
 textarea {
@@ -255,6 +256,65 @@ pre {
   flex-direction: column;
   background: var(--bg-elevated);
   transition: background var(--transition-theme);
+}
+
+/* Sidebar toggle button (hidden on desktop) */
+.sidebar-toggle {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  transition: background var(--transition-fast), color var(--transition-fast);
+  -webkit-tap-highlight-color: transparent;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .sidebar-toggle:hover {
+    background: var(--bg-surface-2);
+    color: var(--text-primary);
+  }
+}
+
+/* Admin and Programming pages (no .app grid) */
+.admin-panel {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: var(--space-5);
+  min-height: 100vh;
+  background: var(--bg);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+
+.programming-panel {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: var(--space-5);
+  min-height: 100vh;
+  background: var(--bg);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+
+/* Container for pages that use .programming-panel or .admin-panel */
+.container {
+  max-width: 100%;
+  margin: 0 auto;
+}
+
+@media (max-width: 768px) {
+  .admin-panel,
+  .programming-panel {
+    padding: 0;
+  }
 }
 
 @media (max-width: 768px) {

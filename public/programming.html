@@ -10,24 +10,13 @@
   <link rel="stylesheet" href="/css/components.css" />
   <link rel="stylesheet" href="/css/responsive.css" />
   <script src="/scripts/theme.js"></script>
-  <style>
-    body {
-      background: var(--bg);
-      min-height: 100vh;
-      padding: 20px;
-      color: var(--text-primary);
-      overflow-y: auto;
-    }
-    .container { max-width: 900px; margin: 0 auto; }
-    .version { color: var(--text-secondary); font-size: var(--text-md); margin-bottom: var(--space-6); }
-    @media (max-width: 768px) {
-      body { padding: 0; margin: 0; }
-    }
+<style>
+    .version { color: var(--text-tertiary); font-size: var(--text-sm); margin-bottom: var(--space-6); }
   </style>
 </head>
-<body>
-  <div class="container">
-    <div class="app-header" style="position:static;border-radius:var(--radius-lg);margin-bottom:20px;border:1px solid var(--border-primary);">
+<body class="programming-panel">
+  
+    <header class="app-header" style="position:sticky;top:0;border-radius:var(--radius-lg);margin-bottom:var(--space-5);">
       <h1 style="font-size:var(--text-xl);margin:0;">Programming Engine</h1>
       <div class="flex items-center gap-2">
         <button class="btn btn-icon" id="themeToggle" aria-label="Toggle theme" title="Toggle theme">
@@ -37,7 +26,7 @@
         <button class="btn btn-sm" onclick="window.location.href='/admin.html'">Админка</button>
         <button class="btn btn-danger btn-sm" onclick="logout()">Выход</button>
       </div>
-    </div>
+    </header>
 
     <div class="card">
       <h2>Генерация кода</h2>
@@ -84,7 +73,6 @@
     <div class="msg-box msg-box-error" id="errorBlock" style="display:none;">
       <div id="errorContent"></div>
     </div>
-  </div>
 
   <script>
     async function checkAuth() {

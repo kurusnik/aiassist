@@ -15,14 +15,6 @@
   <link rel="stylesheet" href="/css/responsive.css" />
   <script src="/scripts/theme.js"></script>
   <style>
-    body {
-      max-width: 1200px;
-      margin: 0 auto;
-      padding: 20px;
-      background: var(--bg);
-      min-height: 100vh;
-      overflow-y: auto;
-    }
     .password-logs-table { max-height: 400px; overflow-y: auto; border: 1px solid var(--border-primary); border-radius: var(--radius-md); }
     .password-logs-table th { position: sticky; top: 0; z-index: 1; }
     #rate-limit-info { margin-top: 15px; }
@@ -32,8 +24,8 @@
     }
   </style>
 </head>
-<body>
-  <header class="app-header" style="position:static;border-radius:var(--radius-lg);margin-bottom:20px;border:1px solid var(--border-primary);">
+<body class="admin-panel">
+  <header class="app-header" style="position:sticky;top:0;border-radius:var(--radius-lg);margin-bottom:var(--space-5);">
     <div class="flex items-center gap-3">
       <h1 style="font-size:var(--text-xl);margin:0;">Админ-панель</h1>
     </div>
@@ -51,8 +43,9 @@
     <button class="tab" onclick="showTab('models')">Модели</button>
     <button class="tab" onclick="showTab('passwords')">Пароли</button>
     <button class="tab" onclick="showTab('rag')">🧠 База знаний</button>
-    <button class="tab" onclick="showTab('llm')">AI > LLM Provider</button>
-    <button class="tab" onclick="showTab('system-health')">🩺 System Health</button>
+    <button class="tab" onclick="showTab('llm')">AI > LLM</button>
+    <button class="tab" onclick="showTab('system-health')">🩺 Health</button>
+    <button class="tab" onclick="showTab('diagnostics')">🔍 Knowledge Diagnostics</button>
   </div>
   
   <div id="users-tab" class="tab-content active" style="display:block;">
@@ -410,6 +403,79 @@
     </div>
   </div>
 
+  <div id="diagnostics-tab" class="tab-content" style="display:none;">
+    <h2>🔍 Knowledge Diagnostics</h2>
+    <div id="diagnostics-message"></div>
+    <div class="password-sections">
+      <div class="card">
+        <h3 class="card-heading">⚙️ Настройки</h3>
+        <div id="diagnostics-settings" class="form-group">
+          <label class="toggle">
+            <input type="checkbox" id="diagnostics-toggle" onchange="toggleDiagnostics()">
+            <span class="toggle-slider"></span>
+            <span>Включить диагностику запросов</span>
+          </label>
+          <small class="text-small" style="display:block;margin-top:5px;">Включает сбор полной трассировки всех запросов Knowledge Layer</small>
+        </div>
+      </div>
+      <div class="card">
+        <h3 class="card-heading">📊 Статистика</h3>
+        <div class="stats-grid" id="diagnostics-stats">
+          <div class="stat-item"><div class="stat-value" id="diag-stat-traces">-</div><div class="stat-label">Трейсов</div></div>
+          <div class="stat-item"><div class="stat-value" id="diag-stat-avg-duration">-</div><div class="stat-label">Среднее время</div></div>
+          <div class="stat-item"><div class="stat-value" id="diag-stat-avg-retrieval">-</div><div class="stat-label">Avg Retrieval</div></div>
+          <div class="stat-item"><div class="stat-value" id="diag-stat-avg-llm">-</div><div class="stat-label">Avg LLM</div></div>
+          <div class="stat-item"><div class="stat-value" id="diag-stat-errors">-</div><div class="stat-label">Ошибки</div></div>
+        </div>
+        <button class="btn btn-ghost" onclick="loadDiagnosticsStatus()" style="margin-top:var(--space-3);">Обновить</button>
+        <button class="btn btn-danger btn-sm" onclick="clearDiagnosticsTraces()" style="margin-top:var(--space-3);margin-left:var(--space-2);">Очистить трейсы</button>
+      </div>
+      <div class="card">
+        <h3 class="card-heading">📋 Трейсы запросов</h3>
+        <div class="form-group">
+          <label for="diagnostics-trace-limit">Показать</label>
+          <select id="diagnostics-trace-limit" class="input" style="width:100px;" onchange="loadDiagnosticsTraces()">
+            <option value="10">10</option>
+            <option value="25" selected>25</option>
+            <option value="50">50</option>
+          </select>
+        </div>
+        <div id="diagnostics-traces-container">
+          <div class="tool-logs-table" style="max-height:600px;overflow-y:auto;border:1px solid var(--border-primary);border-radius:var(--radius-md);">
+            <table>
+              <thead>
+                <tr>
+                  <th>Время</th>
+                  <th>Trace ID</th>
+                  <th>Запрос</th>
+                  <th>Длит.</th>
+                  <th>Retrieval</th>
+                  <th>LLM</th>
+                  <th>Док-ов</th>
+                  <th>Исп.</th>
+                  <th>Контекст</th>
+                </tr>
+              </thead>
+              <tbody id="diagnostics-traces-table">
+                <tr><td colspan="9">Загрузка...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- Модальное окно деталей трейса -->
+    <div id="trace-detail-modal" class="modal-overlay" style="display:none;">
+      <div class="modal-content" style="max-width:90vw;max-height:90vh;overflow-y:auto;">
+        <div class="modal-header">
+          <h2>Детали трейса</h2>
+          <button class="modal-close" onclick="closeTraceDetail()">✕</button>
+        </div>
+        <div id="trace-detail-content"></div>
+      </div>
+    </div>
+  </div>
+
   <script>
     function showTab(tabName) {
       document.querySelectorAll('.tab').forEach(btn => btn.classList.remove('active'));
@@ -424,6 +490,7 @@
       if (tabName === 'llm') loadLlmSettings();
       if (tabName === 'system-health') loadSystemHealth();
       if (tabName === 'passwords') loadUserLists();
+      if (tabName === 'diagnostics') { loadDiagnosticsStatus(); loadDiagnosticsTraces(); }
     }
     
     async function loadUsers() {
@@ -989,7 +1056,7 @@
       setTimeout(() => msgDiv.innerHTML = '', 3000);
     }
     
-    async function startKnowledgeImport() {
+async function startKnowledgeImport() {
       const msgDiv = document.getElementById('system-health-message');
       msgDiv.innerHTML = '<div class="msg-box msg-box-info flex items-center gap-2"><div class="spinner"></div>Импорт запущен</div>';
       try {
@@ -1002,7 +1069,178 @@
         }
       } catch (err) { msgDiv.innerHTML = `<div class="msg-box msg-box-error">${err.message}</div>`; }
     }
-    
+
+    // ========== Knowledge Diagnostics ==========
+    async function loadDiagnosticsStatus() {
+      try {
+        const response = await fetch('/api/admin/knowledge/diagnostics/status', { credentials: 'include' });
+        if (!response.ok) { if (response.status === 401 || response.status === 403) { window.location.href = '/login.html'; return; } throw new Error('Ошибка загрузки статуса'); }
+        const data = await response.json();
+        document.getElementById('diagnostics-toggle').checked = data.enabled;
+        document.getElementById('diag-stat-traces').textContent = data.totalTraces || 0;
+        document.getElementById('diag-stat-avg-duration').textContent = (data.avgDuration || 0) + 'ms';
+        document.getElementById('diag-stat-avg-retrieval').textContent = (data.avgRetrievalDuration || 0) + 'ms';
+        document.getElementById('diag-stat-avg-llm').textContent = (data.avgLlmDuration || 0) + 'ms';
+        document.getElementById('diag-stat-errors').textContent = data.totalErrors || 0;
+      } catch (err) {
+        document.getElementById('diagnostics-message').innerHTML = `<div class="msg-box msg-box-error">${err.message}</div>`;
+      }
+    }
+
+    async function toggleDiagnostics() {
+      const enabled = document.getElementById('diagnostics-toggle').checked;
+      const msgDiv = document.getElementById('diagnostics-message');
+      msgDiv.innerHTML = '<div class="msg-box msg-box-info flex items-center gap-2"><div class="spinner"></div>Сохранение...</div>';
+      try {
+        const response = await fetch('/api/admin/knowledge/diagnostics/toggle', { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ enabled }) });
+        if (!response.ok) throw new Error('Ошибка сохранения');
+        const data = await response.json();
+        msgDiv.innerHTML = `<div class="msg-box msg-box-success">Диагностика ${data.enabled ? 'включена' : 'выключена'}</div>`;
+        setTimeout(() => msgDiv.innerHTML = '', 3000);
+      } catch (err) { msgDiv.innerHTML = `<div class="msg-box msg-box-error">${err.message}</div>`; }
+    }
+
+    async function loadDiagnosticsTraces() {
+      const limit = document.getElementById('diagnostics-trace-limit').value;
+      const tbody = document.getElementById('diagnostics-traces-table');
+      tbody.innerHTML = '<tr><td colspan="8">Загрузка...</td></tr>';
+      try {
+        const response = await fetch(`/api/admin/knowledge/diagnostics/traces?limit=${limit}`, { credentials: 'include' });
+        if (!response.ok) { if (response.status === 401 || response.status === 403) { window.location.href = '/login.html'; return; } throw new Error('Ошибка загрузки трейсов'); }
+        const data = await response.json();
+        if (!data.traces || data.traces.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="8">Нет трейсов. Отправьте запрос в чат для сбора диагностики.</td></tr>';
+          return;
+        }
+        tbody.innerHTML = data.traces.map(t => `
+          <tr onclick="showTraceDetail('${t.id}')" style="cursor:pointer;">
+            <td class="text-small">${new Date(t.timestamp || t.created_at).toLocaleString()}</td>
+            <td><code style="font-size:10px;user-select:all;">${(t.traceId || t.id || '').substring(0, 8)}</code></td>
+            <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml((t.userQuery || '').substring(0, 60))}</td>
+            <td class="text-small">${t.duration ? t.duration + 'ms' : '-'}</td>
+            <td class="text-small">${t.metrics && t.metrics.retrievalDuration ? t.metrics.retrievalDuration + 'ms' : '-'}</td>
+            <td class="text-small">${t.metrics && t.metrics.llmDuration ? t.metrics.llmDuration + 'ms' : '-'}</td>
+            <td class="text-small">${t.metrics && t.metrics.documentsFound != null ? t.metrics.documentsFound : '-'}</td>
+            <td class="text-small">${t.metrics && t.metrics.documentsUsed != null ? t.metrics.documentsUsed : '-'}</td>
+            <td class="text-small">${t.metrics && t.metrics.contextSize ? (t.metrics.contextSize / 1000).toFixed(1) + 'K' : '-'}</td>
+          </tr>
+        `).join('');
+      } catch (err) {
+        tbody.innerHTML = `<tr><td colspan="9">${escapeHtml(err.message)}</td></tr>`;
+      }
+    }
+
+    async function showTraceDetail(traceId) {
+      try {
+        const response = await fetch(`/api/admin/knowledge/diagnostics/traces/${traceId}`, { credentials: 'include' });
+        if (!response.ok) throw new Error('Ошибка загрузки деталей');
+        const data = await response.json();
+        const trace = data.trace;
+        let html = '<div class="password-sections">';
+
+        // Информация о запросе
+        html += '<div class="card"><h3 class="card-heading">Запрос</h3>';
+        html += `<p><strong>Trace ID:</strong> <code style="font-size:11px;user-select:all;">${escapeHtml(trace.traceId || trace.id)}</code></p>`;
+        html += `<p><strong>Текст:</strong> ${escapeHtml(trace.userQuery)}</p>`;
+        html += `<p><strong>Время:</strong> ${new Date(trace.timestamp || trace.created_at).toLocaleString()}</p>`;
+        html += `<p><strong>Длительность:</strong> ${trace.duration || 0}ms</p>`;
+        html += '</div>';
+
+        // Метрики
+        html += '<div class="card"><h3 class="card-heading">Метрики</h3>';
+        html += '<div class="stats-grid">';
+        const metrics = trace.metrics || {};
+        Object.keys(metrics).forEach(key => {
+          const val = metrics[key];
+          html += `<div class="stat-item"><div class="stat-value">${val != null ? val : '-'}</div><div class="stat-label">${key}</div></div>`;
+        });
+        html += '</div></div>';
+
+        // Этапы
+        html += '<div class="card"><h3 class="card-heading">Этапы обработки</h3>';
+        const stages = trace.stages || {};
+        Object.keys(stages).forEach(stageKey => {
+          const stage = stages[stageKey];
+          html += `<div style="margin-bottom:var(--space-3);padding:var(--space-2);background:var(--bg);border-radius:var(--radius-md);">`;
+          html += `<strong style="color:var(--accent);">${stageKey}</strong>`;
+          html += `<span style="float:right;" class="${stage.success ? 'status-approved' : 'status-pending'}">${stage.success ? '✓' : '✗'} ${stage.duration || 0}ms</span>`;
+          if (stage.error) {
+            html += `<div class="text-small" style="color:var(--danger);margin-top:var(--space-2);">${escapeHtml(stage.error.message || JSON.stringify(stage.error))}</div>`;
+          }
+          if (stage.documentsFound != null) {
+            html += `<div class="text-small" style="margin-top:var(--space-1);">Документов найдено: ${stage.documentsFound} | Использовано: ${stage.documentsUsed || 0}</div>`;
+          }
+          if (stage.promptLength != null) {
+            html += `<div class="text-small">Prompt: ${(stage.promptLength / 1000).toFixed(1)}K символов</div>`;
+          }
+          html += '</div>';
+        });
+        html += '</div>';
+
+        // Промпт
+        if (trace.llmPrompt) {
+          html += '<div class="card"><h3 class="card-heading">Финальный Prompt <button class="btn btn-sm btn-ghost" onclick="togglePrompt()">Показать/скрыть</button></h3>';
+          html += `<pre id="trace-prompt-content" style="display:none;max-height:400px;overflow-y:auto;background:var(--bg);padding:var(--space-2);border-radius:var(--radius-md);font-size:12px;white-space:pre-wrap;" class="text-small">${escapeHtml(trace.llmPrompt)}</pre>`;
+          html += '<small class="text-small" style="color:var(--text-tertiary);">Приблизительный объём: ' + (trace.llmPrompt.length / 1000).toFixed(1) + 'K символов</small>';
+          html += '</div>';
+        }
+
+        // Ответ модели
+        if (trace.llmResponse) {
+          html += '<div class="card"><h3 class="card-heading">Ответ модели</h3>';
+          html += `<pre style="max-height:300px;overflow-y:auto;background:var(--bg);padding:var(--space-2);border-radius:var(--radius-md);font-size:12px;white-space:pre-wrap;" class="text-small">${escapeHtml(trace.llmResponse.substring(0, 3000))}${trace.llmResponse.length > 3000 ? '<br><em>... (ответ сокращён)</em>' : ''}</pre>`;
+          html += '</div>';
+        }
+
+        // Найденные документы
+        const ragStage = stages.rag;
+        if (ragStage && ragStage.result) {
+          html += '<div class="card"><h3 class="card-heading">Найденные документы (RAG)</h3>';
+          const ragResult = ragStage.result;
+          if (ragResult.rawContext && ragResult.rawContext.documents) {
+            const docs = ragResult.rawContext.documents;
+            docs.forEach((doc, i) => {
+              const similarity = (doc.similarity * 100).toFixed(1);
+              html += `<div style="margin-bottom:var(--space-2);padding:var(--space-2);background:var(--bg);border-radius:var(--radius-md);">`;
+              html += `<div class="flex items-center justify-between"><strong>#${i + 1}</strong><span style="color:var(--accent);">${similarity}%</span></div>`;
+              const source = doc.source || {};
+              if (source.fileName) html += `<div class="text-small">📄 ${escapeHtml(source.fileName)}</div>`;
+              if (source.projectName) html += `<div class="text-small">📁 ${escapeHtml(source.projectName)}</div>`;
+              if (doc.content) html += `<pre class="text-small" style="max-height:100px;overflow-y:auto;margin-top:var(--space-1);font-size:11px;">${escapeHtml(doc.content.substring(0, 300))}</pre>`;
+              html += '</div>';
+            });
+          }
+          html += '</div>';
+        }
+
+        html += '</div>';
+        document.getElementById('trace-detail-content').innerHTML = html;
+        document.getElementById('trace-detail-modal').style.display = 'flex';
+      } catch (err) {
+        document.getElementById('diagnostics-message').innerHTML = `<div class="msg-box msg-box-error">${err.message}</div>`;
+      }
+    }
+
+    function closeTraceDetail() {
+      document.getElementById('trace-detail-modal').style.display = 'none';
+    }
+
+    window.togglePrompt = function() {
+      const el = document.getElementById('trace-prompt-content');
+      if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
+    };
+
+    async function clearDiagnosticsTraces() {
+      if (!confirm('Очистить все трейсы?')) return;
+      try {
+        const response = await fetch('/api/admin/knowledge/diagnostics/traces', { method: 'DELETE', credentials: 'include' });
+        if (!response.ok) throw new Error('Ошибка очистки');
+        document.getElementById('diagnostics-message').innerHTML = '<div class="msg-box msg-box-success">Трейсы очищены</div>';
+        loadDiagnosticsStatus();
+        loadDiagnosticsTraces();
+      } catch (err) { document.getElementById('diagnostics-message').innerHTML = `<div class="msg-box msg-box-error">${err.message}</div>`; }
+    }
+
     checkAuth().then(() => loadUsers());
   </script>
 </body>

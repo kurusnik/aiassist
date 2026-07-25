@@ -11,13 +11,6 @@
   <link rel="stylesheet" href="/css/responsive.css" />
   <script src="/scripts/theme.js"></script>
   <style>
-    body {
-      background: var(--bg);
-      min-height: 100vh;
-      padding: 20px;
-      overflow-y: auto;
-    }
-    .container { max-width: 1200px; margin: 0 auto; }
     .file-drop {
       border: 2px dashed var(--border-primary);
       border-radius: var(--radius-md);
@@ -38,9 +31,9 @@
     }
   </style>
 </head>
-<body>
-  <div class="container">
-    <header class="app-header" style="position:static;border-radius:var(--radius-lg);margin-bottom:20px;border:1px solid var(--border-primary);">
+<body class="programming-panel rag-container">
+  
+    <header class="app-header" style="position:sticky;top:0;border-radius:var(--radius-lg);margin-bottom:var(--space-5);">
       <div class="flex items-center gap-3">
         <h1 style="font-size:var(--text-xl);margin:0;">🧠 RAG База Знаний</h1>
       </div>
@@ -114,7 +107,6 @@
       <button class="btn btn-primary btn-full" onclick="searchKnowledge()">Найти</button>
       <div id="search-results" style="margin-top:var(--space-4);"></div>
     </div>
-  </div>
 
   <script>
     let currentUser = null;

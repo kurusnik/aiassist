@@ -30,6 +30,9 @@ const programmingService = require('./services/programming');
 const TaskRouter = require('./services/router/TaskRouter');
 const taskRouter = new TaskRouter();
 const { build: buildKnowledgeContext, render: renderKnowledgeContext } = require('./services/knowledge/contextBuilder');
+const diagnosticsService = require('./services/diagnostics');
+const hybridRetrieval = require('./services/retrieval');
+const contextIntelligence = require('./services/context-intelligence');
 
 // Авто-миграция таблиц ModelManager при старте
 (async () => {
@@ -56,6 +59,20 @@ const { build: buildKnowledgeContext, render: renderKnowledgeContext } = require
     console.log('[Programming] Service ready');
   } catch (err) {
     console.error('[Programming] Init error:', err.message);
+  }
+})();
+
+// Diagnostics service initialization
+(async () => {
+  try {
+    const debugMode = process.env.KNOWLEDGE_DEBUG_MODE === 'true';
+    if (debugMode) {
+      diagnosticsService.enable();
+    }
+    await diagnosticsService.loadFromDb();
+    console.log('[Diagnostics] Service ready (mode:', debugMode ? 'debug' : 'production', ')');
+  } catch (err) {
+    console.error('[Diagnostics] Init error:', err.message);
   }
 })();
 
@@ -1268,6 +1285,86 @@ app.get('/api/admin/system/health', requireAdmin, async (req, res) => {
   }
 });
 
+// ========== KNOWLEDGE DIAGNOSTICS (Sprint 1 — Knowledge Platform v2) ==========
+
+// Получить статус диагностики
+app.get('/api/admin/knowledge/diagnostics/status', requireAdmin, async (req, res) => {
+  try {
+    const stats = diagnosticsService.getStats();
+    res.json({ success: true, ...stats });
+  } catch (err) {
+    console.error('GET /api/admin/knowledge/diagnostics/status error:', err);
+    res.status(500).json({ error: 'internal_error' });
+  }
+});
+
+// Включить/выключить диагностику
+app.post('/api/admin/knowledge/diagnostics/toggle', requireAdmin, async (req, res) => {
+  try {
+    const { enabled } = req.body;
+    if (enabled) {
+      diagnosticsService.enable();
+    } else {
+      diagnosticsService.disable();
+    }
+    res.json({ success: true, enabled: diagnosticsService.isEnabled() });
+  } catch (err) {
+    console.error('POST /api/admin/knowledge/diagnostics/toggle error:', err);
+    res.status(500).json({ error: 'internal_error' });
+  }
+});
+
+// Получить список трейсов
+app.get('/api/admin/knowledge/diagnostics/traces', requireAdmin, async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit) || 50;
+    const offset = parseInt(req.query.offset) || 0;
+    const traces = diagnosticsService.getTraces(limit, offset);
+    const format = req.query.format || 'legacy';
+    const result = traces.map(t => {
+      if (format === 'canonical' && t.toJSON) return t.toJSON();
+      if (t.toLegacyFormat) return t.toLegacyFormat();
+      return t;
+    });
+    res.json({ success: true, traces: result, count: result.length, total: diagnosticsService.getStats().totalStored });
+  } catch (err) {
+    console.error('GET /api/admin/knowledge/diagnostics/traces error:', err);
+    res.status(500).json({ error: 'internal_error' });
+  }
+});
+
+// Получить детали трейса
+app.get('/api/admin/knowledge/diagnostics/traces/:id', requireAdmin, async (req, res) => {
+  try {
+    const trace = diagnosticsService.getTrace(req.params.id);
+    if (!trace) {
+      return res.status(404).json({ error: 'Trace not found' });
+    }
+    const format = req.query.format || 'legacy';
+    if (format === 'canonical' && trace.toJSON) {
+      return res.json({ success: true, trace: trace.toJSON() });
+    }
+    if (trace.toLegacyFormat) {
+      return res.json({ success: true, trace: trace.toLegacyFormat() });
+    }
+    res.json({ success: true, trace });
+  } catch (err) {
+    console.error('GET /api/admin/knowledge/diagnostics/traces/:id error:', err);
+    res.status(500).json({ error: 'internal_error' });
+  }
+});
+
+// Очистить трейсы
+app.delete('/api/admin/knowledge/diagnostics/traces', requireAdmin, async (req, res) => {
+  try {
+    diagnosticsService.clearTraces();
+    res.json({ success: true });
+  } catch (err) {
+    console.error('DELETE /api/admin/knowledge/diagnostics/traces error:', err);
+    res.status(500).json({ error: 'internal_error' });
+  }
+});
+
 // ========== KNOWLEDGE IMPORT (RC-02.1) ==========
 
 app.post('/api/admin/knowledge/import', requireAdmin, async (req, res) => {
@@ -1473,6 +1570,19 @@ app.post('/assistant', requireAuth, async (req, res) => {
     }
     // ========== END TASK ROUTING ==========
 
+    // 0) Создать TraceContext в начале обработки запроса
+    const traceContext = diagnosticsService.createTraceContext(userMessageTrimmed, { projectId, userId, model: selectedModel });
+
+    // 0.1) Диагностика: создать трейс, если включена
+    const isDebugRequest = req.query.debug === 'true' || diagnosticsService.isEnabled();
+    let pipelineTrace = null;
+    let pipelineTraceId = null;
+    if (isDebugRequest) {
+      pipelineTrace = diagnosticsService.createPipelineTrace(traceContext);
+      pipelineTraceId = pipelineTrace.id;
+      diagnosticsService.attachTrace(pipelineTrace);
+    }
+
     // 0) Вложения (опционально): подмешиваем содержимое текстовых файлов в контекст
 
     if (attIds.length > 10) {
@@ -1551,35 +1661,92 @@ app.post('/assistant', requireAuth, async (req, res) => {
       content: basePrompt
     };
 
-    // 5) RAG контекст (если включен)
+    // 5) Retrieval + Context Intelligence (координированный pipeline)
     let ragContext = '';
     let ragResult = null;
-    
+    const retrievalStart = Date.now();
+
     if (process.env.RAG_ENABLED !== 'false') {
       try {
-        const rag = require('./services/rag');
-        ragResult = await rag.prepareRagContext(userMessageTrimmed, {
+        const hybridResult = await hybridRetrieval.search(userMessageTrimmed, {
           projectId,
           userId,
-          limit: 5,
-          useHybrid: true, // Используем гибридный поиск
-          threshold: 0.1 // Очень низкий порог для тестирования
-        });
-        
-        if (ragResult.enabled && ragResult.context && ragResult.context.trim()) {
-          console.log('[RAG] Context prepared:', {
-            hasRelevantContext: ragResult.hasRelevantContext,
-            maxSimilarity: ragResult.maxSimilarity,
-            documentsCount: ragResult.documentsCount,
-            contextLength: ragResult.context?.length || 0
-          });
-          // Всегда добавляем контекст, если он есть, даже с низкой релевантностью
-          ragContext = ragResult.context;
-          console.log('[RAG] Context added to assistant query');
+          fallbackOnError: true
+        }, pipelineTrace);
+
+        const knowledgeCtx = await buildKnowledgeContext(userMessageTrimmed);
+        const knowledgeObjects = knowledgeCtx.found ? knowledgeCtx.objects : [];
+
+        const ciResult = await contextIntelligence.process(
+          hybridResult.documents || [],
+          knowledgeObjects,
+          {},
+          pipelineTrace
+        );
+
+        if (ciResult.fallbackUsed && ciResult.fallbackRaw) {
+          const { documents, knowledgeObjects } = ciResult.fallbackRaw;
+          const flatDocs = documents
+            .map((doc, i) => {
+              const source = doc.source?.projectName || `doc_${doc.id}`;
+              return `[Документ ${i + 1} из "${source}"]\n${doc.content}`;
+            })
+            .join('\n\n---\n\n');
+          const knNames = (knowledgeObjects || [])
+            .map(obj => (obj._knowledgeObj || obj).full_name || (obj._knowledgeObj || obj).name || '')
+            .filter(Boolean)
+            .join('\n');
+          const parts = ['## Найденные документы:', flatDocs];
+          if (knNames) parts.push('', '## Объекты конфигурации 1С:', knNames);
+          ragContext = parts.join('\n');
+        } else if (ciResult.structured) {
+          ragContext = rag.formatStructuredContext(ciResult.structured);
+        } else {
+          ragContext = '';
         }
-} catch (ragError) {
-        console.error('[RAG] Error getting context:', ragError.message);
+
+        ragResult = {
+          enabled: true,
+          context: ragContext,
+          hasRelevantContext: ragContext.length > 0 && ragContext !== 'Релевантные документы не найдены.',
+          documentsCount: ciResult.structured ? ciResult.structured.stats.totalDocs : (hybridResult.documents || []).length,
+          rawContext: { documents: hybridResult.documents || [] },
+          ciResult
+        };
+
+        console.log('[ContextIntelligence] Context prepared:', {
+          contextLength: ragContext.length,
+          documentsFound: (hybridResult.documents || []).length,
+          documentsUsed: ciResult.structured ? ciResult.structured.stats.totalDocs : 0,
+          fallbackUsed: hybridResult.fallbackUsed || ciResult.fallbackUsed
+        });
+      } catch (ragError) {
+        console.error('[RetrievalPipeline] Error:', ragError.message);
+        ragResult = {
+          enabled: true,
+          error: ragError.message,
+          context: '',
+          hasRelevantContext: false,
+          documentsCount: 0,
+          rawContext: { documents: [] }
+        };
       }
+    }
+
+    const retrievalDuration = Date.now() - retrievalStart;
+
+    if (pipelineTrace) {
+      const ragDocInfo = ragResult ? {
+        documentsFound: ragResult.rawContext
+          ? (ragResult.rawContext.documents || []).length
+          : 0,
+        documentsUsed: ragResult.documentsCount || 0,
+        contextLength: ragContext.length
+      } : { documentsFound: 0, documentsUsed: 0 };
+      diagnosticsService.finishPipelineStep(pipelineTrace, 'rag', {
+        ...ragDocInfo,
+        duration: retrievalDuration
+      });
     }
 
     // 6) Собираем сообщения
@@ -1588,41 +1755,6 @@ app.post('/assistant', requireAuth, async (req, res) => {
       ragContext,
       ragResult?.hasRelevantContext || false
     );
-
-    // 6.1) Knowledge Context
-    let knowledgeLog = null;
-    try {
-      const kCtx = await buildKnowledgeContext(userMessageTrimmed);
-      if (kCtx.found && kCtx.objects.length > 0) {
-        const objectsFound = kCtx.objects.length;
-        const limited = { ...kCtx, objects: kCtx.objects.slice(0, 3) };
-        let knowledgeText = renderKnowledgeContext(limited);
-        const charactersBefore = knowledgeText.length;
-        let truncated = false;
-        const MAX_KC_LENGTH = 4000;
-        if (knowledgeText.length > MAX_KC_LENGTH) {
-          const cutAt = knowledgeText.lastIndexOf('\n', MAX_KC_LENGTH);
-          knowledgeText = knowledgeText.slice(0, cutAt > 0 ? cutAt : MAX_KC_LENGTH) + '\n...\nКонтекст сокращён для соблюдения лимита.';
-          truncated = true;
-        }
-        finalSystemPrompt += '\n\n---\nДоступная информация о конфигурации 1С:\n' + knowledgeText;
-        knowledgeLog = {
-          enabled: true,
-          objectsFound,
-          objectsInjected: limited.objects.length,
-          charactersBefore,
-          charactersAfter: knowledgeText.length,
-          truncated
-        };
-      }
-    } catch (kErr) {
-      console.error('[Knowledge] Error:', kErr.message);
-    }
-    if (knowledgeLog) {
-      console.log('[Knowledge Context]', JSON.stringify(knowledgeLog));
-    } else {
-      console.log('[Knowledge Context] {"enabled": false}');
-    }
 
     const messages = [{ role: 'system', content: finalSystemPrompt }];
     if (summary) {
@@ -1715,6 +1847,7 @@ app.post('/assistant', requireAuth, async (req, res) => {
 
     // 8) Запрос в модель (OpenRouter) с потоковой выдачей
     let stream;
+    const llmStart = Date.now();
     try {
       stream = await llmService.stream(messages, {
         model: selectedModel,
@@ -1803,6 +1936,21 @@ app.post('/assistant', requireAuth, async (req, res) => {
         }
       })}\n\n`);
       res.end();
+      
+      // Диагностика: финализировать трейс
+      if (pipelineTrace) {
+        const llmDuration = Date.now() - llmStart;
+        diagnosticsService.finishPipelineStep(pipelineTrace, 'llm_request', {
+          duration: llmDuration,
+          tokensUsed: fullReply.length
+        });
+        diagnosticsService.finishPipelineStep(pipelineTrace, 'context_builder', {
+          duration: 0,
+          promptLength: finalSystemPrompt.length
+        });
+        diagnosticsService.finalizeTraceWithResponse(pipelineTraceId, fullReply, finalSystemPrompt);
+        diagnosticsService.persistTrace(pipelineTrace);
+      }
     } else {
       // Backward compatible: обычный JSON
       const parsedResponse = parseSourceMarkers(fullReply);
@@ -1813,6 +1961,21 @@ app.post('/assistant', requireAuth, async (req, res) => {
         hasModel: parsedResponse.hasModel,
         formatted: formatHighlightedResponse(parsedResponse)
       });
+      
+      // Диагностика: финализировать трейс
+      if (pipelineTrace) {
+        const llmDuration = Date.now() - llmStart;
+        diagnosticsService.finishPipelineStep(pipelineTrace, 'llm_request', {
+          duration: llmDuration,
+          tokensUsed: fullReply.length
+        });
+        diagnosticsService.finishPipelineStep(pipelineTrace, 'context_builder', {
+          duration: 0,
+          promptLength: finalSystemPrompt.length
+        });
+        diagnosticsService.finalizeTraceWithResponse(pipelineTraceId, fullReply, finalSystemPrompt);
+        diagnosticsService.persistTrace(pipelineTrace);
+      }
     }
   } catch (err) {
     console.error('POST /assistant error:', err);

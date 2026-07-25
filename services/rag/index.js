@@ -377,6 +377,79 @@ async function logRagRequest(logData) {
   }
 }
 
+/**
+ * Форматирование структурированного контекста от Context Intelligence
+ * в текст для вставки в промпт.
+ * @param {Object} structured - результат structuredContext
+ * @param {Array} structured.primary - основные документы
+ * @param {Array} structured.supporting - вспомогательные документы
+ * @param {Array} structured.knowledge - объекты конфигурации 1С
+ * @param {Array} structured.excluded - документы, не вошедшие в контекст
+ * @param {Object} structured.stats - статистика
+ * @returns {string} отформатированный текст
+ */
+function formatStructuredContext(structured) {
+  if (!structured) return '';
+
+  const sections = [];
+  const { primary, supporting, knowledge, excluded, stats } = structured;
+
+  if (primary && primary.length > 0) {
+    const items = primary.map((doc, i) => {
+      const source = doc.source?.projectName || `doc_${doc.id}`;
+      const score = doc.combinedScore ? ` (score: ${(doc.combinedScore * 100).toFixed(0)}%)` : '';
+      return `[Документ ${i + 1} из "${source}"]${score}\n${doc.content}`;
+    });
+    sections.push(`## Основные источники\n\n${items.join('\n\n---\n\n')}`);
+  }
+
+  if (supporting && supporting.length > 0) {
+    const items = supporting.map((doc, i) => {
+      const source = doc.source?.projectName || `doc_${doc.id}`;
+      return `[Документ ${i + 1} из "${source}"]\n${doc.content}`;
+    });
+    sections.push(`## Вспомогательные источники\n\n${items.join('\n\n---\n\n')}`);
+  }
+
+  if (knowledge && knowledge.length > 0) {
+    const items = knowledge.map(obj => {
+      const kn = obj._knowledgeObj || obj;
+      let text = kn.full_name || kn.name || '';
+      if (kn.synonym) text += ` (${kn.synonym})`;
+      if (kn.comment) text += ` — ${kn.comment}`;
+      if (kn.fields && kn.fields.length > 0) {
+        const shown = kn.fields.slice(0, 10);
+        text += '\n  Реквизиты:';
+        for (const f of shown) {
+          text += `\n    - ${f.name}`;
+          if (f.synonym && f.synonym !== f.name) text += ` (${f.synonym})`;
+          text += ` — ${f.datatype || '?'}`;
+          if (f.reference_type) text += ` -> ${f.reference_type}`;
+          if (f.required) text += ` [обяз.]`;
+        }
+        const hidden = kn.fields.length - 10;
+        if (hidden > 0) text += `\n  ... (+${hidden} реквизитов)`;
+      }
+      return text;
+    });
+    sections.push(`## Объекты конфигурации 1С\n\n${items.join('\n\n---\n\n')}`);
+  }
+
+  const contextText = sections.length > 0
+    ? sections.join('\n\n')
+    : 'Релевантные документы не найдены.';
+
+  const droppedSection = excluded && excluded.length > 0
+    ? `\n\n*Отброшено документов: ${excluded.length} (ниже порога качества или превышен бюджет контекста)*`
+    : '';
+
+  const statsSection = stats
+    ? `\n\n---\n*Контекст собран: ${stats.primaryCount} основных + ${stats.supportingCount} вспомогательных + ${stats.knowledgeCount} объектов конфигурации*`
+    : '';
+
+  return contextText + droppedSection + statsSection;
+}
+
 module.exports = {
   // Основные функции
   prepareRagContext,
@@ -384,7 +457,7 @@ module.exports = {
   extractCitations,
   logRagRequest,
   parseSourceMarkers,
-  formatHighlightedResponse,
+  formatStructuredContext,
 
   // Экспорт подмодулей
   embedding: { generateEmbedding },

@@ -181,6 +181,194 @@ Knowledge Context добавляется в системный промпт по
 {"enabled":true,"objectsFound":3,"objectsInjected":3,"charactersBefore":1652,"charactersAfter":1652,"truncated":false}
 ```
 
+## Knowledge Diagnostics (Sprint 1 — Knowledge Platform v2)
+
+### Назначение
+
+Diagnostics — модуль наблюдаемости и трассировки Knowledge Layer. Позволяет по любому запросу определить:
+- какие документы были найдены (RAG + Knowledge);
+- какие документы были использованы в финальном контексте;
+- что именно получила LLM (финальный Prompt);
+- сколько времени занял каждый этап;
+- где возникла проблема, если ответ оказался неудовлетворительным.
+
+### Архитектура
+
+```
+services/knowledge/diagnostics/
+├── index.js              — DiagnosticsService (facade, singleton)
+├── traceStore.js          — In-memory circular buffer (max 500 traces)
+├── tracer.js              — PipelineTracer (capture timing + data)
+└── models/
+    ├── TraceContext.js    — Легковесный контейнер Trace ID
+    ├── PipelineStep.js    — Унифицированная модель этапа pipeline
+    └── PipelineTrace.js   — Контейнер трейса со шагами
+```
+
+Принципы:
+- **Модульность**: Diagnostics — самостоятельный сервис, не зависит от Retrieval Pipeline.
+- **Разделение**: Диагностический код не смешивается с кодом пайплайна. Данные собираются через wrapper/interceptor на уровне оркестрации (index.js).
+- **Zero-overhead в production**: По умолчанию диагностика выключена. Включение не требует перезапуска (runtime toggle).
+- **Персистентность**: Трейсы хранятся в памяти (circular buffer, 500 записей) и опционально в таблице `diagnostics_traces`.
+
+### Режимы работы
+
+| Режим | Активация | Поведение |
+|-------|-----------|-----------|
+| Production (default) | `KNOWLEDGE_DEBUG_MODE=false` | Диагностика выключена. Ноль накладных расходов. |
+| Debug | `KNOWLEDGE_DEBUG_MODE=true` | Сбор трейсов всех запросов. |
+| Per-request | `?debug=true` в запросе | Трейс только для конкретного запроса. |
+
+Переключение через админ-панель: Knowledge Diagnostics → toggle.
+
+### Pipeline Step Model (Sprint 1.1)
+
+Каждый этап pipeline хранится в единой внутренней модели `PipelineStep`:
+
+```js
+{
+  id: "traceId:rag",
+  traceId: "uuid",
+  type: "rag",
+  startedAt: "ISO 8601",
+  finishedAt: "ISO 8601",
+  duration: 123,
+  status: "success",     // pending | running | success | error | skipped
+  metadata: { ... }       // специфичные для этапа данные
+}
+```
+
+Эта модель не привязана к текущему RAG/Knowledge pipeline. Она подходит для любых будущих pipeline:
+
+```
+User Query → Intent Analysis → Hybrid Search → Reranker
+  → Knowledge Graph → Context Builder → Prompt Builder → LLM
+  → Post Processing → MCP → Programming Agent → Academy
+```
+
+Добавление нового этапа не требует изменения Diagnostics:
+
+```js
+diagnosticsService.startPipelineStep(trace, 'hybrid_search');
+const results = await hybridSearch(query);
+diagnosticsService.finishPipelineStep(trace, 'hybrid_search', {
+  documentsFound: results.length,
+  duration: elapsed
+});
+```
+
+### Trace ID (Sprint 1.1)
+
+Каждый пользовательский запрос получает уникальный Trace ID в самом начале обработки. Trace ID создаётся через `TraceContext` — легковесный контейнер, доступный даже когда диагностика выключена. Когда диагностика включена, из `TraceContext` создаётся `PipelineTrace`.
+
+Trace ID используется для сквозной трассировки и может передаваться в:
+- Programming Agent
+- MCP
+- Academy
+- Workflow Engine
+- AIOS Core
+
+### Pipeline Trace
+
+Для каждого запроса собирается информация о всех этапах обработки:
+
+```
+User Query → Query Preprocessing → Retrieval (RAG + Knowledge) 
+  → Context Builder → Prompt Builder → LLM Request → LLM Response
+```
+
+Структура трейса:
+
+```json
+{
+  "id": "uuid",
+  "timestamp": "ISO 8601",
+  "userQuery": "текст запроса",
+  "stages": {
+    "rag": {
+      "success": true,
+      "duration": 123,
+      "documentsFound": 5,
+      "documentsUsed": 3,
+      "documents": [
+        { "source": "...", "name": "...", "similarity": 0.85, "size": 1234, "preview": "...", "used": true }
+      ]
+    },
+    "knowledge": {
+      "success": true,
+      "duration": 45,
+      "objectsFound": 3,
+      "objectsUsed": 3
+    },
+    "context_builder": {
+      "success": true,
+      "duration": 10,
+      "promptLength": 5000
+    },
+    "llm_request": {
+      "success": true,
+      "duration": 3200,
+      "tokensUsed": 850
+    }
+  },
+  "metrics": {
+    "totalDuration": 3378,
+    "retrievalDuration": 168,
+    "contextBuildDuration": 10,
+    "llmDuration": 3200,
+    "documentsFound": 8,
+    "documentsUsed": 6,
+    "contextSize": 5000
+  },
+  "llmPrompt": "полный текст промпта",
+  "llmResponse": "ответ модели"
+}
+```
+
+### Метрики
+
+| Метрика | Описание |
+|---------|----------|
+| `retrievalDuration` | Время поиска документов (RAG + Knowledge) |
+| `contextBuildDuration` | Время сборки контекста |
+| `documentsFound` | Количество найденных документов |
+| `documentsUsed` | Количество использованных в контексте |
+| `contextSize` | Размер финального промпта (символов) |
+| `llmDuration` | Время ответа модели |
+
+### API Endpoints (admin-only)
+
+| Метод | Endpoint | Описание |
+|-------|----------|----------|
+| GET | `/api/admin/knowledge/diagnostics/status` | Статус и статистика |
+| POST | `/api/admin/knowledge/diagnostics/toggle` | Включить/выключить |
+| GET | `/api/admin/knowledge/diagnostics/traces` | Список трейсов |
+| GET | `/api/admin/knowledge/diagnostics/traces/:id` | Детали трейса |
+| DELETE | `/api/admin/knowledge/diagnostics/traces` | Очистить трейсы |
+
+### Переменные окружения
+
+| Переменная | Назначение |
+|---|---|
+| `KNOWLEDGE_DEBUG_MODE` | Включение диагностики по умолчанию (true/false) |
+
+### Миграция
+
+```sql
+-- 010_diagnostics_traces.sql
+CREATE TABLE IF NOT EXISTS diagnostics_traces (
+  id UUID PRIMARY KEY,
+  user_query TEXT NOT NULL,
+  stages JSONB DEFAULT '{}',
+  metrics JSONB DEFAULT '{}',
+  llm_prompt TEXT,
+  llm_response TEXT,
+  duration INTEGER,
+  error JSONB,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+```
+
 ## Переменные окружения
 
 | Переменная | Назначение |
@@ -203,3 +391,20 @@ npm run knowledge:import
 # Запуск сервера (контекст добавляется автоматически)
 npm start
 ```
+
+## Context Intelligence Integration (Sprint 3)
+
+Knowledge Layer теперь интегрирован в единый Context Intelligence pipeline:
+
+```
+Hybrid Retrieval → Context Intelligence → Prompt Builder
+                        ↑
+              Knowledge Layer (1C)
+```
+
+Knowledge объекты больше не добавляются напрямую в `finalSystemPrompt`. Вместо этого они проходят через `sourceCoordination` (разрешение конфликтов с RAG документами), `tokenBudgeting` (резерв 2000 символов для Knowledge) и `structuredContext` (форматирование в секцию `## Объекты конфигурации 1С`).
+
+**Изменения:**
+- `contextBuilder.build()` вызывается, но передаётся в ContextIntelligenceService, не в Prompt напрямую
+- `contextBuilder.render()` больше не используется — форматирование выполняется StructuredContext с учётом token budget
+- Все новые PipelineStep (`quality_gate`, `dedup`, `source_coordination`, `token_budgeting`, `relevance_prioritization`, `structured_context`) видны в Diagnostics
