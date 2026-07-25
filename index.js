@@ -33,6 +33,9 @@ const { build: buildKnowledgeContext, render: renderKnowledgeContext } = require
 const diagnosticsService = require('./services/diagnostics');
 const hybridRetrieval = require('./services/retrieval');
 const contextIntelligence = require('./services/context-intelligence');
+const queryIntelligenceService = require('./services/query-intelligence');
+const searchOrchestrator = require('./services/search');
+const knowledgeService = require('./services/knowledge/service');
 
 // Авто-миграция таблиц ModelManager при старте
 (async () => {
@@ -1583,6 +1586,14 @@ app.post('/assistant', requireAuth, async (req, res) => {
       diagnosticsService.attachTrace(pipelineTrace);
     }
 
+    // 0.2) Query Intelligence: интерпретация запроса (если включено)
+    let queryContext = null;
+    if (queryIntelligenceService.isEnabled()) {
+      queryContext = await queryIntelligenceService.process(userMessageTrimmed, { projectId, userId, routing }, pipelineTrace);
+      queryContext.metadata.routerDecision = routing.type;
+      queryContext.metadata.routerConfidence = routing.confidence;
+    }
+
     // 0) Вложения (опционально): подмешиваем содержимое текстовых файлов в контекст
 
     if (attIds.length > 10) {
@@ -1668,34 +1679,24 @@ app.post('/assistant', requireAuth, async (req, res) => {
 
     if (process.env.RAG_ENABLED !== 'false') {
       try {
-        const hybridResult = await hybridRetrieval.search(userMessageTrimmed, {
-          projectId,
-          userId,
-          fallbackOnError: true
-        }, pipelineTrace);
-
-        const knowledgeCtx = await buildKnowledgeContext(userMessageTrimmed);
-        const knowledgeObjects = knowledgeCtx.found ? knowledgeCtx.objects : [];
+        const searchResult = await searchOrchestrator.getCandidates(
+          queryContext || { rawQuery: userMessageTrimmed },
+          { projectId, userId },
+          pipelineTrace
+        );
 
         const ciResult = await contextIntelligence.process(
-          hybridResult.documents || [],
-          knowledgeObjects,
+          searchResult.candidates,
           {},
           pipelineTrace
         );
 
-        if (ciResult.fallbackUsed && ciResult.fallbackRaw) {
-          const { documents, knowledgeObjects } = ciResult.fallbackRaw;
-          const flatDocs = documents
-            .map((doc, i) => {
-              const source = doc.source?.projectName || `doc_${doc.id}`;
-              return `[Документ ${i + 1} из "${source}"]\n${doc.content}`;
-            })
+        if (ciResult.fallbackUsed && ciResult.error) {
+          const flatDocs = searchResult.candidates
+            .map((c, i) => `[Документ ${i + 1}]\n${c.content}`)
             .join('\n\n---\n\n');
-          const knNames = (knowledgeObjects || [])
-            .map(obj => (obj._knowledgeObj || obj).full_name || (obj._knowledgeObj || obj).name || '')
-            .filter(Boolean)
-            .join('\n');
+          const knCandidates = searchResult.candidates.filter(c => c.meta.source === 'knowledge');
+          const knNames = knCandidates.map(c => c.content).filter(Boolean).join('\n');
           const parts = ['## Найденные документы:', flatDocs];
           if (knNames) parts.push('', '## Объекты конфигурации 1С:', knNames);
           ragContext = parts.join('\n');
@@ -1709,16 +1710,23 @@ app.post('/assistant', requireAuth, async (req, res) => {
           enabled: true,
           context: ragContext,
           hasRelevantContext: ragContext.length > 0 && ragContext !== 'Релевантные документы не найдены.',
-          documentsCount: ciResult.structured ? ciResult.structured.stats.totalDocs : (hybridResult.documents || []).length,
-          rawContext: { documents: hybridResult.documents || [] },
+          documentsCount: ciResult.structured ? ciResult.structured.stats.totalCandidates : searchResult.candidates.length,
+          rawContext: { candidates: searchResult.candidates },
           ciResult
         };
 
-        console.log('[ContextIntelligence] Context prepared:', {
+        console.log('[SearchPipeline] Context prepared:', {
           contextLength: ragContext.length,
-          documentsFound: (hybridResult.documents || []).length,
-          documentsUsed: ciResult.structured ? ciResult.structured.stats.totalDocs : 0,
-          fallbackUsed: hybridResult.fallbackUsed || ciResult.fallbackUsed
+          candidatesFound: searchResult.candidates.length,
+          candidatesUsed: ciResult.structured ? ciResult.structured.stats.totalCandidates : 0,
+          sourcesByType: (() => {
+            const counts = {};
+            for (const c of searchResult.candidates) {
+              const src = c.meta.source || 'unknown';
+              counts[src] = (counts[src] || 0) + 1;
+            }
+            return counts;
+          })()
         });
       } catch (ragError) {
         console.error('[RetrievalPipeline] Error:', ragError.message);
@@ -1737,12 +1745,12 @@ app.post('/assistant', requireAuth, async (req, res) => {
 
     if (pipelineTrace) {
       const ragDocInfo = ragResult ? {
-        documentsFound: ragResult.rawContext
-          ? (ragResult.rawContext.documents || []).length
+        candidatesFound: ragResult.rawContext
+          ? (ragResult.rawContext.candidates || []).length
           : 0,
         documentsUsed: ragResult.documentsCount || 0,
         contextLength: ragContext.length
-      } : { documentsFound: 0, documentsUsed: 0 };
+      } : { candidatesFound: 0, documentsUsed: 0 };
       diagnosticsService.finishPipelineStep(pipelineTrace, 'rag', {
         ...ragDocInfo,
         duration: retrievalDuration

@@ -1,9 +1,9 @@
 const { config } = require('./config');
 
-function applyQualityGate(documents) {
+function applyQualityGate(candidates) {
   if (!config.qualityGate.enabled) {
     return {
-      passed: documents,
+      passed: candidates,
       dropped: [],
       log: []
     };
@@ -14,14 +14,14 @@ function applyQualityGate(documents) {
   const dropped = [];
   const log = [];
 
-  for (const doc of documents) {
-    const score = doc.combinedScore || 0;
+  for (const c of candidates) {
+    const score = c.score || 0;
     if (score >= threshold) {
-      passed.push(doc);
-      log.push({ id: doc.id, combinedScore: score, threshold, passed: true });
+      passed.push(c);
+      log.push({ id: c.id, score, threshold, passed: true });
     } else {
-      dropped.push(doc);
-      log.push({ id: doc.id, combinedScore: score, threshold, passed: false, reason: `combinedScore ${score.toFixed(3)} below threshold ${threshold}` });
+      dropped.push(c);
+      log.push({ id: c.id, score, threshold, passed: false, reason: `score ${score.toFixed(3)} below threshold ${threshold}` });
     }
   }
 

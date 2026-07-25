@@ -4,16 +4,17 @@ const { coordinateSources } = require('./sourceCoordination');
 const { applyTokenBudget } = require('./tokenBudgeting');
 const { prioritizeSources } = require('./relevancePrioritization');
 const { buildStructuredContext } = require('./structuredContext');
+const CandidateValidator = require('./validators/CandidateValidator');
 const { load: loadConfig } = require('./config');
-
 const diagnosticsService = require('../diagnostics');
 
 class ContextIntelligenceService {
   constructor() {
     this.cfg = loadConfig();
+    this.validator = new CandidateValidator();
   }
 
-  async process(hybridDocuments, knowledgeObjects = [], options = {}, trace = null) {
+  async process(candidates, options = {}, trace = null) {
     const result = {
       contextText: '',
       structured: null,
@@ -24,15 +25,18 @@ class ContextIntelligenceService {
     };
 
     try {
-      const qgResult = this._stepQualityGate(hybridDocuments, trace);
+      const vlResult = this._stepValidation(candidates, trace);
+
+      const qgResult = this._stepQualityGate(vlResult.valid, trace);
       const ddResult = this._stepDedup(qgResult.passed, trace);
-      const scResult = this._stepCoordination(ddResult.documents, knowledgeObjects, trace);
+      const scResult = this._stepCoordination(ddResult.documents, trace);
       const rpResult = this._stepPrioritization(scResult.sources, trace);
-      const tbResult = this._stepBudget(rpResult.prioritized, knowledgeObjects, trace);
-      const scResultFinal = this._stepStructured(tbResult.included, tbResult.knowledgeIncluded, tbResult.excluded, trace);
+      const tbResult = this._stepBudget(rpResult.prioritized, trace);
+      const scResultFinal = this._stepStructured(tbResult.included, tbResult.excluded, trace);
 
       result.structured = scResultFinal;
       result.stages = {
+        validation: vlResult,
         qualityGate: qgResult,
         dedup: ddResult,
         sourceCoordination: scResult,
@@ -43,58 +47,82 @@ class ContextIntelligenceService {
       console.error('[ContextIntelligence] Error:', error.message);
       result.error = error.message;
       result.fallbackUsed = true;
-      result.fallbackRaw = {
-        documents: hybridDocuments,
-        knowledgeObjects
-      };
     }
 
     return result;
   }
 
-  _stepQualityGate(documents, trace) {
+  _stepValidation(candidates, trace) {
+    if (trace) {
+      diagnosticsService.startPipelineStep(trace, 'candidate_validation');
+    }
+
     const start = Date.now();
-    const { passed, dropped, log } = applyQualityGate(documents);
+    const { valid, rejected } = this.validator.validate(candidates);
+    const duration = Date.now() - start;
+
+    if (trace) {
+      diagnosticsService.finishPipelineStep(trace, 'candidate_validation', {
+        duration,
+        inputCount: candidates.length,
+        validCount: valid.length,
+        rejectedCount: rejected.length,
+        rejected: rejected.length > 0 ? rejected : undefined
+      });
+    }
+
+    return { valid, rejected, total: candidates.length };
+  }
+
+  _stepQualityGate(candidates, trace) {
+    const start = Date.now();
+    const { passed, dropped, log } = applyQualityGate(candidates);
     const duration = Date.now() - start;
 
     this._diagnosticsStep(trace, 'quality_gate', {
-      inputCount: documents.length,
+      inputCount: candidates.length,
       outputCount: passed.length,
       droppedCount: dropped.length,
       threshold: this.cfg.qualityGate.minCombinedScore,
       duration,
-      droppedDocs: dropped.map(d => ({ id: d.id, combinedScore: d.combinedScore }))
+      droppedCandidates: dropped.map(c => ({ id: c.id, score: c.score }))
     });
 
     return { passed, dropped, log };
   }
 
-  _stepDedup(documents, trace) {
+  _stepDedup(candidates, trace) {
     const start = Date.now();
-    const { documents: deduped, removed, log } = deduplicate(documents);
+    const { documents: deduped, removed, log } = deduplicate(candidates);
     const duration = Date.now() - start;
 
     this._diagnosticsStep(trace, 'deduplication', {
-      inputCount: documents.length,
+      inputCount: candidates.length,
       outputCount: deduped.length,
       removedCount: removed.length,
       duration,
-      removals: log.map(l => ({ id: l.id, action: l.action, reason: l.action === 'dedup_by_id' ? 'duplicate id' : 'similar content' }))
+      removals: log.map(l => ({ id: l.id, action: l.action }))
     });
 
     return { documents: deduped, removed, log };
   }
 
-  _stepCoordination(documents, knowledgeObjects, trace) {
+  _stepCoordination(candidates, trace) {
     const start = Date.now();
-    const { sources, log, conflicts } = coordinateSources(documents, knowledgeObjects);
+    const { sources, log, conflicts } = coordinateSources(candidates);
     const duration = Date.now() - start;
 
+    const sourcesByType = {};
+    for (const s of sources) {
+      const src = s.meta.source || 'unknown';
+      sourcesByType[src] = (sourcesByType[src] || 0) + 1;
+    }
+
     this._diagnosticsStep(trace, 'source_coordination', {
-      ragCount: documents.length,
-      knowledgeCount: knowledgeObjects.length,
+      inputCount: candidates.length,
       totalAfter: sources.length,
       conflictsFound: conflicts.length,
+      sourcesByType,
       duration,
       conflicts
     });
@@ -102,13 +130,13 @@ class ContextIntelligenceService {
     return { sources, log, conflicts };
   }
 
-  _stepPrioritization(sources, trace) {
+  _stepPrioritization(candidates, trace) {
     const start = Date.now();
-    const { prioritized, log } = prioritizeSources(sources);
+    const { prioritized, log } = prioritizeSources(candidates);
     const duration = Date.now() - start;
 
     this._diagnosticsStep(trace, 'relevance_prioritization', {
-      inputCount: sources.length,
+      inputCount: candidates.length,
       outputCount: prioritized.length,
       duration,
       topScores: log.slice(0, 5).map(l => ({ id: l.id, score: l.priorityScore }))
@@ -117,27 +145,27 @@ class ContextIntelligenceService {
     return { prioritized, log };
   }
 
-  _stepBudget(prioritized, knowledgeObjects, trace) {
+  _stepBudget(candidates, trace) {
     const start = Date.now();
-    const budgetResult = applyTokenBudget(prioritized, knowledgeObjects);
+    const budgetResult = applyTokenBudget(candidates);
     const duration = Date.now() - start;
 
     this._diagnosticsStep(trace, 'token_budgeting', {
-      inputCount: prioritized.length,
+      inputCount: candidates.length,
       includedCount: budgetResult.included.length,
       excludedCount: budgetResult.excluded.length,
       maxChars: budgetResult.stats.maxChars,
-      usedByDocs: budgetResult.stats.usedByDocs,
+      usedByCandidates: budgetResult.stats.usedByCandidates,
       duration,
-      excludedDocs: budgetResult.excluded.map(d => ({ id: d.id, reason: 'budget_exceeded' }))
+      excludedCandidates: budgetResult.excluded.map(c => ({ id: c.id, reason: 'budget_exceeded' }))
     });
 
     return budgetResult;
   }
 
-  _stepStructured(included, knowledgeIncluded, excluded, trace) {
+  _stepStructured(included, excluded, trace) {
     const start = Date.now();
-    const result = buildStructuredContext(included, knowledgeIncluded, excluded);
+    const result = buildStructuredContext(included, excluded);
     const duration = Date.now() - start;
 
     this._diagnosticsStep(trace, 'structured_context', {

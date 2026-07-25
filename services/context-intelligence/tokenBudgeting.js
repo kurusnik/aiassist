@@ -1,68 +1,46 @@
 const { config } = require('./config');
 
-function applyTokenBudget(sources, knowledgeObjects) {
+function applyTokenBudget(candidates) {
   const maxChars = config.tokenBudget.maxContextChars;
-  const reserveForKnowledge = config.tokenBudget.reserveForKnowledge;
   const docOverhead = config.tokenBudget.docOverhead;
-
-  const availableForDocs = maxChars - reserveForKnowledge;
 
   let usedChars = 0;
   const included = [];
   const excluded = [];
   const log = [];
 
-  for (const source of sources) {
-    const estimatedChars = (source.content || '').length + docOverhead;
-    if (usedChars + estimatedChars <= availableForDocs) {
-      included.push(source);
+  for (const c of candidates) {
+    const estimatedChars = (c.content || '').length + docOverhead;
+    if (usedChars + estimatedChars <= maxChars) {
+      included.push(c);
       usedChars += estimatedChars;
       log.push({
-        id: source.id,
+        id: c.id,
         action: 'included',
         estimatedChars,
         totalUsed: usedChars,
-        remaining: availableForDocs - usedChars
+        remaining: maxChars - usedChars
       });
     } else {
-      excluded.push(source);
+      excluded.push(c);
       log.push({
-        id: source.id,
+        id: c.id,
         action: 'excluded_by_budget',
         estimatedChars,
         totalUsed: usedChars,
-        reason: `Would exceed budget: ${usedChars + estimatedChars} > ${availableForDocs}`
+        reason: `Would exceed budget: ${usedChars + estimatedChars} > ${maxChars}`
       });
-    }
-  }
-
-  let knowledgeUsedChars = 0;
-  const knowledgeIncluded = [];
-  const knowledgeExcluded = [];
-
-  for (const obj of knowledgeObjects) {
-    const estimatedChars = ((obj.content || '').length + docOverhead);
-    if (knowledgeUsedChars + estimatedChars <= reserveForKnowledge) {
-      knowledgeIncluded.push(obj);
-      knowledgeUsedChars += estimatedChars;
-    } else {
-      knowledgeExcluded.push(obj);
     }
   }
 
   return {
     included,
     excluded,
-    knowledgeIncluded,
-    knowledgeExcluded,
     stats: {
       maxChars,
-      availableForDocs,
-      reserveForKnowledge,
-      usedByDocs: usedChars,
-      usedByKnowledge: knowledgeUsedChars,
-      documentsIncluded: included.length,
-      documentsExcluded: excluded.length
+      usedByCandidates: usedChars,
+      candidatesIncluded: included.length,
+      candidatesExcluded: excluded.length
     },
     log
   };

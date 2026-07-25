@@ -30,6 +30,18 @@ aiassist/
 │   │   ├── normalize.js             #   Нормализация score
 │   │   └── rank.js                  #   Ранжирование с объяснением
 │   │
+│   ├── query-intelligence/          # Query Intelligence (Sprint 3.5 — Foundation)
+│   │   ├── index.js                 #   QueryIntelligenceService (facade)
+│   │   ├── config.js                #   Конфигурация (enabled, domain, language)
+│   │   ├── normalizer.js             #   Базовая нормализация текста (Sprint 3.5.2)
+│   │   ├── models/
+│   │   │   ├── QueryContext.js      #   Единый объект передачи запроса
+│   │   │   ├── Intent.js            #   Модель намерения пользователя
+│   │   │   ├── Entity.js            #   Модель сущности из запроса
+│   │   │   └── QueryPlan.js         #   План выполнения для агентов
+│   │   └── interfaces/
+│   │       └── QueryInterpreter.js  #   Интерфейс интерпретации
+│   │
 │   ├── context-intelligence/        # Context Intelligence (Sprint 3)
 │   │   ├── index.js                 #   ContextIntelligenceService (facade)
 │   │   ├── config.js                #   Конфигурация (threshold, веса, budget)
@@ -38,7 +50,12 @@ aiassist/
 │   │   ├── sourceCoordination.js    #   Координация RAG + Knowledge 1C
 │   │   ├── tokenBudgeting.js        #   Бюджетирование контекста
 │   │   ├── relevancePrioritization.js#   Многофакторный приоритет
-│   │   └── structuredContext.js     #   Структурированный вывод контекста
+│   │   ├── structuredContext.js     #   Структурированный вывод контекста
+│   │   └── models/
+│   │       └── Candidate.js         #   Единая модель источника для CI (Sprint 3.5.1)
+│   │   └── validators/
+│   │       └── CandidateValidator.js #   Валидация Candidate перед обработкой (Sprint 3.5.3)
+│   │
 │   │
 │   ├── models/
 │   │   └── ModelManager.js          # Управление моделями (sync, getModel, assign)
@@ -85,6 +102,13 @@ aiassist/
 │   │   ├── chunking.js              #   Разбиение на чанки
 │   │   ├── search.js                #   Векторный поиск
 │   │   └── ingestion.js             #   Индексирование документов
+│   │
+│   ├── search/                      # Search Provider (Sprint 3.5.2 — active pipeline)
+│   │   ├── index.js                  #   SearchOrchestrator (сбор кандидатов от всех провайдеров)
+│   │   └── providers/
+│   │       ├── BaseSearchProvider.js        #   Базовый класс SearchProvider
+│   │       ├── HybridRetrievalProvider.js   #   Адаптер HybridRetrieval → SearchProvider
+│   │       └── KnowledgeProvider.js         #   Адаптер Knowledge → SearchProvider
 │   │
 │   ├── diagnostics/                 # Системная трассировка (Pipeline Diagnostics)
 │   │   ├── index.js                 #   DiagnosticsService (facade, singleton)

@@ -134,23 +134,130 @@ Context Builder
 
 **Миграция:** `011_hybrid_retrieval_fts.sql` — добавляет tsvector колонки + GIN индексы
 
+## Query Intelligence (Sprint 3.5 — Foundation)
+
+**Файлы:** `services/query-intelligence/`
+
+Архитектурный слой между User Input и всеми AI-пайплайнами. Преобразует сырой запрос в единый структурированный объект `QueryContext` для downstream-модулей.
+
+### Полный Lifecycle
+
+```
+User Query
+  │
+  ▼
+TaskRouter (технический маршрут: chat | programming | admin | voice)
+  │
+  ▼
+Query Intelligence
+  ├── Normalization ──── trim, lowercase, NFD, стоп-слова
+  ├── Intent Detection ── type + confidence
+  ├── Entity Extraction ─ массив сущностей
+  └── Query Plan ──────── последовательность Action[]
+  │
+  ▼
+QueryContext (rawQuery + normalizedQuery + routing metadata)
+  │
+  ▼
+Search Providers
+  ├── HybridRetrievalProvider (Retrieval → Candidate[])
+  ├── KnowledgeProvider (Knowledge → Candidate[])
+  ├── MCPProvider (будущий)
+  ├── AcademyProvider (будущий)
+  └── MemoryProvider (будущий)
+  │
+  ▼
+Candidate[]
+  │
+  ▼
+Context Intelligence (только Candidate[])
+  ├── Quality Gate
+  ├── Deduplication
+  ├── Source Coordination
+  ├── Relevance Prioritization
+  ├── Token Budgeting
+  └── Structured Context
+  │
+  ▼
+Prompt Builder → LLM
+```
+
+### Компоненты
+
+| Компонент | Файл | Назначение |
+|-----------|------|------------|
+| QueryIntelligenceService | `index.js` | Фасад: createContext, process, диагностика |
+| Config | `config.js` | enabled (env), interpreter timeout, domain, language |
+| Normalizer | `normalizer.js` | Базовая нормализация: trim, lowercase, NFD, стоп-слова |
+| QueryContext | `models/QueryContext.js` | Единый объект передачи запроса между слоями |
+| Intent | `models/Intent.js` | Модель намерения: type, confidence, parameters |
+| Entity | `models/Entity.js` | Модель сущности: type, value, confidence, source |
+| QueryPlan + Action | `models/QueryPlan.js` | План выполнения: массив Action { type, target, parameters } |
+| QueryInterpreter | `interfaces/QueryInterpreter.js` | Контракт интерпретации (пока pass-through) |
+
+### QueryContext
+
+```json
+{
+  "rawQuery": "покажи мне расходы за прошлый месяц",
+  "normalizedQuery": "расходы период прошлый месяц",
+  "intent": { "type": "search_information", "confidence": 0.85 },
+  "entities": [{ "type": "document", "value": "РасходнаяНакладная", "confidence": 0.9 }],
+  "domain": "1c",
+  "queryPlan": { "actions": [{ "type": "retrieve", "target": "knowledge" }] }
+}
+```
+
+Поле `normalizedQuery` хранит нормализованное представление запроса для Retrieval, MCP, Programming Agent и Academy. NLP не реализован — только контракт.
+
+### Action
+
+```json
+{
+  "type": "retrieve | execute | generate | analyze",
+  "target": "knowledge | mcp | programming | academy | llm",
+  "parameters": {},
+  "priority": 0
+}
+```
+
+Поддерживаемые типы: `retrieve`, `execute`, `generate`, `analyze`
+Поддерживаемые цели: `knowledge`, `mcp`, `programming`, `academy`, `llm`
+`priority` — порядок выполнения (выше = раньше)
+
+### Pipeline Steps в Diagnostics
+
+`query_normalization`, `query_interpretation`, `query_intent`, `query_entities`, `query_plan`
+
+### Config через env
+
+- `QUERY_INTELLIGENCE_ENABLED` (default: false) — включить слой интерпретации
+
+### Потребители (будущие)
+
+Programming Agent, Academy, MCP Orchestrator, Workflow Engine, Memory System
+
+### ADR
+
+ADR-026, ADR-027
+
 ## Context Intelligence (Sprint 3 — Knowledge Platform v2)
 
 **Файлы:** `services/context-intelligence/`
 
-Слой интеллектуального отбора и организации знаний между Retrieval и Prompt Builder.
+Слой интеллектуального отбора и организации знаний между Search Providers и Prompt Builder. Работает **только с `Candidate[]`**. Не знает о существовании RAG, Knowledge, MCP, Academy или Memory.
 
 ```
-Query
+Search Providers
   │
   ▼
-Hybrid Retrieval
+Candidate[]
   │
   ▼
 Context Intelligence
-  ├── Quality Gate ─── combinedScore threshold, отбрасывание шума
+  ├── Quality Gate ─── score threshold, отбрасывание шума
   ├── Deduplication ─── по ID и схожести содержимого
-  ├── Source Coordination ─── RAG + Knowledge 1C в один pipeline
+  ├── Source Coordination ─── группировка по meta.source, разрешение конфликтов
   ├── Token Budgeting ─── ограничение по размеру контекста
   ├── Relevance Prioritization ─── многофакторный приоритет
   └── Structured Context ─── [Primary] [Supporting] [Knowledge] формат
@@ -169,14 +276,39 @@ Prompt Builder
 | Token Budgeting | `tokenBudgeting.js` | Распределение token budget, reserve for knowledge |
 | Relevance Prioritization | `relevancePrioritization.js` | combinedScore + sourceType + freshness + docType + size |
 | Structured Context | `structuredContext.js` | Форматирование: Primary, Supporting, Knowledge секции |
+| Candidate | `models/Candidate.js` | Единая модель источника: id, content, score, meta.source/type/methods |
+| CandidateValidator | `validators/CandidateValidator.js` | Валидация: id, content, score [0-1], meta.source; rejected не ломают pipeline |
+
+### Candidate Model
+
+Все будущие источники должны приводиться к `Candidate`:
+
+- RAG
+- Knowledge (1C)
+- MCP
+- Academy
+- Memory
+
+```js
+{
+  id: "uuid",
+  content: "text",
+  score: 0.85,
+  meta: {
+    source: "retrieval",     // retrieval | knowledge | mcp | academy | memory
+    type: "document",        // document | object | concept | rule
+    methods: ["vector"],     // vector | fts | mcp | llm
+    metadata: { ... }
+  }
+}
+```
 
 **Pipeline Steps в Diagnostics:**
-`quality_gate`, `deduplication`, `source_coordination`, `token_budgeting`, `relevance_prioritization`, `structured_context`
+`candidate_validation`, `quality_gate`, `deduplication`, `source_coordination`, `token_budgeting`, `relevance_prioritization`, `structured_context`
 
 **Config через env:**
-- `CI_QUALITY_THRESHOLD` (default: 0.15) — минимальный combinedScore
+- `CI_QUALITY_THRESHOLD` (default: 0.15) — минимальный score
 - `CI_MAX_CONTEXT_CHARS` (default: 8000) — максимум символов контекста
-- `CI_KNOWLEDGE_RESERVE` (default: 2000) — резерв символов для Knowledge
 - `CI_SCORE_WEIGHT`, `CI_SOURCE_WEIGHT` — веса в многофакторном приоритете
 
 **Structured Explanation (Task A):**
@@ -200,6 +332,38 @@ Prompt Builder
 - **Service:** Read-only query API: `health()`, `getObject()`, `findObjects()` (ILIKE), `getFields()`
 - **Context Builder:** `build()` — поиск, `render()` — форматирование (до 10 полей на объект)
 - **Injection:** встроен в `index.js` — до 3 объектов, до 4000 символов, обрезка по границе строки
+
+## Search Provider Architecture (Sprint 3.5.2 — Active Pipeline)
+
+**Файлы:** `services/search/`
+
+Слой абстракции источников данных. Преобразует `QueryContext` в `Candidate[]` для Context Intelligence.
+
+```
+QueryContext
+  │
+  ▼
+SearchOrchestrator
+  ├── HybridRetrievalProvider (обёртка над retrieval/)
+  ├── KnowledgeProvider (обёртка над knowledge/)
+  ├── MCPProvider (будущий)
+  ├── AcademyProvider (будущий)
+  └── MemoryProvider (будущий)
+  │
+  ▼
+Candidate[]
+```
+
+| Компонент | Файл | Назначение |
+|-----------|------|------------|
+| SearchOrchestrator | `index.js` | Сбор кандидатов от всех провайдеров (Promise.allSettled), диагностика |
+| BaseSearchProvider | `providers/BaseSearchProvider.js` | Базовый класс: name, method, search(), getCandidates(), health() |
+| HybridRetrievalProvider | `providers/HybridRetrievalProvider.js` | Адаптер retrieval → Candidate[] |
+| KnowledgeProvider | `providers/KnowledgeProvider.js` | Адаптер knowledge → Candidate[] |
+
+**Pipeline Steps в Diagnostics:** `search_providers`
+
+**Ключевое преимущество:** добавление нового источника не требует изменения CI. Достаточно создать новый Provider с методом `getCandidates()`.
 
 ## Knowledge Diagnostics (Sprint 1 — Knowledge Platform v2 → Sprint 3: migrated to `services/diagnostics/`)
 

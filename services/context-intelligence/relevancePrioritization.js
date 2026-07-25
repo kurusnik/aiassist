@@ -1,45 +1,47 @@
 const { config } = require('./config');
 
-function prioritizeSources(sources) {
+function prioritizeSources(candidates) {
   const w = config.priority.weights;
 
-  const scored = sources.map(source => {
-    const scoreComponent = (source.combinedScore || 0) * w.combinedScore;
-    const sourceTypeBoost = config.priority.sourceTypeBoost[source._sourceType] || 0.5;
+  const scores = new Map();
+  const breakdowns = new Map();
+
+  for (const c of candidates) {
+    const scoreComponent = (c.score || 0) * w.combinedScore;
+    const sourceTypeBoost = config.priority.sourceTypeBoost[c.meta.source] || 0.5;
     const sourceComponent = sourceTypeBoost * w.sourceType;
-    const sizeComponent = _sizeScore(source) * w.docSize;
-    const typeComponent = _docTypeScore(source) * w.docType;
-    const freshnessComponent = _freshnessScore(source) * w.freshness;
+    const sizeComponent = _sizeScore(c) * w.docSize;
+    const typeComponent = _docTypeScore(c) * w.docType;
+    const freshnessComponent = _freshnessScore(c) * w.freshness;
 
     const priorityScore = scoreComponent + sourceComponent + sizeComponent + typeComponent + freshnessComponent;
 
-    return {
-      ...source,
-      _priorityScore: priorityScore,
-      _priorityBreakdown: {
-        combinedScore: scoreComponent,
-        sourceType: sourceComponent,
-        docSize: sizeComponent,
-        docType: typeComponent,
-        freshness: freshnessComponent,
-        total: priorityScore
-      }
-    };
+    scores.set(c.id, priorityScore);
+    breakdowns.set(c.id, {
+      combinedScore: scoreComponent,
+      sourceType: sourceComponent,
+      docSize: sizeComponent,
+      docType: typeComponent,
+      freshness: freshnessComponent,
+      total: priorityScore
+    });
+  }
+
+  const prioritized = [...candidates].sort((a, b) => {
+    return (scores.get(b.id) || 0) - (scores.get(a.id) || 0);
   });
 
-  scored.sort((a, b) => b._priorityScore - a._priorityScore);
-
-  const log = scored.map(s => ({
+  const log = prioritized.map(s => ({
     id: s.id,
-    priorityScore: s._priorityScore,
-    breakdown: s._priorityBreakdown
+    priorityScore: scores.get(s.id),
+    breakdown: breakdowns.get(s.id)
   }));
 
-  return { prioritized: scored, log };
+  return { prioritized, log };
 }
 
-function _sizeScore(source) {
-  const len = (source.content || '').length;
+function _sizeScore(candidate) {
+  const len = (candidate.content || '').length;
   if (len === 0) return 0;
   if (len < 200) return 1.0;
   if (len < 1000) return 0.8;
@@ -47,15 +49,14 @@ function _sizeScore(source) {
   return 0.2;
 }
 
-function _docTypeScore(source) {
-  const meta = source.metadata || {};
-  const category = meta.category || 'general';
+function _docTypeScore(candidate) {
+  const category = candidate.meta.type || 'general';
   return config.priority.docTypeBoost[category] || config.priority.docTypeBoost.general;
 }
 
-function _freshnessScore(source) {
-  if (!source.createdAt) return 0.5;
-  const age = Date.now() - new Date(source.createdAt).getTime();
+function _freshnessScore(candidate) {
+  if (!candidate.meta.createdAt) return 0.5;
+  const age = Date.now() - new Date(candidate.meta.createdAt).getTime();
   const days = age / (1000 * 60 * 60 * 24);
   if (days < 7) return 1.0;
   if (days < 30) return 0.8;

@@ -26,5 +26,8 @@
 | 023 | Score Normalization Strategy | ✅ (temporary) | Min-Max признан временным решением; требуется оценка более устойчивых методов |
 | 024 | Pipeline Topology | ✅ (deferred) | PipelineStep пока без parentStepId; будущий граф зафиксирован без реализации |
 | 025 | Search Provider Abstraction | ✅ (deferred) | Замена прямой зависимости Retrieval → RAG через интерфейс SearchProvider |
+| 026 | Query Intelligence Layer | ✅ | Архитектурный слой интерпретации запросов: QueryContext, Intent, Entity, QueryPlan; выключен по умолчанию |
+| 027 | TaskRouter vs Query Intelligence | ✅ | Чёткое разделение: TaskRouter = технический маршрут, QI = смысл запроса |
+| — | Sprint 3.5.3 Hardening | ✅ | Candidate validator, audit private fields, diagnostics coverage, dependency audit |
 
 **Примечание:** ADR 020 отсутствует в последовательности.
