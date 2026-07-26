@@ -678,7 +678,7 @@
       const assignMap = {};
       currentAssignments.forEach(a => { assignMap[a.role] = a.model_id; });
       if (!roles || roles.length === 0) { tbody.innerHTML = '<tr><td colspan="2">Нет ролей</td></tr>'; return; }
-      const roleLabels = { chat: 'Chat', programming: 'Programming', reviewer: 'Reviewer', academy: 'Academy', summarizer: 'Summarizer', vision: 'Vision' };
+      const roleLabels = { chat: 'Chat', programming: 'Programming', reviewer: 'Reviewer', academy: 'Academy', summarizer: 'Summarizer', vision: 'Vision', query_interpreter: 'Query Interpreter' };
       tbody.innerHTML = roles.map(role => `
         <tr>
           <td><strong>${roleLabels[role] || role}</strong></td>
@@ -693,7 +693,7 @@
     }
     
     async function saveAssignments() {
-      const roles = ['chat', 'programming', 'reviewer', 'academy', 'summarizer', 'vision'];
+      const roles = ['chat', 'programming', 'reviewer', 'academy', 'summarizer', 'vision', 'query_interpreter'];
       const msgDiv = document.getElementById('assignments-message');
       msgDiv.innerHTML = '<div class="msg-box msg-box-info flex items-center gap-2"><div class="spinner"></div>Сохранение...</div>';
       try {

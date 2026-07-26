@@ -84,8 +84,21 @@ class TaskAnalyzer {
       });
     }
 
+    // 0. @1c prefix → expert_1c, strip prefix for downstream analysis
+    let analysisText = text;
+    const expertMatch = text.match(/^@1[сcСC]\s+/);
+    if (expertMatch) {
+      analysisText = text.slice(expertMatch[0].length);
+      return new ProgrammingTask('expert_1c', {
+        title: extractTitle(analysisText),
+        language: 'bsl',
+        domain: '1c',
+        originalRequest: analysisText
+      });
+    }
+
     // 1. Intent pre-check before scoring
-    const lowerText = text.toLowerCase();
+    const lowerText = analysisText.toLowerCase();
 
     if (hasIntent(lowerText, GET_STRUCTURE_INTENT)) {
       return new ProgrammingTask('get_structure', {

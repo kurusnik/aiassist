@@ -48,6 +48,7 @@ const MetricsControlService = require('./services/metrics/control/MetricsControl
 const ExecutionGraphView = require('./services/workflow/view/ExecutionGraphView');
 const WorkflowTimelineService = require('./services/workflow/timeline/WorkflowTimelineService');
 const AuditService = require('./services/audit/AuditService');
+const UserWorkflowBridge = require('./services/workflow/UserWorkflowBridge');
 
 // Авто-миграция таблиц ModelManager при старте
 (async () => {
@@ -1176,6 +1177,37 @@ app.put('/api/admin/models/assignments', requireAdmin, async (req, res) => {
   }
 });
 
+// Получить fallback-цепочки для ролей
+app.get('/api/admin/models/fallbacks', requireAdmin, async (req, res) => {
+  try {
+    const assignments = await modelManager.getAssignments();
+    const fallbacks = [];
+    for (const a of assignments) {
+      const fb = await modelManager._getFallbacks(a.role);
+      fallbacks.push({ role: a.role, modelId: a.model_id, fallbacks: fb });
+    }
+    res.json({ success: true, fallbacks });
+  } catch (err) {
+    console.error('GET /api/admin/models/fallbacks error:', err);
+    res.status(500).json({ error: 'internal_error' });
+  }
+});
+
+// Назначить fallback-модели для роли
+app.put('/api/admin/models/fallbacks', requireAdmin, async (req, res) => {
+  try {
+    const { role, fallbackIds } = req.body;
+    if (!role || !Array.isArray(fallbackIds)) {
+      return res.status(400).json({ error: 'role и fallbackIds (массив) обязательны' });
+    }
+    const result = await modelManager.setFallbacks(role, fallbackIds);
+    res.json({ success: true, fallback: result });
+  } catch (err) {
+    console.error('PUT /api/admin/models/fallbacks error:', err);
+    res.status(500).json({ error: err.message || 'internal_error' });
+  }
+});
+
 // ========== MCP MANAGEMENT (Sprint 018) ==========
 
 // Статус MCP-подключения
@@ -1567,13 +1599,15 @@ app.post('/assistant', requireAuth, async (req, res) => {
         explain_code: 'AIOS анализирует код',
         review_code: 'AIOS проверяет код',
         find_bug: 'AIOS ищет ошибки',
-        expert_1c: 'AIOS обращается к 1С'
+        expert_1c: 'AIOS обращается к 1С',
+        onec_query: 'AIOS выполняет запрос к 1С',
+        onec_coder: 'AIOS анализирует код 1С',
       };
       return msgs[type] || 'AIOS обрабатывает запрос';
     }
 
     // ========== TASK ROUTING ==========
-    const routing = taskRouter.detect([{ role: 'user', content: userMessageTrimmed }]);
+    const routing = await taskRouter.detect([{ role: 'user', content: userMessageTrimmed }]);
     if (routing.type === 'programming' && routing.confidence >= 0.7) {
       console.log(`[Router] Routing to programming (type=${routing.programmingType}, domain=${routing.domain}, confidence=${routing.confidence})`);
       const statusMsg = getAiosStatus(routing.programmingType);
@@ -1581,7 +1615,22 @@ app.post('/assistant', requireAuth, async (req, res) => {
         res.write(`data: ${JSON.stringify({ content: statusMsg })}\n\n`);
       }
       try {
-        const progResult = await programmingService.executePipeline(userMessageTrimmed, projectId);
+        const workflowType = userWorkflowBridge.getWorkflowType(routing);
+        const workflowContext = await userWorkflowBridge.createWorkflow({
+          workflowType,
+          requestedBy: req.session?.username || 'anonymous',
+          source: 'chat',
+          query: userMessageTrimmed,
+          routing
+        });
+        console.log(`[WorkflowBridge] Created workflow ${workflowContext.id} (type=${workflowType})`);
+
+        await userWorkflowBridge.writeEvent(workflowContext.id, 'execution_started', {
+          programmingType: routing.programmingType,
+          domain: routing.domain
+        });
+
+        const progResult = await programmingService.executePipeline(userMessageTrimmed, projectId, routing.task);
         console.log(`[Router] Pipeline complete (success=${progResult.success})`);
 
         if (!progResult.success && progResult.metadata && progResult.metadata.executionLog) {
@@ -1595,6 +1644,20 @@ app.post('/assistant', requireAuth, async (req, res) => {
           : (progResult.errors && progResult.errors.length
               ? progResult.errors.map(e => e.message || e).join('\n')
               : '[AIOS] Не удалось выполнить задачу. Попробуйте переформулировать запрос.');
+
+        if (progResult.success) {
+          await userWorkflowBridge.completeWorkflow(workflowContext.id, {
+            reply: fullReply,
+            explanation: progResult.explanation,
+            code: progResult.code
+          });
+        } else {
+          await userWorkflowBridge.failWorkflow(workflowContext.id, new Error(
+            progResult.errors && progResult.errors.length
+              ? progResult.errors.map(e => e.message || e).join('; ')
+              : 'Pipeline returned unsuccessful result'
+          ));
+        }
 
         await pool.query(
           `INSERT INTO messages (project_id, role, content) VALUES ($1, $2, $3)`,
@@ -1615,6 +1678,9 @@ app.post('/assistant', requireAuth, async (req, res) => {
       } catch (progErr) {
         console.error('[Router] Programming pipeline error:', progErr.message);
         console.error('[Router] Stack:', progErr.stack);
+        if (typeof workflowContext !== 'undefined' && workflowContext && workflowContext.id) {
+          await userWorkflowBridge.failWorkflow(workflowContext.id, progErr);
+        }
         if (wantsStream) {
           const fallbackMsg = `[AIOS] Ошибка обработки: ${progErr.message}. Переключаюсь на стандартный режим.`;
           res.write(`data: ${JSON.stringify({ content: fallbackMsg + '\n\n' })}\n\n`);
@@ -2388,6 +2454,203 @@ app.post('/api/programming/execute', async (req, res) => {
   }
 });
 
+// ========== SEMANTIC MAPPING CONFIRMATION ==========
+// Task 5: User confirmation → semantic_mappings
+
+app.post('/api/semantic/confirm', requireAuth, async (req, res) => {
+  try {
+    const { projectId, term, metadataObject, metadataField, mappingType } = req.body;
+    if (!term || !metadataObject) {
+      return res.status(400).json({ error: 'term and metadataObject are required' });
+    }
+    const result = await programmingService.confirmSemanticMapping({
+      projectId: projectId || null,
+      term,
+      metadataObject,
+      metadataField: metadataField || null,
+      mappingType: mappingType || 'attribute',
+    });
+    res.json(result);
+  } catch (err) {
+    console.error('POST /api/semantic/confirm error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/semantic/suggestions', requireAuth, async (req, res) => {
+  try {
+    const projectId = req.query.projectId ? parseInt(req.query.projectId) : null;
+    const suggestions = await programmingService.getPendingSuggestions(projectId);
+    res.json({ success: true, suggestions, count: suggestions.length });
+  } catch (err) {
+    console.error('GET /api/semantic/suggestions error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ========== ONEC DIAGNOSTIC REPORTER ==========
+// Task 1: Diagnostic report per @1с request
+
+const OneCDiagnosticReporter = require('./services/intelligence/OneCDiagnosticReporter');
+const diagnosticReporter = new OneCDiagnosticReporter();
+
+app.get('/api/onec/debug/:workflowId', requireAuth, async (req, res) => {
+  try {
+    const { workflowId } = req.params;
+    const report = diagnosticReporter.getReport(workflowId);
+    if (!report) {
+      return res.status(404).json({ error: 'Report not found', workflowId });
+    }
+    res.json(report);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/onec/debug/:workflowId/format', requireAuth, async (req, res) => {
+  try {
+    const { workflowId } = req.params;
+    const report = diagnosticReporter.getReport(workflowId);
+    if (!report) {
+      return res.status(404).json({ error: 'Report not found', workflowId });
+    }
+    const formatted = diagnosticReporter.formatReport(report);
+    res.type('text/plain').send(formatted);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/onec/debug', requireAuth, async (req, res) => {
+  try {
+    const reports = diagnosticReporter.getAllReports();
+    res.json({ success: true, reports, count: reports.length });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ========== SEMANTIC CORRECTION MEMORY ==========
+// Task 4: User corrections → semantic memory
+
+const SemanticCorrectionMemory = require('./services/intelligence/SemanticCorrectionMemory');
+const correctionMemory = new SemanticCorrectionMemory();
+
+app.post('/api/semantic/corrections', requireAuth, async (req, res) => {
+  try {
+    const { projectId, question, wrongMapping, correctMapping, comment } = req.body;
+    if (!question || !wrongMapping || !correctMapping) {
+      return res.status(400).json({ error: 'question, wrongMapping, and correctMapping are required' });
+    }
+    const result = await correctionMemory.saveCorrection({
+      projectId: projectId || null,
+      question,
+      wrongMapping,
+      correctMapping,
+      comment: comment || null,
+    });
+    res.json({ success: true, correction: result });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/semantic/corrections', requireAuth, async (req, res) => {
+  try {
+    const projectId = req.query.projectId ? parseInt(req.query.projectId) : null;
+    const corrections = await correctionMemory.getCorrections(projectId);
+    res.json({ success: true, corrections, count: corrections.length });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/semantic/corrections/similar', requireAuth, async (req, res) => {
+  try {
+    const { term } = req.query;
+    const projectId = req.query.projectId ? parseInt(req.query.projectId) : null;
+    if (!term) {
+      return res.status(400).json({ error: 'term query parameter is required' });
+    }
+    const corrections = await correctionMemory.findSimilarCorrections(term, projectId);
+    res.json({ success: true, corrections, count: corrections.length });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/semantic/corrections/:id/apply', requireAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const projectId = req.body.projectId ? parseInt(req.body.projectId) : null;
+    const result = await correctionMemory.applyCorrection(parseInt(id), projectId);
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ========== HUMAN TEST CONSOLE ==========
+// Task 6: Test cases for human validation
+
+const TEST_CASES = [
+  { id: 1, question: '@1с сколько реализаций создано вчера', expected: 'Документ.РеализацияТоваровУслуг', category: 'documents', status: 'unknown' },
+  { id: 2, question: '@1с покажи реализации за июль', expected: 'Документ.РеализацияТоваровУслуг', category: 'documents', status: 'unknown' },
+  { id: 3, question: '@1с последние 10 реализаций', expected: 'Документ.РеализацияТоваровУслуг', category: 'documents', status: 'unknown' },
+  { id: 4, question: '@1с остатки товара', expected: 'РегистрНакопления.ТоварыНаСкладах', category: 'balances', status: 'unknown' },
+  { id: 5, question: '@1с остатки по партиям', expected: 'РегистрНакопления.ТоварыНаСкладах', category: 'balances', status: 'unknown' },
+  { id: 6, question: '@1с остатки на складе', expected: 'РегистрНакопления.ТоварыНаСкладах', category: 'balances', status: 'unknown' },
+  { id: 7, question: '@1с продажи по брендам', expected: 'semantic_mapping', category: 'analytics', status: 'unknown' },
+  { id: 8, question: '@1с продажи по клиентам', expected: 'semantic_mapping', category: 'analytics', status: 'unknown' },
+  { id: 9, question: '@1с топ товаров', expected: 'semantic_mapping', category: 'analytics', status: 'unknown' },
+  { id: 10, question: '@1с как работает распределение остатков', expected: 'onec_coder', category: 'code', status: 'unknown' },
+];
+
+const testResults = new Map();
+
+app.get('/api/onec/test-cases', requireAuth, async (req, res) => {
+  try {
+    const cases = TEST_CASES.map(tc => ({
+      ...tc,
+      status: testResults.get(tc.id) || tc.status,
+    }));
+    res.json({ success: true, testCases: cases, count: cases.length });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/onec/test-cases/:id/result', requireAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { result, comment } = req.body;
+    if (!result || !['PASS', 'FAIL', 'TRAIN'].includes(result)) {
+      return res.status(400).json({ error: 'result must be PASS, FAIL, or TRAIN' });
+    }
+    testResults.set(parseInt(id), result);
+
+    const testCase = TEST_CASES.find(tc => tc.id === parseInt(id));
+    if (!testCase) {
+      return res.status(404).json({ error: 'Test case not found' });
+    }
+
+    // If TRAIN, create a semantic correction
+    if (result === 'TRAIN' && req.body.correctMapping) {
+      await correctionMemory.saveCorrection({
+        projectId: req.body.projectId || null,
+        question: testCase.question,
+        wrongMapping: req.body.actualMapping || testCase.expected,
+        correctMapping: req.body.correctMapping,
+        comment: comment || `Human test console TRAIN: ${testCase.question}`,
+      });
+    }
+
+    res.json({ success: true, testCaseId: parseInt(id), result, comment });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ========== LLM PROVIDER SETTINGS ==========
 //
 // EXPERIMENTAL FEATURE: Proxy Layer
@@ -2460,7 +2723,7 @@ app.post('/api/settings/llm', requireAdmin, async (req, res) => {
            VALUES ($1, $1, $1, true, NOW(), NOW())`,
           [modelId]
         );
-        for (const role of ['chat', 'programming', 'reviewer', 'academy', 'summarizer', 'vision']) {
+        for (const role of ['chat', 'programming', 'reviewer', 'academy', 'summarizer', 'vision', 'query_interpreter']) {
           await pool.query(
             `INSERT INTO model_assignments (role, model_id, updated_at)
              VALUES ($1, $2, NOW())`,
@@ -2518,11 +2781,13 @@ const metricsControl = new MetricsControlService({ metrics: null, auditService, 
 const graphView = new ExecutionGraphView({ eventStore, storage: workflowStorage });
 const timelineService = new WorkflowTimelineService({ eventStore, auditService });
 
+const userWorkflowBridge = new UserWorkflowBridge({ storage: workflowStorage, eventStore });
+
 const workflowAPI = new WorkflowAPI({ executor: null, eventStore });
 const workflowRouter = createWorkflowRouter(workflowAPI);
 app.use('/api/workflow', requireAuth, workflowRouter);
 
-const consoleRouter = createConsoleRouter(approvalAPI, agentControl, metricsControl, timelineService, graphView, auditService);
+const consoleRouter = createConsoleRouter(approvalAPI, agentControl, metricsControl, timelineService, graphView, auditService, userWorkflowBridge);
 app.use('/api/console', requireAuth, consoleRouter);
 
 // Статика

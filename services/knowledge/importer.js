@@ -132,8 +132,14 @@ class KnowledgeImporter {
   async _importObject(obj, type, configId) {
     const name = obj.Имя || obj.name || obj.Name || '';
     const synonym = obj.Синоним || obj.synonym || obj.Synonym || null;
-    const fullName = obj.ПолноеИмя || obj.full_name || obj.fullName || obj.FullName || '';
+    let fullName = obj.ПолноеИмя || obj.full_name || obj.fullName || obj.FullName || '';
     const comment = obj.Комментарий || obj.comment || obj.Comment || null;
+
+    // Обрезка аномально длинных full_name (безопасность для hash-индекса)
+    if (fullName.length > 500) {
+      console.log(`  Предупреждение: full_name обрезан с ${fullName.length} до 500 символов для объекта "${name}"`);
+      fullName = fullName.substring(0, 500);
+    }
 
     if (!name) {
       console.log(`  Skipping object with no name in category ${type}`);

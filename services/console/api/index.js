@@ -2,7 +2,7 @@ const express = require('express');
 const path = require('path');
 const pool = require('../../../db');
 
-function createConsoleRouter(approvalAPI, agentControl, metricsControl, timelineService, graphView, auditService) {
+function createConsoleRouter(approvalAPI, agentControl, metricsControl, timelineService, graphView, auditService, workflowBridge) {
   const router = express.Router();
 
   function _extractMeta(req) {
@@ -33,11 +33,36 @@ function createConsoleRouter(approvalAPI, agentControl, metricsControl, timeline
   // ===== Workflow endpoints =====
   router.get('/workflows', async (req, res) => {
     try {
-      const result = await approvalAPI?.listPending({ actor: _extractMeta(req).actor }) || { approvals: [] };
       const filters = {};
       if (req.query.status) filters.status = req.query.status;
-      if (req.query.workflowId) filters.workflowId = req.query.workflowId;
-      res.json({ success: true, workflows: [], pendingApprovals: result.approvals?.length || 0, filter: filters });
+      if (req.query.workflowType) filters.workflowType = req.query.workflowType;
+      if (req.query.source) filters.source = req.query.source;
+
+      let workflows = [];
+      if (workflowBridge) {
+        workflows = await workflowBridge.listWorkflows(filters);
+      }
+
+      const pendingApprovals = approvalAPI
+        ? (await approvalAPI.listPending({ actor: _extractMeta(req).actor })).approvals?.length || 0
+        : 0;
+
+      res.json({ success: true, workflows, pendingApprovals, filter: filters });
+    } catch (err) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  router.get('/workflows/:id', async (req, res) => {
+    try {
+      if (!workflowBridge) {
+        return res.status(503).json({ success: false, error: 'Workflow service not available' });
+      }
+      const workflow = await workflowBridge.getWorkflow(req.params.id);
+      if (!workflow) {
+        return res.status(404).json({ success: false, error: 'Workflow not found' });
+      }
+      res.json({ success: true, workflow });
     } catch (err) {
       res.status(500).json({ success: false, error: err.message });
     }

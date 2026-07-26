@@ -45,12 +45,16 @@ class PostgresWorkflowStorage extends WorkflowStorage {
       const updateResult = await client.query(
         `UPDATE workflow_instances
          SET status = $1, input = $2, nodes = $3, variables = $4,
-             metadata = $5, version = $6, updated_at = NOW()
+             metadata = $5, version = $6, updated_at = NOW(),
+             workflow_type = $9, requested_by = $10, source = $11
          WHERE id = $7 AND version = $8`,
         [
           json.status, JSON.stringify(json.input), JSON.stringify(json.nodes),
           JSON.stringify(json.variables), JSON.stringify(json.metadata),
-          json._version + 1, json.id, dbVersion
+          json._version + 1, json.id, dbVersion,
+          json.workflowType || (json.metadata && json.metadata.workflowType) || null,
+          json.requestedBy || (json.metadata && json.metadata.requestedBy) || null,
+          json.source || (json.metadata && json.metadata.source) || 'chat'
         ]
       );
       if (updateResult.rowCount === 0) {
@@ -62,14 +66,17 @@ class PostgresWorkflowStorage extends WorkflowStorage {
     } else {
       await client.query(
         `INSERT INTO workflow_instances
-         (id, trace_id, status, input, nodes, variables, metadata, version, created_at, updated_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+         (id, trace_id, status, input, nodes, variables, metadata, version, created_at, updated_at, workflow_type, requested_by, source)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
          ON CONFLICT (id) DO NOTHING`,
         [
           json.id, json.traceId, json.status, JSON.stringify(json.input),
           JSON.stringify(json.nodes), JSON.stringify(json.variables),
           JSON.stringify(json.metadata), json._version,
-          json.createdAt, json.updatedAt
+          json.createdAt, json.updatedAt,
+          json.workflowType || (json.metadata && json.metadata.workflowType) || null,
+          json.requestedBy || (json.metadata && json.metadata.requestedBy) || null,
+          json.source || (json.metadata && json.metadata.source) || 'chat'
         ]
       );
     }
@@ -172,8 +179,21 @@ class PostgresWorkflowStorage extends WorkflowStorage {
         '[]'::json
       ) as node_list
       FROM workflow_instances wi
-      WHERE wi.status IN ('running', 'waiting')
       ORDER BY wi.updated_at ASC`
+    );
+    return result.rows.map(row => this._rowToContext(row));
+  }
+
+  async listAll() {
+    const result = await this._pool.query(
+      `SELECT wi.*, COALESCE(
+        (SELECT json_agg(json_build_object('node_id', wn.node_id, 'status', wn.status, 'result', wn.result))
+         FROM workflow_nodes wn WHERE wn.workflow_id = wi.id),
+        '[]'::json
+      ) as node_list
+      FROM workflow_instances wi
+      ORDER BY wi.created_at DESC
+      LIMIT 100`
     );
     return result.rows.map(row => this._rowToContext(row));
   }
@@ -289,7 +309,10 @@ class PostgresWorkflowStorage extends WorkflowStorage {
       metadata: row.metadata || {},
       createdAt: row.created_at,
       updatedAt: row.updated_at,
-      _version: row.version
+      _version: row.version,
+      workflowType: row.workflow_type,
+      requestedBy: row.requested_by,
+      source: row.source
     });
 
     if (ctx.metadata && ctx.metadata.workflowDefinition) {

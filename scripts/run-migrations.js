@@ -1,38 +1,33 @@
 // scripts/run-migrations.js
-// Скрипт для выполнения миграций базы данных
+// Автоматическое обнаружение и выполнение SQL миграций
 const fs = require('fs');
 const path = require('path');
 const pool = require('../db');
+
+const MIGRATIONS_DIR = path.join(__dirname, '..', 'migrations');
+
+function discoverMigrations() {
+  const files = fs.readdirSync(MIGRATIONS_DIR);
+  return files
+    .filter(f => f.endsWith('.sql'))
+    .sort((a, b) => {
+      const numA = parseInt(a.split('_')[0], 10);
+      const numB = parseInt(b.split('_')[0], 10);
+      return numA - numB;
+    });
+}
 
 async function runMigrations() {
   try {
     console.log('Запуск миграций базы данных...');
     
-    // Список миграций в порядке выполнения
-    const migrations = [
-      '000_initial_schema.sql',
-      '001_add_auth.sql',
-      '002_add_attachments.sql',
-      '003_add_admin_fields.sql',
-      '004_password_change_logs.sql',
-      '005_add_rag_embeddings.sql',
-      '006_embedding_dimension_384.sql',
-      '007_model_management.sql',
-      '009_knowledge_schema.sql',
-      '010_diagnostics_traces.sql',
-      '011_hybrid_retrieval_fts.sql',
-      '013_workflow_persistence.sql'
-    ];
+    const migrations = discoverMigrations();
+    console.log(`Обнаружено миграций: ${migrations.length}`);
     
     let executedCount = 0;
     
     for (const migrationFile of migrations) {
-      const migrationPath = path.join(__dirname, '..', 'migrations', migrationFile);
-      
-      if (!fs.existsSync(migrationPath)) {
-        console.log(`Миграция ${migrationFile} не найдена, пропускаем...`);
-        continue;
-      }
+      const migrationPath = path.join(MIGRATIONS_DIR, migrationFile);
       
       console.log(`Выполнение миграции: ${migrationFile}`);
       
@@ -43,8 +38,6 @@ async function runMigrations() {
         console.log(`✓ Миграция ${migrationFile} выполнена успешно`);
         executedCount++;
       } catch (error) {
-        // Если ошибка связана с дублированием (например, таблица уже существует)
-        // пропускаем миграцию и продолжаем
         if (error.code === '42P07' || error.message.includes('already exists')) {
           console.log(`  Миграция ${migrationFile} уже выполнена, пропускаем`);
         } else {
@@ -63,7 +56,6 @@ async function runMigrations() {
   }
 }
 
-// Проверяем, является ли этот файл основным модулем
 if (require.main === module) {
   runMigrations();
 }

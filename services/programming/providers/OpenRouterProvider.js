@@ -16,7 +16,10 @@ class OpenRouterProvider extends BaseProvider {
       || (context.getData('build_prompt') && context.getData('build_prompt').prompt);
     const prompt = (promptObj && promptObj.prompt) || promptObj;
 
+    console.log(`[LLM Trace] hasPrompt=${!!prompt} promptLength=${prompt ? prompt.length : 0} contextKeys=${Object.keys(context.collectedData || {}).join(',') || 'none'}`);
+
     if (!prompt) {
+      console.log(`[LLM Trace] FAIL — no prompt available`);
       return {
         success: false,
         provider: this.name,
@@ -28,12 +31,14 @@ class OpenRouterProvider extends BaseProvider {
 
     try {
       const model = await modelManager.getModel('programming');
+      console.log(`[LLM Trace] calling model=${model}`);
       const completion = await llmService.chat(
         [{ role: 'user', content: prompt }],
         { model, temperature: 0.3, max_tokens: 4096 }
       );
 
       const content = completion.choices?.[0]?.message?.content || '';
+      console.log(`[LLM Trace] SUCCESS responseLength=${content.length} hasContent=${!!content}`);
 
       let code = content;
       let explanation = null;
@@ -58,6 +63,7 @@ class OpenRouterProvider extends BaseProvider {
         message: 'LLM call completed'
       };
     } catch (err) {
+      console.log(`[LLM Trace] FAIL — error: ${err.message}`);
       return {
         success: false,
         provider: this.name,
