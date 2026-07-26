@@ -23,6 +23,7 @@ class KnowledgeImporter {
     this.stats = {
       objects: 0,
       fields: 0,
+      relations: 0,
       skipped: 0,
       startTime: null,
       endTime: null
@@ -45,6 +46,8 @@ class KnowledgeImporter {
     for (const cat of CATEGORIES) {
       await this._importObjectsByType(cat, configId);
     }
+
+    await this._importRelations();
 
     await this._disconnect();
     this.stats.endTime = Date.now();
@@ -200,7 +203,7 @@ class KnowledgeImporter {
     const name = field.Имя || field.name || field.Name || '';
     if (!name) {
       this.stats.skipped++;
-      return;
+      return null;
     }
 
     const synonym = field.Синоним || field.synonym || field.Synonym || null;
@@ -224,16 +227,66 @@ class KnowledgeImporter {
     const requiredBool = required === true || required === 'true' || required === 1 || required === '1' || required === 'Да';
 
     try {
-      await pool.query(
+      const result = await pool.query(
         `INSERT INTO knowledge.fields (object_id, name, synonym, datatype, required, length, precision, reference_type)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`,
         [objectId, name, synonym, datatype, requiredBool, length ? parseInt(length, 10) : null, precision ? parseInt(precision, 10) : null, referenceType]
       );
       this.stats.fields++;
+      return { id: result.rows[0].id, name, referenceType };
     } catch (err) {
       console.log(`      Error saving field "${name}": ${err.message}`);
       this.stats.skipped++;
+      return null;
     }
+  }
+
+  async _importRelations() {
+    console.log('Building relations from field references...');
+    let relationsCount = 0;
+
+    try {
+      const fieldsResult = await pool.query(
+        `SELECT f.object_id AS from_object_id, f.name AS from_field, f.reference_type
+         FROM knowledge.fields f
+         WHERE f.reference_type IS NOT NULL AND f.reference_type != ''`
+      );
+
+      for (const field of fieldsResult.rows) {
+        const refType = field.reference_type;
+
+        let relationType = null;
+        if (refType.startsWith('Справочник.') || refType.startsWith('Документ.')) {
+          relationType = 'references_object';
+        } else if (refType.startsWith('Перечисление.')) {
+          relationType = 'references_enum';
+        } else if (refType.startsWith('Регистр')) {
+          relationType = 'related_to_register';
+        }
+
+        if (!relationType) continue;
+
+        const targetResult = await pool.query(
+          `SELECT id FROM knowledge.objects WHERE full_name = $1`,
+          [refType]
+        );
+        if (targetResult.rows.length === 0) continue;
+
+        const toObjectId = targetResult.rows[0].id;
+
+        await pool.query(
+          `INSERT INTO knowledge.relations (from_object_id, from_field, to_object_id, relation_type)
+           VALUES ($1, $2, $3, $4)`,
+          [field.from_object_id, field.from_field, toObjectId, relationType]
+        );
+        relationsCount++;
+      }
+    } catch (err) {
+      console.log(`Error building relations: ${err.message}`);
+    }
+
+    this.stats.relations = relationsCount;
+    console.log(`Relations created: ${relationsCount}`);
   }
 
   _printStats() {
@@ -243,6 +296,7 @@ class KnowledgeImporter {
     console.log(`Configuration:    1`);
     console.log(`Objects imported: ${this.stats.objects}`);
     console.log(`Fields imported:  ${this.stats.fields}`);
+    console.log(`Relations built:  ${this.stats.relations}`);
     console.log(`Skipped:          ${this.stats.skipped}`);
     console.log(`Elapsed time:     ${elapsed}s`);
     console.log('=======================');

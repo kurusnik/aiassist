@@ -135,6 +135,27 @@ const result = await pool.query(`
     return result.rows;
   }
 
+  async getFieldsBatch(objectIds) {
+    if (!objectIds || objectIds.length === 0) return {};
+
+    const result = await pool.query(
+      `SELECT * FROM knowledge.fields WHERE object_id = ANY($1::uuid[]) ORDER BY object_id, name`,
+      [objectIds]
+    );
+
+    const map = {};
+    for (const row of result.rows) {
+      if (!map[row.object_id]) map[row.object_id] = [];
+      map[row.object_id].push(row);
+    }
+
+    for (const id of objectIds) {
+      if (!map[id]) map[id] = [];
+    }
+
+    return map;
+  }
+
   async health() {
     const objResult = await pool.query(`SELECT COUNT(*)::int AS count FROM knowledge.objects`);
     const fldResult = await pool.query(`SELECT COUNT(*)::int AS count FROM knowledge.fields`);

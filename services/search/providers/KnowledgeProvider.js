@@ -1,5 +1,8 @@
 const BaseSearchProvider = require('./BaseSearchProvider');
 const Candidate = require('../../context-intelligence/models/Candidate');
+const KnowledgeScorer = require('../../knowledge/scoring/KnowledgeScorer');
+
+const scorer = new KnowledgeScorer();
 
 class KnowledgeProvider extends BaseSearchProvider {
   constructor() {
@@ -8,23 +11,32 @@ class KnowledgeProvider extends BaseSearchProvider {
 
   async search(query, options = {}) {
     const { build: buildKnowledgeContext } = require('../../knowledge/contextBuilder');
-    const ctx = await buildKnowledgeContext(query);
+    const queryContext = options.queryContext || { rawQuery: query, normalizedQuery: null, intent: null, entities: [] };
+    const ctx = await buildKnowledgeContext(query, queryContext);
     if (!ctx.found) return [];
     return (ctx.objects || []).map(obj => ({
       id: obj.full_name || obj.name || `knowledge_${Date.now()}`,
-      content: obj.full_name || obj.name || '',
-      score: 0.9,
+      content: obj.structuredText || obj.full_name || obj.name || '',
+      score: obj.score,
       meta: {
         source: 'knowledge',
-        type: 'object',
+        type: '1c',
         methods: ['mcp'],
-        metadata: { ...obj }
+        metadata: obj.meta || {
+          objectType: null,
+          fields: [],
+          relations: [],
+          synonym: null,
+          comment: null
+        }
       }
     }));
   }
 
   async getCandidates(queryContext, options = {}) {
-    const results = await this.search(queryContext.rawQuery, options);
+    const rawQuery = queryContext.rawQuery || '';
+    const searchOptions = { ...options, queryContext };
+    const results = await this.search(rawQuery, searchOptions);
     return results.map(r => new Candidate(
       r.id,
       r.content,

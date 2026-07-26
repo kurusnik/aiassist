@@ -8,6 +8,7 @@ const STEP_PROVIDERS = {
   query_data:             'mcp',
   collect_project_files:  'filesystem',
   collect_examples:       'filesystem',
+  collect_file_content:   'filesystem',
   collect_rag:            'rag',
   build_prompt:           'internal',
   call_llm:               'openrouter',
@@ -55,6 +56,10 @@ const PLAN_TEMPLATES = {
   },
   data_query: {
     actions: ['query_data', 'build_prompt', 'call_llm', 'review_result'],
+    complexity: 'low'
+  },
+  analyze_file: {
+    actions: ['collect_file_content', 'collect_rag', 'build_prompt', 'call_llm', 'review_result'],
     complexity: 'low'
   },
   unknown: {

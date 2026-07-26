@@ -20,7 +20,8 @@ async function runMigrations() {
       '007_model_management.sql',
       '009_knowledge_schema.sql',
       '010_diagnostics_traces.sql',
-      '011_hybrid_retrieval_fts.sql'
+      '011_hybrid_retrieval_fts.sql',
+      '013_workflow_persistence.sql'
     ];
     
     let executedCount = 0;

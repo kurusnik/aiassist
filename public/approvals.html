@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5" />
+  <title>Approvals — AIOS Console</title>
+  <link rel="icon" type="image/svg+xml" href="/icons/favicon.svg" />
+  <link rel="apple-touch-icon" href="/icons/favicon.svg" />
+  <meta name="application-name" content="AIOS Console" />
+  <meta name="theme-color" content="#4ea1ff" />
+  <link rel="stylesheet" href="/css/design-tokens.css" />
+  <link rel="stylesheet" href="/css/base.css" />
+  <link rel="stylesheet" href="/css/components.css" />
+  <link rel="stylesheet" href="/css/console.css" />
+  <link rel="stylesheet" href="/css/responsive.css" />
+  <script src="/scripts/theme.js"></script>
+  <script src="/js/auth.js"></script>
+  <script src="/js/api-client.js"></script>
+  <script src="/js/notifications.js"></script>
+</head>
+<body>
+  <div class="console-app">
+    <nav class="console-nav">
+      <div class="console-nav-header">
+        <svg width="20" height="20" viewBox="0 0 32 32" fill="none"><rect width="32" height="32" rx="6" fill="url(#bgGrad)"/><defs><linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:#4ea1ff"/><stop offset="100%" style="stop-color:#7f5af0"/></linearGradient></defs><text x="16" y="22" text-anchor="middle" fill="white" font-size="14" font-weight="bold" font-family="system-ui,sans-serif">A</text></svg>
+        <h1>AIOS</h1>
+      </div>
+      <div class="console-nav-items">
+        <a href="/console.html" class="console-nav-item">Overview</a>
+        <a href="/workflows.html" class="console-nav-item">Workflows</a>
+        <a href="/approvals.html" class="console-nav-item active">Approvals</a>
+        <a href="/agents.html" class="console-nav-item">Agents</a>
+        <a href="/observability.html" class="console-nav-item">Observability</a>
+      </div>
+      <div class="console-nav-footer">
+        <a href="/index.html" class="console-nav-item">Chat</a>
+        <a href="/admin.html" class="console-nav-item">Admin</a>
+        <a href="#" class="console-nav-item" id="logoutBtn">Logout</a>
+      </div>
+    </nav>
+    <main class="console-main">
+      <header class="console-header">
+        <h2>Approvals</h2>
+        <div class="flex items-center gap-2">
+          <span class="text-small" style="color:var(--text-secondary);" id="userDisplay"></span>
+          <button class="btn btn-icon" id="themeToggle"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg></button>
+        </div>
+      </header>
+      <div class="console-content">
+        <div class="stats-grid" id="approvalStats">
+          <div class="stat-card"><div class="stat-card-label">Pending</div><div class="stat-card-value warning" id="statPending">—</div></div>
+          <div class="stat-card"><div class="stat-card-label">Approved</div><div class="stat-card-value success" id="statApproved">—</div></div>
+          <div class="stat-card"><div class="stat-card-label">Rejected</div><div class="stat-card-value danger" id="statRejected">—</div></div>
+          <div class="stat-card"><div class="stat-card-label">Expired</div><div class="stat-card-value" id="statExpired">—</div></div>
+        </div>
+
+        <div class="tabs" style="margin-bottom:var(--space-4);background:var(--bg-surface);">
+          <button class="tab active" onclick="filterApprovals('pending')">Pending</button>
+          <button class="tab" onclick="filterApprovals('approved')">Approved</button>
+          <button class="tab" onclick="filterApprovals('rejected')">Rejected</button>
+          <button class="tab" onclick="filterApprovals('expired')">Expired</button>
+          <button class="tab" onclick="filterApprovals('')">All</button>
+        </div>
+
+        <div class="console-card">
+          <div class="console-card-header"><h3>Approval Requests</h3></div>
+          <div class="console-card-body">
+            <div class="console-table-wrap">
+              <table class="console-table" id="approvalTable">
+                <thead><tr><th>ID</th><th>Action</th><th>Tool</th><th>Workflow</th><th>Requester</th><th>Reason</th><th>Status</th><th>Actions</th></tr></thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <div id="detailPanel" style="display:none;" class="console-card" style="margin-top:var(--space-4);">
+          <div class="console-card-header">
+            <h3 id="detailTitle">Approval Details</h3>
+            <button class="btn btn-sm btn-ghost" onclick="closeDetail()">✕ Close</button>
+          </div>
+          <div class="console-card-body">
+            <div class="detail-grid" id="detailGrid"></div>
+            <div class="console-modal-actions" id="detailActions" style="margin-top:var(--space-4);"></div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+  <script>
+    let allApprovals = [];
+    let currentFilter = 'pending';
+
+    async function init() {
+      const user = await AIOS.auth.checkAuth();
+      if (!user) return;
+      document.getElementById('userDisplay').textContent = '👤 ' + user.username;
+      document.getElementById('themeToggle').addEventListener('click', () => {
+        const t = document.documentElement.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
+        document.documentElement.setAttribute('data-theme', t);
+        localStorage.setItem('theme', t);
+      });
+      document.getElementById('logoutBtn').addEventListener('click', (e) => { e.preventDefault(); AIOS.auth.logout(); });
+      await loadApprovals();
+    }
+
+    async function loadApprovals() {
+      const api = window.AIOS.apiClient;
+      const res = await api.getApprovals().catch(() => ({ success: false, approvals: [], total: 0 }));
+      if (res.success) {
+        allApprovals = res.approvals || [];
+        renderApprovals();
+        updateStats();
+      }
+    }
+
+    function updateStats() {
+      const pending = allApprovals.filter(a => a.status === 'pending' || !a.status).length;
+      const approved = allApprovals.filter(a => a.status === 'approved').length;
+      const rejected = allApprovals.filter(a => a.status === 'rejected').length;
+      const expired = allApprovals.filter(a => a.status === 'expired').length;
+      document.getElementById('statPending').textContent = pending;
+      document.getElementById('statApproved').textContent = approved;
+      document.getElementById('statRejected').textContent = rejected;
+      document.getElementById('statExpired').textContent = expired;
+    }
+
+    function filterApprovals(status) {
+      currentFilter = status;
+      document.querySelectorAll('.tabs .tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.tabs .tab')[['', 'pending', 'approved', 'rejected', 'expired'].indexOf(status)].classList.add('active');
+      renderApprovals();
+    }
+
+    function renderApprovals() {
+      const tbody = document.querySelector('#approvalTable tbody');
+      tbody.innerHTML = '';
+      const filtered = currentFilter ? allApprovals.filter(a => (a.status || 'pending') === currentFilter) : allApprovals;
+      if (filtered.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--text-secondary);padding:var(--space-6);">No approval requests</td></tr>';
+        return;
+      }
+      filtered.forEach(a => {
+        const status = a.status || 'pending';
+        const statusClass = status.toLowerCase();
+        const row = document.createElement('tr');
+        row.innerHTML = `
+          <td style="font-family:var(--font-mono);font-size:var(--text-xs);">${(a.id || '').slice(0, 8)}</td>
+          <td>${a.action || '—'}</td>
+          <td>${a.tool || '—'}</td>
+          <td style="font-family:var(--font-mono);font-size:var(--text-xs);">${(a.workflowId || '').slice(0, 8)}</td>
+          <td>${a.requestedBy || '—'}</td>
+          <td style="max-width:150px;overflow:hidden;text-overflow:ellipsis;">${a.reason || '—'}</td>
+          <td><span class="badge-aios badge-aios-${statusClass === 'pending' ? 'warning' : statusClass === 'approved' ? 'success' : statusClass === 'rejected' ? 'danger' : 'default'}">${status}</span></td>
+          <td>
+            ${status === 'pending' ? `<button class="btn btn-sm btn-success" onclick="approveAction('${a.id}')">Approve</button>
+            <button class="btn btn-sm btn-danger" onclick="rejectAction('${a.id}')">Reject</button>` : `<button class="btn btn-sm btn-ghost" onclick="showDetail('${a.id}')">View</button>`}
+          </td>`;
+        row.addEventListener('click', () => showDetail(a.id));
+        tbody.appendChild(row);
+      });
+    }
+
+    async function showDetail(id) {
+      const api = window.AIOS.apiClient;
+      const res = await api.getApproval(id).catch(() => ({ success: false }));
+      const a = res.success ? res.approval : allApprovals.find(x => x.id === id);
+      if (!a) return;
+
+      document.getElementById('detailPanel').style.display = 'block';
+      document.getElementById('detailTitle').textContent = 'Approval: ' + (a.id || '').slice(0, 8) + '...';
+      document.getElementById('detailPanel').scrollIntoView({ behavior: 'smooth' });
+
+      const grid = document.getElementById('detailGrid');
+      grid.innerHTML = '';
+      const fields = [
+        ['ID', a.id],
+        ['Action', a.action],
+        ['Tool', a.tool],
+        ['Workflow', a.workflowId],
+        ['Requester', a.requestedBy],
+        ['Reason', a.reason],
+        ['Status', a.status],
+        ['Risk Level', a.riskLevel],
+        ['Policy', a.policy],
+        ['Rules Applied', a.rulesApplied ? JSON.stringify(a.rulesApplied) : '—'],
+        ['Created', a.requestedAt ? new Date(a.requestedAt).toLocaleString() : '—'],
+        ['Expires', a.expiresAt ? new Date(a.expiresAt).toLocaleString() : '—'],
+        ['Approved By', a.approvedBy || '—'],
+        ['Approved At', a.approvedAt ? new Date(a.approvedAt).toLocaleString() : '—'],
+        ['Rejected By', a.rejectedBy || '—'],
+        ['Rejected At', a.rejectedAt ? new Date(a.rejectedAt).toLocaleString() : '—']
+      ];
+      fields.forEach(([label, value]) => {
+        const div = document.createElement('div');
+        div.className = 'detail-row';
+        div.innerHTML = `<span class="detail-label">${label}</span><span class="detail-value">${value || '—'}</span>`;
+        grid.appendChild(div);
+      });
+
+      const actions = document.getElementById('detailActions');
+      actions.innerHTML = '';
+      if ((a.status || 'pending') === 'pending') {
+        const approveBtn = document.createElement('button');
+        approveBtn.className = 'btn btn-success';
+        approveBtn.textContent = '✓ Approve';
+        approveBtn.onclick = () => approveAction(a.id);
+        const rejectBtn = document.createElement('button');
+        rejectBtn.className = 'btn btn-danger';
+        rejectBtn.textContent = '✕ Reject';
+        rejectBtn.onclick = () => rejectAction(a.id);
+        actions.appendChild(approveBtn);
+        actions.appendChild(rejectBtn);
+      }
+    }
+
+    function closeDetail() {
+      document.getElementById('detailPanel').style.display = 'none';
+    }
+
+    function confirmDialog(msg) {
+      return new Promise(resolve => {
+        const overlay = document.createElement('div');
+        overlay.className = 'console-modal-overlay';
+        overlay.innerHTML = `
+          <div class="console-modal">
+            <h3>Confirmation</h3>
+            <p style="color:var(--text-secondary);margin-bottom:var(--space-4);">${msg}</p>
+            <div class="console-modal-actions">
+              <button class="btn btn-ghost" id="confirmCancel">Cancel</button>
+              <button class="btn btn-primary" id="confirmOk">Confirm</button>
+            </div>
+          </div>`;
+        document.body.appendChild(overlay);
+        overlay.querySelector('#confirmOk').onclick = () => { overlay.remove(); resolve(true); };
+        overlay.querySelector('#confirmCancel').onclick = () => { overlay.remove(); resolve(false); };
+      });
+    }
+
+    async function approveAction(id) {
+      const ok = await confirmDialog('Approve this request? This action will be audited.');
+      if (!ok) return;
+      const api = window.AIOS.apiClient;
+      const user = document.getElementById('userDisplay').textContent.replace('👤 ', '');
+      const res = await api.approveApproval(id, user, 'operator approved');
+      if (res.success) {
+        AIOS.notify.success('Approval granted');
+        await loadApprovals();
+      } else {
+        AIOS.notify.error(res.error || 'Failed to approve');
+      }
+    }
+
+    async function rejectAction(id) {
+      const ok = await confirmDialog('Reject this request? This action will be audited.');
+      if (!ok) return;
+      const api = window.AIOS.apiClient;
+      const user = document.getElementById('userDisplay').textContent.replace('👤 ', '');
+      const res = await api.rejectApproval(id, user, 'operator rejected');
+      if (res.success) {
+        AIOS.notify.success('Approval rejected');
+        await loadApprovals();
+      } else {
+        AIOS.notify.error(res.error || 'Failed to reject');
+      }
+    }
+
+    init();
+  </script>
+</body>
+</html>

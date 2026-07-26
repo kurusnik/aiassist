@@ -1,0 +1,37 @@
+const WorkflowContext = require('./WorkflowContext');
+const WorkflowDefinition = require('./WorkflowDefinition');
+const WorkflowExecutor = require('./WorkflowExecutor');
+const RetryPolicy = require('./RetryPolicy');
+const CompensationManager = require('./CompensationManager');
+const WorkflowNodeRegistry = require('./WorkflowNodeRegistry');
+const { ExecutionGraph, ExecutionNode, ExecutionEdge } = require('./ExecutionGraph');
+const { WorkflowEvent, WorkflowEventBus, EventStore, PostgresEventStore } = require('./events');
+const { WorkflowStorage, InMemoryWorkflowStorage, PostgresWorkflowStorage } = require('./storage');
+
+const { WorkerRuntime, WorkflowQueue, InMemoryWorkflowQueue, LeaseManager, HeartbeatManager } = require('./worker');
+const { IdempotencyStore, PostgresIdempotencyStore } = require('./storage');
+
+module.exports = WorkflowExecutor;
+module.exports.WorkflowContext = WorkflowContext;
+module.exports.WorkflowDefinition = WorkflowDefinition;
+module.exports.WorkflowExecutor = WorkflowExecutor;
+module.exports.ExecutionGraph = ExecutionGraph;
+module.exports.ExecutionNode = ExecutionNode;
+module.exports.ExecutionEdge = ExecutionEdge;
+module.exports.RetryPolicy = RetryPolicy;
+module.exports.CompensationManager = CompensationManager;
+module.exports.WorkflowNodeRegistry = WorkflowNodeRegistry;
+module.exports.WorkflowEvent = WorkflowEvent;
+module.exports.WorkflowEventBus = WorkflowEventBus;
+module.exports.EventStore = EventStore;
+module.exports.PostgresEventStore = PostgresEventStore;
+module.exports.WorkflowStorage = WorkflowStorage;
+module.exports.InMemoryWorkflowStorage = InMemoryWorkflowStorage;
+module.exports.PostgresWorkflowStorage = PostgresWorkflowStorage;
+module.exports.WorkerRuntime = WorkerRuntime;
+module.exports.WorkflowQueue = WorkflowQueue;
+module.exports.InMemoryWorkflowQueue = InMemoryWorkflowQueue;
+module.exports.LeaseManager = LeaseManager;
+module.exports.HeartbeatManager = HeartbeatManager;
+module.exports.IdempotencyStore = IdempotencyStore;
+module.exports.PostgresIdempotencyStore = PostgresIdempotencyStore;

@@ -76,3 +76,39 @@ RATE_LIMIT_WINDOW=900000
 RATE_LIMIT_MAX=100
 MAX_FILE_SIZE=10485760
 ```
+
+## Testing Checklist
+
+Перед маркировкой distributed-фичи как завершённой:
+
+- [ ] persistent adapter существует (не InMemory для production)
+- [ ] SQL migration существует и протестирован
+- [ ] Recovery tested: воркер корректно обрабатывает незавершённые задачи после перезапуска
+- [ ] Concurrency tested: два воркера не получают lease на одну задачу
+- [ ] Failure mode tested: потеря lease, отказ воркера, таймаут heartbeat
+- [ ] Audit integrated: каждый action пишется в audit log
+- [ ] Metrics exposed: lease_acquisition_time, heartbeat_latency, task_duration, idempotency_hit_rate
+
+## Production Readiness Checklist
+
+- [ ] Все InMemory адаптеры заменены на persistent
+- [ ] Graceful shutdown реализован (SIGTERM → release lease)
+- [ ] Lease TTL настроен под нагрузку
+- [ ] Idempotency keys имеют TTL и cleanup
+- [ ] Audit log не растёт бесконечно (cleanup policy)
+- [ ] Метрики экспортируются (prometheus / OpenTelemetry)
+- [ ] Healthcheck endpoint: /health — проверка соединения с БД, статуса lease manager
+
+## Control Layer Checklist
+
+Проходить при добавлении нового Control Service или метода:
+
+- [ ] Actor identity: операция требует actor
+- [ ] Authorization: authChecker(actor, action, resource) вызван
+- [ ] Audit: AuditEvent создан с actor, action, resource, decision
+- [ ] Validation: входные параметры проверены
+- [ ] Статус: проверка canTransitionTo() для workflow mutations
+- [ ] Result: структурированный ответ { success, ..., actor, timestamp }
+- [ ] Error handling: ошибки Runtime обработаны
+- [ ] ADR: если новое архитектурное решение — ADR создан
+- [ ] Tests: unit-тесты для нового метода

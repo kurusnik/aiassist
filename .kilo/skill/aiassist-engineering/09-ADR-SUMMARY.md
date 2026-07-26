@@ -29,5 +29,19 @@
 | 026 | Query Intelligence Layer | ✅ | Архитектурный слой интерпретации запросов: QueryContext, Intent, Entity, QueryPlan; выключен по умолчанию |
 | 027 | TaskRouter vs Query Intelligence | ✅ | Чёткое разделение: TaskRouter = технический маршрут, QI = смысл запроса |
 | — | Sprint 3.5.3 Hardening | ✅ | Candidate validator, audit private fields, diagnostics coverage, dependency audit |
+| 028 | Knowledge Intelligence Layer | ✅ | Knowledge Layer теперь Intelligence слой: Scoring, Relations, Enrichment, Context, интеграция с Query Intelligence |
+| 029 | Execution Contract — QueryPlan → ExecutionPlan | ✅ | Action.confidence/safety, Planning слой-мост, ExecutionPlan toJSON+UUID |
+| 030 | KnowledgeContext DTO | ✅ | KnowledgeContext класс + Validator, Candidate.meta.schema discriminator |
+| 031 | MCP Orchestrator Foundation | ✅ (deferred) | Архитектура MCP-роутинга, диагностики и safety; реализация в Sprint 5 |
+| 032 | Agent Runtime Architecture | ✅ | AgentContext, AgentResult, AgentRuntime, ExecutionPipeline, SafetyChecker, ProgrammingAgentAdapter; полный trace через QI → Search → CI → Planning → Agent → Execution → Result |
+| 033 | Agent Registry Architecture | ✅ | AgentRegistry (register/get/remove/list), AgentRuntime.resolve через registry или inline handler, AgentContext.candidates, AgentResult.schemaVersion, PolicyProvider safety extension point |
+| 049 | Lease & Heartbeat | ✅ | Lease-блокировки для распределённых воркеров: TTL=30s, heartbeat каждые 10s, max missed=2, graceful shutdown |
+| 050 | Worker Concurrency | ✅ | WorkerPool управляет конкурентным доступом: acquire/release, распределение idle-воркеров, защита от двойного назначения |
+| 051 | Idempotency | ✅ | Каждый action воркера идемпотентен через dedup_id + UPSERT; Idempotency-Key на API; TTL cleanup старых ключей |
+| 052 | Async Audit | ✅ | Сквозная трассировка всех worker action: write-once в worker_audit_log (append-only), индексы trace_id/worker_id/started_at |
+| 053 | Event Sequencing | ✅ | Гарантия порядка событий в распределённом runtime: workflow_steps с порядковым номером, strict ordering в рамках одного instance |
+| 054 | Control Plane Architecture | ✅ | WorkflowControlService — прослойка между API и Runtime: авторизация, аудит, structured result |
+| 055 | Human Console Security | ✅ | Security model для операторских действий: actor, permission, audit, approval flow |
+| 056 | Runtime Observability Model | ✅ | Unified observability: metrics (количественные), timeline (события), traces (отладка) |
 
-**Примечание:** ADR 020 отсутствует в последовательности.
+**Примечание:** ADR 020 отсутствует в последовательности. ADR 034–048 зарезервированы для будущих решений. Всего записей: 38 ADR + 1 hardening.

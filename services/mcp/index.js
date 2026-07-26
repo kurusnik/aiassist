@@ -3,6 +3,8 @@ const McpConnectionManager = require('./McpConnectionManager');
 const McpClientFactory = require('./McpClientFactory');
 const McpToolClient = require('./tools/McpToolClient');
 const onecConfig = require('./onecConfig');
+const orchestrator = require('./orchestrator');
+const MCPProvider = require('./providers/MCPProvider');
 
 const connectionManager = new McpConnectionManager(config);
 const mcpToolClient = new McpToolClient(connectionManager);
@@ -21,5 +23,10 @@ module.exports = {
   mcpToolClient,
   onecConfig,
   onecConnectionManager,
-  onecToolClient
+  onecToolClient,
+  orchestrator,
+  MCPProvider,
+  MCPOrchestrator: orchestrator.MCPOrchestrator,
+  MCPRouter: orchestrator.MCPRouter,
+  MCPExecutionContext: orchestrator.MCPExecutionContext
 };

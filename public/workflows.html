@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5" />
+  <title>Workflows — AIOS Console</title>
+  <link rel="icon" type="image/svg+xml" href="/icons/favicon.svg" />
+  <link rel="apple-touch-icon" href="/icons/favicon.svg" />
+  <meta name="application-name" content="AIOS Console" />
+  <meta name="theme-color" content="#4ea1ff" />
+  <link rel="stylesheet" href="/css/design-tokens.css" />
+  <link rel="stylesheet" href="/css/base.css" />
+  <link rel="stylesheet" href="/css/components.css" />
+  <link rel="stylesheet" href="/css/console.css" />
+  <link rel="stylesheet" href="/css/responsive.css" />
+  <script src="/scripts/theme.js"></script>
+  <script src="/js/auth.js"></script>
+  <script src="/js/api-client.js"></script>
+  <script src="/js/notifications.js"></script>
+</head>
+<body>
+  <div class="console-app">
+    <nav class="console-nav">
+      <div class="console-nav-header">
+        <svg width="20" height="20" viewBox="0 0 32 32" fill="none"><rect width="32" height="32" rx="6" fill="url(#bgGrad)"/><defs><linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:#4ea1ff"/><stop offset="100%" style="stop-color:#7f5af0"/></linearGradient></defs><text x="16" y="22" text-anchor="middle" fill="white" font-size="14" font-weight="bold" font-family="system-ui,sans-serif">A</text></svg>
+        <h1>AIOS</h1>
+      </div>
+      <div class="console-nav-items">
+        <a href="/console.html" class="console-nav-item" data-page="overview">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+          Overview
+        </a>
+        <a href="/workflows.html" class="console-nav-item active" data-page="workflows">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+          Workflows
+        </a>
+        <a href="/approvals.html" class="console-nav-item" data-page="approvals">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
+          Approvals
+        </a>
+        <a href="/agents.html" class="console-nav-item" data-page="agents">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M20 21a8 8 0 10-16 0"/></svg>
+          Agents
+        </a>
+        <a href="/observability.html" class="console-nav-item" data-page="observability">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+          Observability
+        </a>
+      </div>
+      <div class="console-nav-footer">
+        <a href="/index.html" class="console-nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg> Chat</a>
+        <a href="/admin.html" class="console-nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06A1.65 1.65 0 0019.32 9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/></svg> Admin</a>
+        <a href="#" class="console-nav-item" id="logoutBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg> Logout</a>
+      </div>
+    </nav>
+    <main class="console-main">
+      <header class="console-header">
+        <h2>Workflows</h2>
+        <div class="flex items-center gap-2">
+          <span class="text-small" style="color:var(--text-secondary);" id="userDisplay"></span>
+          <button class="btn btn-icon" id="themeToggle"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg></button>
+        </div>
+      </header>
+      <div class="console-content">
+        <!-- Dashboard Stats -->
+        <div class="stats-grid" id="workflowStats">
+          <div class="stat-card"><div class="stat-card-label">Running</div><div class="stat-card-value" id="statRunning">—</div></div>
+          <div class="stat-card"><div class="stat-card-label">Completed</div><div class="stat-card-value success" id="statCompleted">—</div></div>
+          <div class="stat-card"><div class="stat-card-label">Failed</div><div class="stat-card-value danger" id="statFailed">—</div></div>
+          <div class="stat-card"><div class="stat-card-label">Waiting Approval</div><div class="stat-card-value warning" id="statApprovals">—</div></div>
+        </div>
+
+        <!-- Workflow List -->
+        <div class="console-card" style="margin-bottom:var(--space-4);">
+          <div class="console-card-header">
+            <h3>Workflow Instances</h3>
+            <div class="flex items-center gap-2">
+              <select id="statusFilter" class="input" style="width:auto;padding:4px 8px;font-size:var(--text-sm);">
+                <option value="">All statuses</option>
+                <option value="RUNNING">Running</option>
+                <option value="COMPLETED">Completed</option>
+                <option value="FAILED">Failed</option>
+                <option value="PAUSED">Paused</option>
+                <option value="CREATED">Created</option>
+              </select>
+            </div>
+          </div>
+          <div class="console-card-body">
+            <div class="console-table-wrap">
+              <table class="console-table" id="workflowTable">
+                <thead><tr><th>ID</th><th>Status</th><th>Created</th><th>Updated</th><th>Actions</th></tr></thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- Detail Panel -->
+        <div id="detailPanel" style="display:none;">
+          <div class="section-divider">Workflow Details</div>
+          <div class="console-card" style="margin-bottom:var(--space-4);">
+            <div class="console-card-header">
+              <h3 id="detailTitle">Workflow</h3>
+              <button class="btn btn-sm btn-ghost" onclick="closeDetail()">✕ Close</button>
+            </div>
+            <div class="console-card-body">
+              <div class="detail-grid" id="detailGrid"></div>
+            </div>
+          </div>
+
+          <div class="console-card" style="margin-bottom:var(--space-4);">
+            <div class="console-card-header"><h3>Timeline</h3></div>
+            <div class="console-card-body">
+              <div class="timeline" id="timelineContainer">
+                <div class="empty-state"><div class="empty-state-text">No timeline data</div></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="console-card" style="margin-bottom:var(--space-4);">
+            <div class="console-card-header"><h3>Execution Graph</h3></div>
+            <div class="console-card-body">
+              <div class="graph-container" id="graphContainer"></div>
+            </div>
+          </div>
+
+          <div class="flex gap-2" id="actionButtons" style="padding-bottom:var(--space-5);">
+            <button class="btn btn-warning" onclick="actionWorkflow('pause')">⏸ Pause</button>
+            <button class="btn btn-success" onclick="actionWorkflow('resume')">▶ Resume</button>
+            <button class="btn btn-danger" onclick="actionWorkflow('cancel')">✕ Cancel</button>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+  <script>
+    let currentWorkflowId = null;
+    let allWorkflows = [];
+
+    async function init() {
+      const user = await AIOS.auth.checkAuth();
+      if (!user) return;
+      document.getElementById('userDisplay').textContent = '👤 ' + user.username;
+      document.getElementById('themeToggle').addEventListener('click', () => {
+        const t = document.documentElement.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
+        document.documentElement.setAttribute('data-theme', t);
+        localStorage.setItem('theme', t);
+      });
+      document.getElementById('logoutBtn').addEventListener('click', (e) => { e.preventDefault(); AIOS.auth.logout(); });
+      document.getElementById('statusFilter').addEventListener('change', renderWorkflows);
+      await loadWorkflows();
+    }
+
+    async function loadWorkflows() {
+      const api = window.AIOS.apiClient;
+      const [workflowsRes, statsRes, approvalsRes] = await Promise.all([
+        api.getWorkflows(),
+        api.getWorkflowStats().catch(() => ({ success: false })),
+        api.getApprovals({ status: 'pending' }).catch(() => ({ success: false, approvals: [], total: 0 }))
+      ]);
+
+      if (workflowsRes.success) {
+        allWorkflows = workflowsRes.workflows || [];
+        renderWorkflows();
+      }
+
+      if (statsRes.success && statsRes.workflows) {
+        const w = statsRes.workflows;
+        document.getElementById('statRunning').textContent = w.running ?? '—';
+        document.getElementById('statCompleted').textContent = w.totalExecutions ?? '—';
+        document.getElementById('statFailed').textContent = w.failedToday ?? '—';
+      }
+
+      const pendingCount = approvalsRes.success ? approvalsRes.total : approvalsRes.approvals?.length || 0;
+      document.getElementById('statApprovals').textContent = pendingCount || '0';
+    }
+
+    function renderWorkflows() {
+      const filter = document.getElementById('statusFilter').value;
+      const tbody = document.querySelector('#workflowTable tbody');
+      tbody.innerHTML = '';
+      const filtered = filter ? allWorkflows.filter(w => w.status === filter) : allWorkflows;
+      if (filtered.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text-secondary);padding:var(--space-6);">No workflows found</td></tr>';
+        return;
+      }
+      filtered.forEach(w => {
+        const row = document.createElement('tr');
+        row.className = 'clickable';
+        const statusClass = (w.status || 'CREATED').toLowerCase();
+        row.innerHTML = `
+          <td style="font-family:var(--font-mono);font-size:var(--text-xs);">${w.id || '—'}</td>
+          <td><span class="status-indicator"><span class="status-dot ${statusClass}"></span>${w.status || 'unknown'}</span></td>
+          <td style="font-size:var(--text-xs);">${w.createdAt ? new Date(w.createdAt).toLocaleString() : '—'}</td>
+          <td style="font-size:var(--text-xs);">${w.updatedAt ? new Date(w.updatedAt).toLocaleString() : '—'}</td>
+          <td><button class="btn btn-sm btn-ghost" onclick="showDetail('${w.id}')">View</button></td>`;
+        row.addEventListener('click', () => showDetail(w.id));
+        tbody.appendChild(row);
+      });
+    }
+
+    async function showDetail(id) {
+      currentWorkflowId = id;
+      document.getElementById('detailPanel').style.display = 'block';
+      document.getElementById('detailTitle').textContent = 'Workflow: ' + id;
+      document.getElementById('detailPanel').scrollIntoView({ behavior: 'smooth' });
+
+      const api = window.AIOS.apiClient;
+      const workflow = allWorkflows.find(w => w.id === id);
+      const grid = document.getElementById('detailGrid');
+      grid.innerHTML = '';
+      const fields = [
+        ['ID', id],
+        ['Status', workflow?.status || '—'],
+        ['Version', workflow?.version || '—'],
+        ['Created', workflow?.createdAt ? new Date(workflow.createdAt).toLocaleString() : '—'],
+        ['Updated', workflow?.updatedAt ? new Date(workflow.updatedAt).toLocaleString() : '—']
+      ];
+      fields.forEach(([label, value]) => {
+        const div = document.createElement('div');
+        div.className = 'detail-row';
+        div.innerHTML = `<span class="detail-label">${label}</span><span class="detail-value">${value}</span>`;
+        grid.appendChild(div);
+      });
+
+      const [timelineRes, graphRes] = await Promise.all([
+        api.getWorkflowTimeline(id).catch(() => ({ success: false })),
+        api.getWorkflowGraph(id).catch(() => ({ success: false }))
+      ]);
+
+      const timelineContainer = document.getElementById('timelineContainer');
+      timelineContainer.innerHTML = '';
+      if (timelineRes.success && timelineRes.timeline?.length > 0) {
+        timelineRes.timeline.forEach(entry => {
+          const cat = (entry.category || 'technical');
+          const dotClass = cat === 'audit' ? 'accent' : cat === 'business' ? 'success' : '';
+          const item = document.createElement('div');
+          item.className = 'timeline-item';
+          item.innerHTML = `
+            <div class="timeline-dot ${dotClass}"></div>
+            <div class="timeline-content">
+              <div class="timeline-time">${entry.timestamp ? new Date(entry.timestamp).toLocaleString() : ''}</div>
+              <div><strong>${entry.type || 'event'}</strong> ${entry.actor ? 'by ' + entry.actor : ''}</div>
+              ${entry.metadata ? '<div style="font-size:var(--text-xs);color:var(--text-secondary);">' + JSON.stringify(entry.metadata) + '</div>' : ''}
+            </div>`;
+          timelineContainer.appendChild(item);
+        });
+      } else {
+        timelineContainer.innerHTML = '<div class="empty-state"><div class="empty-state-text">No timeline data available</div></div>';
+      }
+
+      const graphContainer = document.getElementById('graphContainer');
+      graphContainer.innerHTML = '';
+      if (graphRes.success && graphRes.nodes?.length > 0) {
+        const flowDiv = document.createElement('div');
+        flowDiv.style.cssText = 'display:flex;flex-wrap:wrap;gap:8px;align-items:center;';
+        graphRes.nodes.forEach((node, i) => {
+          const nodeEl = document.createElement('span');
+          const typeClass = (node.type || 'agent').toLowerCase();
+          const statusClass = (node.status || '').toLowerCase();
+          nodeEl.className = `graph-node ${typeClass} ${statusClass}`;
+          nodeEl.textContent = node.label || node.id || node.type;
+          flowDiv.appendChild(nodeEl);
+          if (i < graphRes.nodes.length - 1) {
+            const arrow = document.createElement('span');
+            arrow.style.cssText = 'color:var(--text-tertiary);font-size:10px;';
+            arrow.textContent = '→';
+            flowDiv.appendChild(arrow);
+          }
+        });
+        graphContainer.appendChild(flowDiv);
+      } else {
+        graphContainer.innerHTML = '<div class="empty-state"><div class="empty-state-text">No execution graph data</div></div>';
+      }
+    }
+
+    function closeDetail() {
+      currentWorkflowId = null;
+      document.getElementById('detailPanel').style.display = 'none';
+    }
+
+    async function actionWorkflow(action) {
+      if (!currentWorkflowId) return;
+      const api = window.AIOS.apiClient;
+      let result;
+      const actor = document.getElementById('userDisplay').textContent.replace('👤 ', '');
+      if (action === 'pause') result = await api.pauseWorkflow(currentWorkflowId, actor, 'operator action');
+      else if (action === 'resume') result = await api.resumeWorkflow(currentWorkflowId, actor, 'operator action');
+      else if (action === 'cancel') result = await api.cancelWorkflow(currentWorkflowId, actor, 'operator action');
+      if (result.success) {
+        AIOS.notify.success(`Workflow ${action}d successfully`);
+        await loadWorkflows();
+      } else {
+        AIOS.notify.error(result.error || `Failed to ${action} workflow`);
+      }
+    }
+
+    init();
+  </script>
+</body>
+</html>

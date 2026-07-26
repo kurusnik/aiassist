@@ -2,10 +2,11 @@
 <html lang="ru" data-theme="dark">
 <head>
   <meta charset="UTF-8" />
-  <title>AI Assistant</title>
+  <title>AIOS — AI Operating System</title>
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5" />
   <link rel="icon" type="image/svg+xml" href="/icons/favicon.svg" />
   <link rel="apple-touch-icon" href="/icons/favicon.svg" />
+  <meta name="application-name" content="AIOS" />
   <meta name="theme-color" content="#4ea1ff" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -33,7 +34,7 @@
         <button class="sidebar-toggle" id="sidebarToggle" aria-label="Toggle sidebar" title="Toggle sidebar">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
         </button>
-        <span class="badge badge-accent" style="font-size:10px;padding:2px 8px;letter-spacing:0.04em;">AI ASSISTANT</span>
+        <a href="/console.html" class="badge badge-accent" style="font-size:10px;padding:2px 8px;letter-spacing:0.04em;text-decoration:none;cursor:pointer;">AIOS</a>
         <h1 style="font-size:var(--text-base);font-weight:500;margin:0;color:var(--text-secondary);">Проекты и чат</h1>
       </div>
       <div class="toolbar">
@@ -43,6 +44,7 @@
         <span class="text-small flex items-center gap-1" style="color:var(--text-tertiary);">👤 <span id="username">...</span></span>
         <button class="btn btn-sm" id="creditsBtn" title="Баланс">💰 <span id="balance-short">--</span></button>
         <button class="btn btn-sm" id="adminBtn" style="display:none;">Админ-панель</button>
+        <button class="btn btn-sm" onclick="window.location.href='/console.html'">AIOS Console</button>
         <button class="btn btn-sm" id="programmingBtn" onclick="window.location.href='/programming.html'">Programming</button>
         <button class="btn btn-ghost btn-sm" id="logoutBtn">Выход</button>
       </div>

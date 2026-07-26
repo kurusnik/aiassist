@@ -2,6 +2,7 @@ const PipelineTracer = require('./tracer');
 const traceStore = require('./traceStore');
 const TraceContext = require('./models/TraceContext');
 const PipelineTrace = require('./models/PipelineTrace');
+const PipelineStep = require('./models/PipelineStep');
 
 class DiagnosticsService {
   constructor() {

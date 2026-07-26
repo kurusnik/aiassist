@@ -1,6 +1,70 @@
 const knowledge = require('./service');
+const KnowledgeScorer = require('./scoring/KnowledgeScorer');
+const RelationResolver = require('./relations/RelationResolver');
 
-async function build(userQuery) {
+const scorer = new KnowledgeScorer();
+const relationResolver = new RelationResolver();
+
+function _buildMeta(object, fields, relations) {
+  return {
+    objectType: object.type || null,
+    fields: (fields || []).map(f => ({
+      name: f.name,
+      synonym: f.synonym,
+      datatype: f.datatype,
+      required: f.required,
+      reference_type: f.reference_type
+    })),
+    relations: relations || [],
+    synonym: object.synonym || null,
+    comment: object.comment || null
+  };
+}
+
+function _buildStructuredText(object, fields, relations) {
+  const lines = [];
+  lines.push(`[Knowledge Object]`);
+  lines.push(`Name: ${object.full_name || object.name}`);
+  lines.push(`Type: ${object.type || 'Unknown'}`);
+
+  if (object.synonym) {
+    lines.push(`Synonym: ${object.synonym}`);
+  }
+  if (object.comment) {
+    lines.push(`Purpose: ${object.comment}`);
+  }
+
+  if (fields && fields.length > 0) {
+    lines.push(``);
+    lines.push(`Fields:`);
+    for (const field of fields) {
+      let fieldLine = `- ${field.name}`;
+      if (field.synonym && field.synonym !== field.name) {
+        fieldLine += ` (${field.synonym})`;
+      }
+      fieldLine += `: ${field.datatype || '?'}`;
+      if (field.reference_type) {
+        fieldLine += ` -> ${field.reference_type}`;
+      }
+      if (field.required) {
+        fieldLine += ` [required]`;
+      }
+      lines.push(fieldLine);
+    }
+  }
+
+  if (relations && relations.length > 0) {
+    lines.push(``);
+    lines.push(`Relations:`);
+    for (const rel of relations) {
+      lines.push(`- ${rel.type}: ${rel.target} (confidence: ${rel.confidence.toFixed(2)})`);
+    }
+  }
+
+  return lines.join('\n');
+}
+
+async function build(userQuery, queryContext = null) {
   if (!userQuery || !userQuery.trim()) {
     return { found: false, objects: [] };
   }
@@ -11,28 +75,51 @@ async function build(userQuery) {
     return { found: false, objects: [] };
   }
 
+  const matchIds = matches.map(m => m.id);
+  const fullNames = matches.map(m => m.full_name || m.name);
+
+  const [fieldsMap, relationsMap] = await Promise.all([
+    knowledge.getFieldsBatch(matchIds).catch(() => ({})),
+    relationResolver.resolveByFullNames(fullNames).catch(() => new Map())
+  ]);
+
   const objects = [];
   for (const match of matches) {
-    const obj = await knowledge.getObject(match.full_name);
-    if (obj) {
-      objects.push({
-        type: obj.type,
-        name: obj.name,
-        full_name: obj.full_name,
-        synonym: obj.synonym,
-        comment: obj.comment,
-        fields: obj.fields.map(f => ({
-          name: f.name,
-          synonym: f.synonym,
-          datatype: f.datatype,
-          required: f.required,
-          length: f.length,
-          precision: f.precision,
-          reference_type: f.reference_type
-        }))
-      });
-    }
+    const fields = fieldsMap[match.id] || [];
+    const fullName = match.full_name || match.name;
+    const relations = relationsMap.get(fullName) || [];
+
+    const enriched = {
+      ...match,
+      id: match.id,
+      type: match.type,
+      name: match.name,
+      full_name: fullName,
+      synonym: match.synonym,
+      comment: match.comment,
+      fields,
+      _relations: relations
+    };
+
+    const qc = queryContext || { rawQuery: userQuery, normalizedQuery: null, intent: null, entities: [] };
+    const computedScore = scorer.score(enriched, qc);
+
+    const meta = _buildMeta(enriched, fields, relations);
+
+    objects.push({
+      id: match.id,
+      type: enriched.type,
+      name: enriched.name,
+      full_name: enriched.full_name,
+      synonym: enriched.synonym,
+      comment: enriched.comment,
+      score: computedScore,
+      structuredText: _buildStructuredText(enriched, fields, relations),
+      meta
+    });
   }
+
+  objects.sort((a, b) => b.score - a.score);
 
   return {
     found: objects.length > 0,
@@ -42,45 +129,13 @@ async function build(userQuery) {
 
 function render(context) {
   if (!context || !context.found || !context.objects || context.objects.length === 0) {
-    return 'Объекты конфигурации не найдены.';
+    return 'Configuration objects not found.';
   }
 
-  const MAX_FIELDS = 10;
-  const parts = ['Найдены объекты конфигурации:'];
-
+  const parts = ['Found configuration objects:'];
   for (const obj of context.objects) {
     parts.push('');
-    parts.push(obj.full_name);
-
-    if (obj.synonym) {
-      parts.push(`  Синоним: ${obj.synonym}`);
-    }
-    if (obj.comment) {
-      parts.push(`  Комментарий: ${obj.comment}`);
-    }
-
-    if (obj.fields && obj.fields.length > 0) {
-      parts.push('  Реквизиты:');
-      const shown = obj.fields.slice(0, MAX_FIELDS);
-      const hidden = obj.fields.length - MAX_FIELDS;
-      for (const field of shown) {
-        let line = `    - ${field.name}`;
-        if (field.synonym && field.synonym !== field.name) {
-          line += ` (${field.synonym})`;
-        }
-        line += ` — ${field.datatype || '?'}`;
-        if (field.reference_type) {
-          line += ` -> ${field.reference_type}`;
-        }
-        if (field.required) {
-          line += ` [обяз.]`;
-        }
-        parts.push(line);
-      }
-      if (hidden > 0) {
-        parts.push(`  ... (+${hidden} реквизитов)`);
-      }
-    }
+    parts.push(obj.structuredText || obj.full_name || obj.name);
   }
 
   parts.push('');

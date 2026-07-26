@@ -26,9 +26,115 @@
 - `detect(text)` — классификация запроса: chat vs programming
 - При уверенности >= 0.7 направляет в Programming Agent
 
+## Agent Runtime (Sprint 5 — Programming Agent Foundation)
+
+**Файлы:** `services/agents/`
+
+Архитектурный слой для всех будущих агентов. Определяет общий контракт: `AgentContext` in, `AgentResult` out.
+
+### AgentContext
+
+```js
+{
+  traceId: "uuid",
+  queryContext: QueryContext,       // from Query Intelligence
+  planningContext: PlanningContext,  // from Planning layer
+  knowledgeContext: Object,          // from Search + Context Intelligence
+  metadata: { ... }
+}
+```
+
+### AgentResult
+
+```js
+{
+  success: true,
+  output: { code, explanation },
+  artifacts: [{ type, content, language, metadata }],
+  errors: [],
+  metrics: { duration, lifecycle, agentName }
+}
+```
+
+### AgentRuntime
+
+Generic runtime enforcing lifecycle:
+```
+CREATED → PLANNING_VALIDATED → SAFETY_CHECKED → EXECUTING → RESULT_VALIDATED → COMPLETED
+```
+
+Methods:
+- `execute(context, handler)` — full lifecycle with safety and validation
+- `getStatus()` — runtime state
+
+### ExecutionPipeline
+
+Orchestrator that wraps AgentRuntime:
+- Planning validation
+- Safety check delegation
+- Agent execution
+- Result validation
+
+### AgentLifecycle
+
+State machine with 7 states. Guards: each state has valid transitions.
+
+### AgentDiagnostics
+
+Bridge to `DiagnosticsService`:
+- `startAgentTrace`, `finishAgentTrace`
+- `startExecutionTrace`, `finishExecutionTrace`
+- `startResultValidationTrace`, `finishResultValidationTrace`
+- `startSafetyCheckTrace`, `finishSafetyCheckTrace`
+- `startPlanningValidationTrace`, `finishPlanningValidationTrace`
+
+## Safety Boundary (Sprint 5 — Stub)
+
+**Файлы:** `services/security/SafetyChecker.js`
+
+Минимальная заглушка безопасности.
+
+### SafetyChecker
+
+```js
+check(action) → {
+  allowed: true | false,
+  requiresConfirmation: true | false,
+  reason: "string" | null
+}
+checkContext(agentContext) → {
+  allowed: true | false,
+  requiresConfirmation: true | false,
+  reason: "string" | null
+}
+```
+
 ## Programming Agent
 
 **Файлы:** `services/programming/`
+
+### ProgrammingAgentAdapter (Sprint 5)
+
+**Файл:** `services/programming/ProgrammingAgentAdapter.js`
+
+Адаптирует существующий `ProgrammingService` к контракту `AgentRuntime`:
+
+```
+AgentContext
+  │
+  ▼
+ProgrammingAgentAdapter.execute(agentContext)
+  │
+  ├── AgentRuntime.run()
+  │   └── ProgrammingService.executePipeline()
+  │
+  ▼
+AgentResult
+```
+
+Внутренняя бизнес-логика не изменена (ADR 009).
+
+### ProgrammingService (facade)
 
 ### ProgrammingService (facade)
 - `executePipeline(text, projectId)` — полный цикл выполнения
@@ -330,8 +436,36 @@ Prompt Builder
 - Хранение метаданных конфигурации 1С в схеме `knowledge` (4 таблицы: `configurations`, `objects`, `fields`, `relations`)
 - **Importer:** ETL из 1С через MCP (RSV Data), Full Refresh, запуск `npm run knowledge:import`
 - **Service:** Read-only query API: `health()`, `getObject()`, `findObjects()` (ILIKE), `getFields()`
-- **Context Builder:** `build()` — поиск, `render()` — форматирование (до 10 полей на объект)
+- **KnowledgeScorer:** (`services/knowledge/scoring/KnowledgeScorer.js`) Многофакторный scorer: name match (0.9), synonym match, comment match, field match, object type match, query intent relevance. Использует `QueryContext` для контекстно-зависимой оценки.
+- **RelationResolver:** (`services/knowledge/relations/RelationResolver.js`) Разрешение связей: references_object (field reference_type), references_enum, related_to_register, stored_relation (из таблицы relations).
+- **Context Builder:** `build()` — поиск + scoring + relations + структурированный контекст, `render()` — текстовое представление. Принимает опциональный `queryContext`.
 - **Injection:** встроен в `index.js` — до 3 объектов, до 4000 символов, обрезка по границе строки
+
+### Knowledge Intelligence Pipeline
+
+```
+KnowledgeService.findObjects(query)
+  │
+  ▼
+KnowledgeScorer.score(object, queryContext)
+  │  ├── name match        (0.90 max)
+  │  ├── comment match     (0.30 max)
+  │  ├── field match       (0.40 max)
+  │  ├── type match        (0.15 max)
+  │  └── intent boost      (0.15 max)
+  │
+  ▼
+RelationResolver.resolve(objectId)
+  │  ├── references_object     (confidence 0.9)
+  │  ├── references_enum       (confidence 0.8)
+  │  ├── related_to_register   (confidence 0.6–0.85)
+  │  └── stored_relation       (confidence 0.9)
+  │
+  ▼
+Context Builder → StructuredText + Meta
+  │
+  ▼
+KnowledgeProvider → Candidate[] (scored + metadata)
 
 ## Search Provider Architecture (Sprint 3.5.2 — Active Pipeline)
 

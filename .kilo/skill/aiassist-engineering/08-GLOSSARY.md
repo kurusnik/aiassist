@@ -17,7 +17,13 @@
 | **Full Refresh** | Режим импорта: очистка всех таблиц перед загрузкой (MVP для Knowledge Layer) |
 | **Injection** | Вставка Knowledge Context в системный промпт в index.js |
 | **Intent** | Модель намерения пользователя: name, confidence, parameters; типы: search_information, explain_concept, execute_action, modify_code, generate_report, learn_topic, analyze_problem |
+| **Knowledge Intelligence** | Слой интеллектуальной обработки знаний: Scoring + Relations + Enrichment + Context; превращает Knowledge Layer из пассивного источника в активный (Sprint 4) |
 | **Knowledge Layer** | Слой хранения и предоставления метаданных 1С для LLM |
+| **KnowledgeScorer** | Компонент Knowledge Intelligence: многофакторная оценка релевантности объекта знаний (name, synonym, comment, field, type, intent) |
+| **MCP Orchestrator** | Будущий слой маршрутизации MCP-вызовов (ADR-031, Sprint 5): роутинг QueryPlan.Action → конкретный MCP-контур, диагностика, safety |
+| **Planning Context** | Контейнер-мост между QueryPlan и ExecutionPlan: queryPlan, executionIntent, actions, confidence, safety |
+| **QueryPlanTranslator** | Компонент Planning Boundary: преобразует QueryPlan.Action в ExecutionPlan.steps |
+| **RelationResolver** | Компонент Knowledge Intelligence: разрешение связей между объектами знаний (references_object, references_enum, related_to_register, stored_relation) |
 | **LLM Aggregator** | Универсальный провайдер для OpenAI-совместимых API (OpenRouter, MixRoute, Custom) |
 | **MCP** | Model Context Protocol — протокол взаимодействия с внешними инструментами (1С) |
 | **ModelManager** | Единая точка доступа к моделям для всех ролей; управление через админ-панель |

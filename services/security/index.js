@@ -1,0 +1,26 @@
+const SafetyChecker = require('./SafetyChecker');
+const PolicyProvider = require('./PolicyProvider');
+const PermissionDecision = require('./models/PermissionDecision');
+const PolicyStore = require('./policies/PolicyStore');
+const AllowRule = require('./rules/AllowRule');
+const DenyRule = require('./rules/DenyRule');
+const ConfirmationRequiredRule = require('./rules/ConfirmationRequiredRule');
+const ApprovalRequest = require('./approval/ApprovalRequest');
+const ApprovalStore = require('./approval/ApprovalStore');
+const ApprovalService = require('./approval/ApprovalService');
+const PermissionStorage = require('./storage/PermissionStorage');
+const InMemoryPermissionStorage = require('./storage/InMemoryPermissionStorage');
+
+module.exports = SafetyChecker;
+module.exports.SafetyChecker = SafetyChecker;
+module.exports.PolicyProvider = PolicyProvider;
+module.exports.PermissionDecision = PermissionDecision;
+module.exports.PolicyStore = PolicyStore;
+module.exports.AllowRule = AllowRule;
+module.exports.DenyRule = DenyRule;
+module.exports.ConfirmationRequiredRule = ConfirmationRequiredRule;
+module.exports.ApprovalRequest = ApprovalRequest;
+module.exports.ApprovalStore = ApprovalStore;
+module.exports.ApprovalService = ApprovalService;
+module.exports.PermissionStorage = PermissionStorage;
+module.exports.InMemoryPermissionStorage = InMemoryPermissionStorage;

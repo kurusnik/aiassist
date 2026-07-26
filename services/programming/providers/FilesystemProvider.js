@@ -111,7 +111,7 @@ class FilesystemProvider extends BaseProvider {
     super(
       'filesystem',
       'Доступ к файловой системе проекта',
-      ['collect_project_files', 'collect_examples']
+      ['collect_project_files', 'collect_examples', 'collect_file_content']
     );
   }
 
@@ -124,6 +124,10 @@ class FilesystemProvider extends BaseProvider {
 
     if (action === 'collect_examples') {
       return this._collectExamples(context);
+    }
+
+    if (action === 'collect_file_content') {
+      return this._collectFileContent(context);
     }
 
     return {
@@ -320,6 +324,96 @@ class FilesystemProvider extends BaseProvider {
         capability: 'collect_examples',
         data: {},
         message: `Failed to collect examples: ${err.message}`
+      };
+    }
+  }
+
+  async _collectFileContent(context) {
+    const query = (context.task && context.task.originalRequest) || '';
+    const fileNameMatch = query.match(/([\w\-]+\.(md|txt|js|ts|json|xml|bsl|os|sql))\b/i);
+    const fileName = fileNameMatch ? fileNameMatch[1] : null;
+
+    context.addLogEntry({
+      step: 'collect_file_content',
+      provider: this.name,
+      status: 'started',
+      message: `Looking for file: ${fileName || 'auto-detect'}`
+    });
+
+    try {
+      if (fileName) {
+        const searchPaths = [
+          path.join(process.cwd(), fileName),
+          path.join(process.cwd(), 'public', fileName),
+          path.join(process.cwd(), 'docs', fileName),
+          path.join(process.cwd(), 'src', fileName)
+        ];
+
+        for (const filePath of searchPaths) {
+          try {
+            const content = fs.readFileSync(filePath, 'utf-8');
+            const stat = fs.statSync(filePath);
+
+            context.collectedData.fileContent = [{
+              path: filePath,
+              name: path.basename(filePath),
+              extension: path.extname(filePath),
+              size: stat.size,
+              content
+            }];
+
+            context.addLogEntry({
+              step: 'collect_file_content',
+              provider: this.name,
+              status: 'completed',
+              message: `Read file: ${filePath} (${stat.size} bytes)`
+            });
+
+            return {
+              success: true,
+              provider: this.name,
+              capability: 'collect_file_content',
+              data: { file: { path: filePath, name: path.basename(filePath), size: stat.size, content } },
+              message: `File content collected: ${path.basename(filePath)}`
+            };
+          } catch {
+            continue;
+          }
+        }
+
+        context.addLogEntry({
+          step: 'collect_file_content',
+          provider: this.name,
+          status: 'completed',
+          message: `File "${fileName}" not found, falling back to project scan`
+        });
+      }
+
+      const walker = new FilesystemWalker(process.cwd());
+      await walker.walk();
+      context.collectedData.fileContent = walker.files;
+
+      return {
+        success: true,
+        provider: this.name,
+        capability: 'collect_file_content',
+        data: { files: walker.files, stats: walker.getStats() },
+        message: `Scanned ${walker.files.length} project files as fallback`
+      };
+    } catch (err) {
+      context.addLogEntry({
+        step: 'collect_file_content',
+        provider: this.name,
+        status: 'failed',
+        message: `Error: ${err.message}`
+      });
+
+      return {
+        success: false,
+        provider: this.name,
+        capability: 'collect_file_content',
+        data: {},
+        message: `Failed to read file: ${err.message}`
       };
     }
   }

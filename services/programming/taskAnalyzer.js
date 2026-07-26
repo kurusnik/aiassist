@@ -25,6 +25,16 @@ const DATA_QUERY_INTENT = [
   'покажи данные', 'вывести данные'
 ];
 
+const DOCUMENT_ANALYSIS_INTENT = [
+  'проанализируй файл', 'проанализируй документ',
+  'прочитай файл', 'прочитай документ',
+  'анализ файла', 'анализ документа',
+  'содержимое файла', 'содержимое документа',
+  'открой файл', 'прочитай readme',
+  'analyze file', 'read file', 'summarize file',
+  'explain file', 'show file content'
+];
+
 function hasIntent(text, keywords) {
   const lower = text.toLowerCase();
   return keywords.some(kw => lower.includes(kw));
@@ -100,6 +110,15 @@ class TaskAnalyzer {
         title: extractTitle(text),
         language: 'bsl',
         domain: '1c',
+        originalRequest: text
+      });
+    }
+
+    if (hasIntent(lowerText, DOCUMENT_ANALYSIS_INTENT)) {
+      return new ProgrammingTask('analyze_file', {
+        title: extractTitle(text),
+        language: 'unknown',
+        domain: 'general',
         originalRequest: text
       });
     }

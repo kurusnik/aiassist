@@ -13,7 +13,20 @@ aiassist/
 │   └── auth.js                      # requireAuth, requireAdmin middleware
 │
 ├── services/
-│   ├── llm/                         # LLM сервис
+│   ├── agents/                       # Agent Runtime (Sprint 5 — Programming Agent Foundation)
+│   │   ├── index.js                  #   Экспорт: AgentRuntime, AgentContext, AgentResult, ExecutionPipeline
+│   │   ├── AgentRuntime.js           #   Generic runtime: validation → safety → execution → validation
+│   │   ├── AgentContext.js           #   Unified context: traceId, queryContext, planningContext, knowledgeContext
+│   │   ├── AgentResult.js            #   Unified result: success, output, artifacts, errors, metrics
+│   │   ├── ExecutionPipeline.js      #   Orchestrator: ExecutionPlan → AgentRuntime pipeline
+│   │   └── lifecycle/
+│   │       ├── AgentLifecycle.js     #   State machine (7 states)
+│   │       └── AgentDiagnostics.js   #   Diagnostics integration for agent pipeline steps
+│   │
+│   ├── security/                     # Safety Boundary (Sprint 5 — Stub)
+│   │   ├── index.js                  #   Экспорт: SafetyChecker
+│   │   └── SafetyChecker.js          #   check(action) → { allowed, requiresConfirmation, reason }
+│   │   ├── llm/                         # LLM сервис
 │   │   ├── index.js                 #   LLMService facade (chat, stream)
 │   │   ├── ProviderFactory.js       #   Выбор активного провайдера из БД
 │   │   ├── register.js              #   Реестр провайдеров
@@ -63,8 +76,16 @@ aiassist/
 │   ├── router/
 │   │   └── TaskRouter.js            # Маршрутизация chat vs programming
 │   │
-│   ├── programming/                 # Programming Agent
+│   ├── planning/                     # Planning Boundary (Sprint 4.3 — ADR-029)
+│   │   ├── index.js                   #   PlanningService (facade)
+│   │   ├── PlanningContext.js         #   Контейнер-мост QueryPlan ↔ ExecutionPlan
+│   │   ├── PlanningBridge.js          #   buildAgentContext: QueryContext → AgentContext (Sprint 5)
+│   │   └── translators/
+│   │       └── QueryPlanTranslator.js #   QueryPlan → ExecutionPlan + PlanningContext
+│   │
+│   ├── programming/                   # Programming Agent
 │   │   ├── index.js                 #   ProgrammingService (facade)
+│   │   ├── ProgrammingAgentAdapter.js#   Agent Runtime adapter: AgentContext → AgentResult (Sprint 5)
 │   │   ├── taskAnalyzer.js          #   Классификация задач (keywords + scoring)
 │   │   ├── executionPlanner.js      #   Построение плана шагов
 │   │   ├── executionPipeline.js     #   Оркестратор выполнения
@@ -121,8 +142,12 @@ aiassist/
 │   │
 │   ├── knowledge/                   # Knowledge Layer (1C)
 │   │   ├── importer.js              #   Импорт метаданных из 1C через MCP
-│   │   ├── service.js               #   Read-only query API
-│   │   └── contextBuilder.js        #   Поиск + форматирование для LLM
+│   │   ├── service.js               #   Read-only query API (Retrieval)
+│   │   ├── contextBuilder.js        #   Поиск + scoring + relations + структурированный контекст (Sprint 4)
+│   │   ├── scoring/                 #   Knowledge Intelligence Scoring (Sprint 4)
+│   │   │   └── KnowledgeScorer.js   #     Многофакторный scorer (name, synonym, field, type, intent)
+│   │   └── relations/               #   Knowledge Relations (Sprint 4)
+│   │       └── RelationResolver.js  #     Разрешение связей объектов (fields, registers, stored)
 │   │
 │   ├── passwordManager.js           # Управление паролями (валидация, bcrypt, лимиты)
 │   └── ocr.js                       # OCR сервис (Tesseract.js)

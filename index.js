@@ -35,7 +35,19 @@ const hybridRetrieval = require('./services/retrieval');
 const contextIntelligence = require('./services/context-intelligence');
 const queryIntelligenceService = require('./services/query-intelligence');
 const searchOrchestrator = require('./services/search');
-const knowledgeService = require('./services/knowledge/service');
+const { createConsoleRouter } = require('./services/console/api');
+const { createWorkflowRouter, WorkflowAPI } = require('./services/workflow/api');
+const PostgresWorkflowStorage = require('./services/workflow/storage/PostgresWorkflowStorage');
+const PostgresEventStore = require('./services/workflow/events/PostgresEventStore');
+const WorkflowControlService = require('./services/workflow/control/WorkflowControlService');
+const ApprovalAPI = require('./services/security/approval/api/ApprovalAPI');
+const ApprovalService = require('./services/security/approval/ApprovalService');
+const PostgresApprovalStore = require('./services/security/approval/PostgresApprovalStore');
+const AgentControlService = require('./services/agents/control/AgentControlService');
+const MetricsControlService = require('./services/metrics/control/MetricsControlService');
+const ExecutionGraphView = require('./services/workflow/view/ExecutionGraphView');
+const WorkflowTimelineService = require('./services/workflow/timeline/WorkflowTimelineService');
+const AuditService = require('./services/audit/AuditService');
 
 // Авто-миграция таблиц ModelManager при старте
 (async () => {
@@ -1542,19 +1554,47 @@ app.post('/assistant', requireAuth, async (req, res) => {
 
     const selectedModel = model || await modelManager.getModel('chat');
 
+    function getAiosStatus(type) {
+      const msgs = {
+        analyze_file: 'AIOS анализирует документ',
+        find_object: 'AIOS ищет объект',
+        get_structure: 'AIOS получает структуру',
+        data_query: 'AIOS выполняет запрос данных',
+        analyze_metadata: 'AIOS анализирует метаданные',
+        create_processor: 'AIOS создаёт обработку',
+        create_report: 'AIOS формирует отчёт',
+        modify_code: 'AIOS изменяет код',
+        explain_code: 'AIOS анализирует код',
+        review_code: 'AIOS проверяет код',
+        find_bug: 'AIOS ищет ошибки',
+        expert_1c: 'AIOS обращается к 1С'
+      };
+      return msgs[type] || 'AIOS обрабатывает запрос';
+    }
+
     // ========== TASK ROUTING ==========
     const routing = taskRouter.detect([{ role: 'user', content: userMessageTrimmed }]);
     if (routing.type === 'programming' && routing.confidence >= 0.7) {
       console.log(`[Router] Routing to programming (type=${routing.programmingType}, domain=${routing.domain}, confidence=${routing.confidence})`);
+      const statusMsg = getAiosStatus(routing.programmingType);
+      if (wantsStream) {
+        res.write(`data: ${JSON.stringify({ content: statusMsg })}\n\n`);
+      }
       try {
         const progResult = await programmingService.executePipeline(userMessageTrimmed, projectId);
+        console.log(`[Router] Pipeline complete (success=${progResult.success})`);
+
+        if (!progResult.success && progResult.metadata && progResult.metadata.executionLog) {
+          console.log('[Router] Pipeline log:', JSON.stringify(progResult.metadata.executionLog.slice(-5)));
+        }
+
         const fullReply = progResult.success
           ? (progResult.explanation
               ? (progResult.code ? `${progResult.code}\n\n${progResult.explanation}` : progResult.explanation)
-              : (progResult.code || 'Результат получен'))
+              : (progResult.code || '[AIOS] Результат получен'))
           : (progResult.errors && progResult.errors.length
               ? progResult.errors.map(e => e.message || e).join('\n')
-              : 'Не удалось выполнить задачу');
+              : '[AIOS] Не удалось выполнить задачу. Попробуйте переформулировать запрос.');
 
         await pool.query(
           `INSERT INTO messages (project_id, role, content) VALUES ($1, $2, $3)`,
@@ -1565,10 +1605,20 @@ app.post('/assistant', requireAuth, async (req, res) => {
           [projectId, 'assistant', fullReply]
         );
 
-        return res.json({ reply: fullReply, routing });
+        if (wantsStream) {
+          res.write(`data: ${JSON.stringify({ content: '\n' })}\n\n`);
+          res.write(`data: ${JSON.stringify({ done: true, parsed: { segmentsCount: 1, hasSource: false, hasModel: true } })}\n\n`);
+          res.end();
+        } else {
+          return res.json({ reply: fullReply, routing });
+        }
       } catch (progErr) {
-        console.error('[Router] Programming pipeline error:', progErr);
-        // Fall through to standard chat on error
+        console.error('[Router] Programming pipeline error:', progErr.message);
+        console.error('[Router] Stack:', progErr.stack);
+        if (wantsStream) {
+          const fallbackMsg = `[AIOS] Ошибка обработки: ${progErr.message}. Переключаюсь на стандартный режим.`;
+          res.write(`data: ${JSON.stringify({ content: fallbackMsg + '\n\n' })}\n\n`);
+        }
       }
     }
     // ========== END TASK ROUTING ==========
@@ -2449,6 +2499,31 @@ app.post('/api/settings/llm/test', requireAdmin, async (req, res) => {
     res.json({ status: 'error', message: err.message });
   }
 });
+
+// ========== AIOS CONTROL PLANE API ==========
+
+const workflowStorage = new PostgresWorkflowStorage({ pool });
+const eventStore = new PostgresEventStore({ pool });
+const auditService = new AuditService({ store: null });
+const workflowControl = new WorkflowControlService({
+  storage: workflowStorage,
+  eventStore,
+  auditService
+});
+const approvalStore = new PostgresApprovalStore({ pool });
+const approvalService = new ApprovalService({ store: approvalStore });
+const approvalAPI = new ApprovalAPI({ approvalService, auditService });
+const agentControl = new AgentControlService({ auditService });
+const metricsControl = new MetricsControlService({ metrics: null, auditService, agentControlService: agentControl });
+const graphView = new ExecutionGraphView({ eventStore, storage: workflowStorage });
+const timelineService = new WorkflowTimelineService({ eventStore, auditService });
+
+const workflowAPI = new WorkflowAPI({ executor: null, eventStore });
+const workflowRouter = createWorkflowRouter(workflowAPI);
+app.use('/api/workflow', requireAuth, workflowRouter);
+
+const consoleRouter = createConsoleRouter(approvalAPI, agentControl, metricsControl, timelineService, graphView, auditService);
+app.use('/api/console', requireAuth, consoleRouter);
 
 // Статика
 app.use('/uploads', express.static(UPLOAD_DIR));
