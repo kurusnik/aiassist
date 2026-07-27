@@ -72,6 +72,7 @@ class OneCQueryExecutor {
     }
 
     try {
+      console.log(`[MCP FINAL REQUEST] tool="${mcpMethod}" args=${JSON.stringify(mcpArgs)}`);
       const response = await this._client._callTool(mcpMethod, mcpArgs);
 
       if (!response.success) {

@@ -277,3 +277,223 @@ description: Извлечённые архитектурные принципы,
 
 **Production Test Suite:**
 - `tests/onec.production.cases.test.js` — 26 тестов для documents/balances/analytics/code
+
+## OneC Semantic Separation
+
+Правила семантического разделения @1с pipeline (Sprint 2026-07-27).
+
+61. **Нельзя использовать полный пользовательский текст как semantic term.** "покажи реализации за неделю" ≠ "реализация". Semantic Memory хранит знания о сущностях (`semantic_concepts`, `semantic_aliases`), а не о пользовательских фразах. Поиск в Knowledge Layer всегда ведётся по canonical entity, а не по raw text.
+
+62. **Entity extraction выполняется до Knowledge Layer.** Порядок pipeline:
+    ```
+    QueryInterpreter → OneCEntityNormalizer → OneCFilterExtractor →
+    SemanticPlanner → ProjectContext → SemanticKnowledgeFusion →
+    SemanticTranslator → SemanticValidator → QueryPlanner → MCP
+    ```
+    `OneCEntityNormalizer.normalize()` приводит entity к canonical form через `semantic_concepts`/`semantic_aliases`. Canonical entity передаётся во все downstream компоненты.
+
+63. **Filters являются отдельным объектом контекста.** `OneCFilterExtractor` извлекает фильтры (даты, периоды, groupBy) независимо от entity. Фильтры хранятся в `ctx.extractedFilters` и передаются в queryPlan. Формат: `{ period, dateFrom, dateTo, groupBy, raw }`. Конвертация в MCP: `[{ field, comparison, value }]`.
+
+64. **Semantic Memory хранит знания о сущностях и связях, а не пользовательские фразы.** Таблицы:
+    - `semantic_concepts` — canonical имена сущностей (например, `реализация`)
+    - `semantic_aliases` — варианты написания (например, `реализации` → `реализация`)
+    - `semantic_mappings` — маппинги на 1C объекты (например, `реализация` → `Документ.РеализацияТоваровУслуг`)
+    - `semantic_examples` — примеры запросов с resolved планами
+
+65. **Trace каждого OneC запроса обязан показывать:**
+    ```
+    raw_query:        "покажи реализации за неделю"
+    entity_raw:       "реализации"
+    entity_canonical: "реализация"
+    operation:        "list"
+    filters:          { period: "current_week", dateFrom: "2026-07-21", dateTo: "2026-07-27" }
+    resolved_object:  "Документ.РеализацияТоваровУслуг"
+    execution_result: { count: 15, ... }
+    ```
+    Trace записывается через `OneCIntentContext` на каждом этапе.
+
+**OneC Entity Extraction Infrastructure:**
+
+**OneCEntityNormalizer** (`services/intelligence/OneCEntityNormalizer.js`):
+- `normalize(entity, { projectId })` → `{ canonical, concept, confidence, source }`
+- Поиск: `semantic_concepts` (exact) → `semantic_aliases` (alias) → `LIKE` (partial) → `semantic_mappings.business_term`
+- НЕ использует hardcoded matching
+
+**OneCFilterExtractor** (`services/intelligence/OneCFilterExtractor.js`):
+- `extract(text, { currentDate })` → `{ period, dateFrom, dateTo, groupBy, raw }`
+- `toMcpFilters(extracted)` → `[{ field, comparison, value }]`
+- Поддерживает: сегодня, вчера, за неделю/месяц/год, за <month>, с DD.MM по DD.MM, DD.MM.YYYY
+
+## OneC Relationship Graph Principles
+
+Правила построения графа связей между объектами 1С (Sprint 2026-07-27).
+
+66. **Бизнес-запрос является графом, а не одним объектом.** "продажи по брендам" — это не один объект, а цепочка: `Документ.РеализацияТоваровУслуг` → `Товары.Номенклатура` → `Справочник.Номенклатура` → `ДополнительныеРеквизиты.Бренд`. `OneCRelationshipResolver` строит этот граф из `semantic_relationships`.
+
+67. **Связи хранятся в памяти, а не в коде.** Все связи между 1С объектами хранятся в таблице `semantic_relationships`. Запрещено создавать hardcoded правила `if (entity === "бренд")`. Связи приходят из: (1) DB `semantic_relationships`, (2) `semantic_mappings`, (3) RAG, (4) MCP discovery, (5) user confirmation.
+
+68. **Неизвестные связи должны обучаться.** Если `OneCRelationshipResolver` не находит связь, pipeline НЕ блокирует запрос. Вместо этого: (1) строится graph с пустыми joins, (2) создаётся suggestion для пользователя, (3) после подтверждения связь сохраняется в `semantic_relationships` с `source='user_confirmation'`.
+
+69. **MCP используется для открытия структуры.** Если связь неизвестна в памяти, `SemanticMemoryLearner.discoverAndSuggest()` вызывает MCP `describe` для поиска объектов. MCP discovery создаёт candidate relations с `source='mcp_discovery'`, `confidence=0.7`.
+
+70. **Каждый join обязан иметь trace.** `OneCRelationshipResolver` записывает trace для каждого этапа: `db_relations`, `mapping_relations`, `merged`, `graph_built`, `dimensions_inferred`, `confidence`. Trace показывает: root object, количество joins, каждый join с from/to/relation.
+
+71. **Нельзя выполнять запрос без проверки связей.** `QueryPlanner` получает `joins` из `relationshipGraph` и включает их в `queryPlan.joins`. MCP executor использует joins для построения запроса с 연결ениями таблиц.
+
+72. **Relationship Graph — часть pipeline между Knowledge и Validation.**
+    ```
+    QueryInterpreter → EntityNormalizer → FilterExtractor →
+    SemanticPlanner → ProjectContext → SemanticTranslator →
+    KnowledgeResolver → RelationshipResolver → SemanticValidator → QueryPlanner
+    ```
+
+73. **Dimensions и resources выводятся из графа.** Каждый related entity становится dimension. Тип операции определяет resources: `aggregate` → `['Сумма']`, `balance` → `['Количество']`, `count` → `['Количество']`.
+
+74. **Confidence графа учитывает источник связей.** DB-stored relationships (`semantic_relationships`) дают бонус +0.1 к confidence. User-confirmed relations дают `confidence=1.0`. MCP-discovered relations дают максимум 0.7.
+
+75. **Trace формата:**
+    ```
+    [RelationshipResolver]
+    root:      Документ.РеализацияТоваровУслуг
+    relations: 3
+    joins:     2
+      Документ.РеализацияТоваровУслуг.Товары → Справочник.Номенклатура [table_part]
+      Справочник.Номенклатура → Бренд [attribute]
+    dimensions: ["Бренд"]
+    resources:  ["Сумма"]
+    confidence: 0.91
+    ```
+
+**OneC Relationship Infrastructure:**
+
+**OneCRelationshipResolver** (`services/intelligence/OneCRelationshipResolver.js`):
+- `resolve({ entity, relatedEntities, operation, rootObject, projectId })` → `{ graph, dimensions, resources, confidence, source, trace }`
+- Sources: `semantic_relationships` → `semantic_mappings` → RAG → MCP
+- Граф: `{ root: { object }, joins: [{ from, to?, field?, relation }] }`
+
+**Table `semantic_relationships`** (миграция 023):
+- `from_concept`, `from_object`, `from_field`, `relation_type`, `to_concept`, `to_object`, `to_field`, `confidence`, `source`, `approved`
+- Seed data: продажи↔номенклатура↔бренд, остатки↔номенклатура↔склад, заказы↔номенклатура↔контрагент
+
+## OneC Knowledge Graph Mining Principles
+
+Правила семантического графостроения поверх Knowledge Layer (Sprint 2026-07-27).
+
+86. **Knowledge Layer является источником истины структуры.** Таблицы `knowledge.objects`, `knowledge.fields`, `knowledge.relations` хранят полную техническую структуру 1С (~3580 объектов, ~55433 полей). `OneCKnowledgeGraphBuilder` читает их и строит семантический граф. НЕ создавать дублирующий MetadataProfiler.
+
+87. **Семантика строится поверх metadata.** Граф строится из технических данных: (1) типы полей с reference_type → edge `reference`, (2) `knowledge.relations` → edge по типу связи, (3) имя/синоним объекта → node `concept`. Запрещено создавать правила через hardcoded строки.
+
+88. **Не дублировать MCP discovery.** `OneCKnowledgeGraphBuilder` строит граф из локальной БД Knowledge Layer. MCP discovery используется ТОЛЬКО для холодного старта (когда Knowledge Layer пуст). Граф и MCP discovery — разные источники с разными confidence.
+
+89. **Связи должны иметь confidence.** Каждый edge имеет confidence: `reference` = 0.9, `table_part` = 0.85, `dimension` = 0.8. User-confirmed edges = 1.0. MCP-discovered = max 0.7. Confidence используется при приоритизации в `OneCRelationshipResolver`.
+
+90. **Подтверждения пользователя имеют максимальный приоритет.** `semantic_suggestions` создаётся автоматически при confidence < 0.8. Пользователь подтверждает/отклоняет через `POST /api/semantic/graph/suggestions/:id/approve`. Подтверждённые связи не удаляются при повторном build.
+
+91. **Нельзя создавать связи через hardcoded слова.** Все связи генерируются из: (1) `knowledge.fields.reference_type`, (2) `knowledge.relations`, (3) паттернов имён объектов (CamelCase splitting, suffix removal). Запрещено: `if (name.includes("бренд"))`.
+
+92. **Граф должен быть воспроизводимым.** Повторный `build()` с теми же данными Knowledge Layer должен产出 тот же граф (с учётом уже подтверждённых пользователем связей). Используются UPSERT с ON CONFLICT для идемпотентности.
+
+93. **Повторный build не должен создавать дубликаты.** `semantic_graph_nodes` и `semantic_graph_edges` имеют UNIQUE constraints. UPSERT обновляет confidence если запись уже существует, но не создаёт дубликат.
+
+94. **Project mappings изолированы.** `semantic_graph_nodes` и `semantic_graph_edges` имеют `project_id`. Глобальные данные (project_id IS NULL) доступны всем проектам. Проектные данные перекрывают глобальные.
+
+95. **Trace каждого этапа обязателен.** `OneCKnowledgeGraphBuilder.build()` записывает: `scan_objects`, `scan_fields`, `scan_relations`, `nodes_created`, `edges_created`, `suggestions`. `OneCBusinessConceptMiner.mine()` записывает: `candidates`, `existing_match`/`inferred`, `no_candidate`.
+
+**OneC Graph Mining Infrastructure:**
+
+**OneCKnowledgeGraphBuilder** (`services/intelligence/OneCKnowledgeGraphBuilder.js`):
+- `build({ projectId, dryRun })` → `{ objectsScanned, fieldsScanned, nodesCreated, edgesCreated, suggestionsCreated }`
+- `getStatus(projectId)` → `{ status, nodes, edges, pendingSuggestions, lastBuild }`
+- `approveSuggestion(id, projectId)` / `rejectSuggestion(id, projectId)` / `getPendingSuggestions(projectId)`
+- Читает: `knowledge.objects`, `knowledge.fields`, `knowledge.relations`
+- Пишет: `semantic_graph_nodes`, `semantic_graph_edges`, `semantic_suggestions`
+
+**OneCBusinessConceptMiner** (`services/intelligence/OneCBusinessConceptMiner.js`):
+- `mine({ objectNames, projectId })` → `{ nodes[], suggestions[] }`
+- Извлекает концепты из: синонимов, имён объектов (CamelCase, suffix removal)
+- Если confidence < 0.8 → suggestion, иначе → auto-approved node
+
+**Tables** (миграция 024):
+- `semantic_graph_nodes` (concept, object_name, node_type, confidence, source)
+- `semantic_graph_edges` (from_node, to_node, relation_type, field_name, confidence, source, approved)
+- `semantic_suggestions` (term, suggested_mapping, confidence, status, source)
+
+**API:**
+- `POST /api/semantic/graph/build` — запуск построения графа
+- `GET /api/semantic/graph/status` — статус графа
+- `GET /api/semantic/graph/suggestions` — pending suggestions
+- `POST /api/semantic/graph/suggestions/:id/approve` — подтверждение
+- `POST /api/semantic/graph/suggestions/:id/reject` — отклонение
+
+## OneC Semantic Graph Validation & Business Learning
+
+Правила валидации графа и бизнес-обучения (Sprint 2026-07-27).
+
+96. **Knowledge Layer является источником истины для структуры 1С.** Все данные о структуре 1С (объекты, поля, ссылки, табличные части) приходят из `knowledge.objects`, `knowledge.fields`, `knowledge.relations`. Semantic граф строится поверх этих данных, а не вместо них. Каждый граф-узел связан с реальным объектом 1С.
+
+97. **Не создавать ручные mappings если связь существует в Knowledge Graph.** `semantic_graph_edges` (автоматически построенные из metadata) имеют приоритет 1. `semantic_relationships` (ручные) — приоритет 2. `semantic_mappings` (пользовательские) — приоритет 3. Нельзя дублировать автоматически обнаруженные связи вручную.
+
+98. **Каждый выбор объекта 1С должен иметь объяснимый путь.** `OneCGraphInspector.explainPath(from, to)` возвращает список шагов: `object → relation → object`. Пользователь должен видеть, почему выбран `Документ.РеализацияТоваровУслуг` для "продаж", а не другой объект.
+
+99. **Graph edges имеют приоритет над RAG догадками.** При построении графа связей: (1) `semantic_graph_edges`, (2) `semantic_relationships`, (3) `semantic_mappings`, (4) project context, (5) RAG, (6) MCP discovery. Каждый источник помечается в trace.
+
+100. **AI должен уметь объяснить пользователю происхождение данных.** `OneCResponseBuilder` добавляет explanation в каждый @1с ответ: какой объект выбран, какие связи пройдены, какой период, какой маппинг. Объяснение формируется из `queryPlan.joins`, `queryPlan.filters`, `translatorResult.resolvedEntities`.
+
+101. **Business vocabulary строится из metadata, а не из предположений LLM.** `OneCBusinessVocabularyBuilder` создаёт словарь из `semantic_graph_nodes` и `semantic_graph_edges`: термин → алиасы → 1C объект → связанные термины → операции. Словарь сохраняется в `semantic_concepts`, `semantic_aliases`, `semantic_mappings`, `semantic_relationships`.
+
+102. **Новые связи проходят graph validation.** При добавлении новой связи: (1) проверяется существование узлов, (2) проверяется цикличность, (3) проверяется consistency с existing graph. Автоматический approve только для confidence >= 0.95 от knowledge_layer. Остальные требуют ручного подтверждения через `POST /api/semantic/graph/suggestions/:id/approve`.
+
+**OneC Graph Validation Infrastructure:**
+
+**OneCGraphInspector** (`services/intelligence/OneCGraphInspector.js`):
+- `inspectConcept(term)` → `{ concept, matchedNodes, paths, confidence, explanation }`
+- `inspectObject(objectName)` → `{ object, fields, relations, businessConcepts }`
+- `explainPath(from, to)` → `{ path: [{object, relation}], confidence, explanation }`
+- `findBusinessRoute(term, operation)` → `{ root, dimensions, resources }`
+- BFS path finding (max depth 5)
+
+**OneCBusinessVocabularyBuilder** (`services/intelligence/OneCBusinessVocabularyBuilder.js`):
+- `build({ projectId, dryRun })` → `{ termsCreated, aliasesCreated, mappingsCreated, relationsCreated }`
+- Reads from: `semantic_graph_nodes`, `semantic_graph_edges`
+- Writes to: `semantic_concepts`, `semantic_aliases`, `semantic_mappings`, `semantic_relationships`
+
+**Auto-approval rules:**
+- `confidence >= 0.95` + `source = knowledge_layer` + `has synonym` → `auto_approved`
+- `Обработка`/`Отчет` → always `pending`
+- Everything else with `confidence < 0.8` → `pending`
+
+## OneC Beta Validation Rules
+
+Правила безопасной beta-валидации OneC Pipeline (Sprint 2026-07-27).
+
+103. **Перед изменением production semantic layer делать backup.** Все изменения в `semantic_*` таблицах делаются через migrations. Не выполнять `DELETE`/`TRUNCATE` на production данных. Миграции должны быть идемпотентны (CREATE TABLE IF NOT EXISTS, CREATE INDEX IF NOT EXISTS).
+
+104. **Не менять Knowledge Layer напрямую.** Таблицы `knowledge.objects`, `knowledge.fields`, `knowledge.relations` заполняются MCP import. Semantic граф строится поверх них (`semantic_graph_nodes`/`edges`). Нельзя изменять knowledge.* через SQL — только через MCP metadata import.
+
+105. **Все новые знания через migrations.** Каждая новая таблица, колонка или индекс — через файл в `migrations/`. Запрещено выполнять DDL напрямую через `pool.query('CREATE TABLE ...')` без миграции. Исключение: UPSERT в существующие таблицы при работающих сервисах.
+
+106. **Все пользовательские исправления через SemanticCorrectionMemory.** Когда пользователь говорит "нет, X = Y, а не Z", использовать `POST /api/semantic/corrections`. Не изменять `semantic_mappings` напрямую. Исправления хранятся в `semantic_corrections` и применяются при следующем запросе.
+
+107. **Любой OneC ответ должен иметь trace.** Каждый ответ `@1с` запроса должен содержать: interpretation → entity normalization → filter extraction → knowledge resolution → graph path → query plan → MCP request → response. Trace хранится в `OneCIntentContext` и доступен через `GET /api/onec/debug/:workflowId`.
+
+108. **Любой fallback должен быть видимым в диагностике.** Если pipeline делает fallback (например, MCP недоступен → используются кэшированные данные), это должно быть записано в trace с пометкой `source: 'fallback'` и `warning: true`. Diagnostic Reporter покажет fallback в отчёте.
+
+109. **Beta readiness проверяется через один endpoint.** `GET /api/onec/beta/status` проверяет: Knowledge Layer (objects/fields/relations > 0), Semantic Layer (concepts > 0, graph nodes > 0), MCP (ping отвечает). Статус: `READY` / `DEGRADED` / `NOT_READY`.
+
+110. **Regression safety: chat, defi, academy не затрагиваются.** @1с pipeline обрабатывает ТОЛЬКО запросы с префиксом `@1с`. Обычные чат-запросы, DefAI и Academy модули не должны попадать в OneC pipeline. `TaskRouter._extractExpertPrefix()` — единственные ворота в @1с pipeline.
+
+**OneC Beta Validation Infrastructure:**
+
+**OneCKnowledgeHealthCheck** (`services/intelligence/OneCKnowledgeHealthCheck.js`):
+- `generateReport()` → `{ status, checks: [{ name, status, details }], errors, timestamp }`
+- `checkObjects()` → `{ status, objects, fields, relations }`
+- `checkSemanticReady()` → `{ status, concepts, mappings, graphNodes, graphEdges, suggestions }`
+- `checkMcpReady()` → `{ status, error? }`
+
+**API Endpoints:**
+- `GET /api/onec/beta/status` — system readiness report
+- `GET /api/onec/debug/:workflowId` — full pipeline trace
+- `GET /api/onec/test-cases` — beta test scenarios with expected operations
+
+**Migration Safety Tests:**
+- `tests/onecMigrationSafety.test.js` — 30+ tests verifying migration idempotency, no destructive operations, no knowledge.* modifications

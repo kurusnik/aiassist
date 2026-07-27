@@ -23,8 +23,8 @@ class OneCQueryPlanner {
 
     const { semanticOperation, hints } = semanticPlan;
     const translatorResult = semanticPlan.translatorResult || (knowledgeResult && knowledgeResult.translatorResult) || null;
-    // P0-2: Propagate filters from semanticPlan to queryPlan
     const filters = semanticPlan.filters || null;
+    const relationshipGraph = semanticPlan.relationshipGraph || null;
 
     const opConfig = OPERATION_MAP[semanticOperation] || {
       operation: 'query',
@@ -35,7 +35,6 @@ class OneCQueryPlanner {
       ? (knowledgeResult.selected.metadataObject || knowledgeResult.selected.name)
       : null;
 
-    // P0-7: Also check translator resolvedEntities for full object name
     let resolvedObjectName = selectedType;
     if (translatorResult && translatorResult.resolvedEntities && translatorResult.resolvedEntities.length > 0) {
       const bestEntity = translatorResult.resolvedEntities.find(e => e.object && e.object.includes('.'));
@@ -44,12 +43,21 @@ class OneCQueryPlanner {
       }
     }
 
+    // Use root object from relationship graph if available and no better source
+    if (!resolvedObjectName && relationshipGraph && relationshipGraph.graph && relationshipGraph.graph.root.object) {
+      resolvedObjectName = relationshipGraph.graph.root.object;
+    }
+
     const queryStrategy = knowledgeResult && knowledgeResult.queryStrategy
       ? knowledgeResult.queryStrategy
       : { type: 'metadata_search', dimensions: [] };
 
     const dimensions = this._resolveDimensions(opConfig.queryType, queryStrategy, hints, translatorResult);
     const resources = this._resolveResources(opConfig.queryType, hints, translatorResult);
+
+    // Build joins from relationship graph
+    const joins = this._resolveJoins(relationshipGraph);
+
     const confidence = this._computeConfidence(knowledgeResult, translatorResult);
 
     const query = {
@@ -61,6 +69,7 @@ class OneCQueryPlanner {
     const result = {
       operation: opConfig.operation,
       object: resolvedObjectName || selectedType,
+      joins,
       query,
       filters,
       confidence,
@@ -72,6 +81,10 @@ class OneCQueryPlanner {
     console.log(`  selectedObject: ${resolvedObjectName || selectedType || 'none'}`);
     if (resolvedObjectName !== selectedType) {
       console.log(`  resolvedFrom: ${selectedType} → ${resolvedObjectName}`);
+    }
+    console.log(`  joins: ${joins.length}`);
+    for (const j of joins) {
+      console.log(`    ${j.from || '?'} → ${j.to || j.field || '?'} [${j.relation}]`);
     }
     console.log(`  dimensions: ${JSON.stringify(dimensions)}`);
     console.log(`  resources: ${JSON.stringify(resources)}`);
@@ -130,6 +143,25 @@ class OneCQueryPlanner {
     }
 
     return DEFAULT_RESOURCES[queryType] || [];
+  }
+
+  _resolveJoins(relationshipGraph) {
+    if (!relationshipGraph || !relationshipGraph.graph) return [];
+
+    const graph = relationshipGraph.graph;
+    const joins = [];
+
+    for (const j of graph.joins || []) {
+      const join = {};
+      if (j.from) join.from = j.from;
+      if (j.to) join.table = j.to;
+      if (j.field) join.field = j.field;
+      if (j.relation) join.relation = j.relation;
+      if (j.toConcept) join.toConcept = j.toConcept;
+      if (Object.keys(join).length > 0) joins.push(join);
+    }
+
+    return joins;
   }
 
   _computeConfidence(knowledgeResult, translatorResult) {

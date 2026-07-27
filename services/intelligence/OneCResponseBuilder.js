@@ -41,15 +41,18 @@ class OneCResponseBuilder {
     const entity = semanticPlan && semanticPlan.entity ? semanticPlan.entity.toLowerCase() : null;
     const rawData = this._extractData(executionResult);
 
+    // Build explanation for @1с queries
+    const explanation = this._buildExplanation(semanticPlan, queryPlan);
+
     switch (queryType) {
       case 'count':
-        return this._buildCountResponse(semanticOp, entity, rawData);
+        return this._buildCountResponse(semanticOp, entity, rawData, explanation);
       case 'list':
-        return this._buildListResponse(semanticOp, entity, rawData, queryPlan);
+        return this._buildListResponse(semanticOp, entity, rawData, queryPlan, explanation);
       case 'balance':
-        return this._buildBalanceResponse(semanticOp, entity, rawData, queryPlan);
+        return this._buildBalanceResponse(semanticOp, entity, rawData, queryPlan, explanation);
       case 'aggregate':
-        return this._buildAggregateResponse(semanticOp, entity, rawData, queryPlan);
+        return this._buildAggregateResponse(semanticOp, entity, rawData, queryPlan, explanation);
       default:
         return this._fallbackResponse(executionResult);
     }
@@ -76,7 +79,7 @@ class OneCResponseBuilder {
     return executionResult.data && executionResult.data.metadata;
   }
 
-  _buildCountResponse(semanticOp, entity, rawData) {
+  _buildCountResponse(semanticOp, entity, rawData, explanation) {
     const count = this._extractCount(rawData);
     const label = ENTITY_LABELS[entity] || entity || 'документов';
     const opInfo = OPERATION_TITLES[semanticOp] || { title: 'Данные', unit: 'записей' };
@@ -94,13 +97,13 @@ class OneCResponseBuilder {
       title: `Количество ${label}`,
       summary,
       data: { count },
-      explanation: `${summary}.`,
+      explanation: explanation || `${summary}.`,
       warnings: [],
       type: 'count',
     };
   }
 
-  _buildListResponse(semanticOp, entity, rawData, queryPlan) {
+  _buildListResponse(semanticOp, entity, rawData, queryPlan, explanation) {
     const rows = this._ensureArray(rawData);
     const fields = queryPlan.query.resources || [];
     const { rows: formattedRows, fields: visibleFields } = formatRows(rows, fields);
@@ -115,13 +118,13 @@ class OneCResponseBuilder {
       title: OPERATION_TITLES[semanticOp] ? OPERATION_TITLES[semanticOp].title : 'Данные',
       summary: `Всего записей: ${formattedRows.length}`,
       data: { rows: formattedRows, fields: visibleFields },
-      explanation: null,
+      explanation: explanation || null,
       warnings: [],
       type: 'table',
     };
   }
 
-  _buildBalanceResponse(semanticOp, entity, rawData, queryPlan) {
+  _buildBalanceResponse(semanticOp, entity, rawData, queryPlan, explanation) {
     const rows = this._ensureArray(rawData);
     const dimensions = queryPlan.query.dimensions || [];
     const resources = queryPlan.query.resources || [];
@@ -138,13 +141,13 @@ class OneCResponseBuilder {
       title: OPERATION_TITLES[semanticOp] ? OPERATION_TITLES[semanticOp].title : 'Остатки',
       summary: `Всего позиций: ${formattedRows.length}`,
       data: { rows: formattedRows, fields: visibleFields },
-      explanation: null,
+      explanation: explanation || null,
       warnings: [],
       type: 'table',
     };
   }
 
-  _buildAggregateResponse(semanticOp, entity, rawData, queryPlan) {
+  _buildAggregateResponse(semanticOp, entity, rawData, queryPlan, explanation) {
     const rows = this._ensureArray(rawData);
     const dimensions = queryPlan.query.dimensions || [];
     const resources = queryPlan.query.resources || [];
@@ -164,7 +167,7 @@ class OneCResponseBuilder {
       title: `Сводка${groupLabel}`,
       summary: `Всего записей: ${formattedRows.length}`,
       data: { rows: formattedRows, fields: visibleFields },
-      explanation: null,
+      explanation: explanation || null,
       warnings: [],
       type: 'table',
     };
@@ -235,6 +238,61 @@ class OneCResponseBuilder {
       warnings: ['unformatted_response'],
       type: 'table',
     };
+  }
+
+  _buildExplanation(semanticPlan, queryPlan) {
+    if (!semanticPlan && !queryPlan) return null;
+
+    const parts = [];
+
+    // Object selection
+    if (queryPlan && queryPlan.object) {
+      parts.push(`Объект: ${queryPlan.object}`);
+    }
+
+    // Graph path from joins
+    if (queryPlan && queryPlan.joins && queryPlan.joins.length > 0) {
+      const pathParts = [queryPlan.object || '?'];
+      for (const join of queryPlan.joins) {
+        const via = join.field || join.relation || '→';
+        const target = join.table || join.field || '?';
+        pathParts.push(`[${via}] → ${target}`);
+      }
+      parts.push(`Связи: ${pathParts.join(' → ')}`);
+    }
+
+    // Filters
+    if (queryPlan && queryPlan.filters) {
+      const f = queryPlan.filters;
+      if (f.date_from && f.date_to) {
+        parts.push(`Период: ${f.date_from} — ${f.date_to}`);
+      } else if (f.period) {
+        const periodNames = {
+          today: 'сегодня', yesterday: 'вчера',
+          current_week: 'текущая неделя', current_month: 'текущий месяц',
+          current_year: 'текущий год',
+        };
+        parts.push(`Период: ${periodNames[f.period.value || f.period] || f.period}`);
+      }
+    }
+
+    // Dimensions
+    if (queryPlan && queryPlan.query && queryPlan.query.dimensions && queryPlan.query.dimensions.length > 0) {
+      parts.push(`Группировка: ${queryPlan.query.dimensions.join(', ')}`);
+    }
+
+    // Source
+    if (semanticPlan && semanticPlan.translatorResult && semanticPlan.translatorResult.resolvedEntities) {
+      const entities = semanticPlan.translatorResult.resolvedEntities;
+      if (entities.length > 0) {
+        const mapped = entities.filter(e => e.confidence >= 0.8).map(e => `${e.concept} → ${e.object}`);
+        if (mapped.length > 0) {
+          parts.push(`Маппинг: ${mapped.join(', ')}`);
+        }
+      }
+    }
+
+    return parts.length > 0 ? parts.join('\n') : null;
   }
 }
 

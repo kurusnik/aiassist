@@ -9,6 +9,9 @@ const ProjectContextResolver = require('../intelligence/ProjectContextResolver')
 const SemanticValidator = require('../intelligence/SemanticValidator');
 const OneCIntentContext = require('../intelligence/OneCIntentContext');
 const SemanticMemoryLearner = require('../intelligence/SemanticMemoryLearner');
+const OneCEntityNormalizer = require('../intelligence/OneCEntityNormalizer');
+const OneCFilterExtractor = require('../intelligence/OneCFilterExtractor');
+const OneCRelationshipResolver = require('../intelligence/OneCRelationshipResolver');
 
 const METADATA_TYPES = ['find_object', 'analyze_metadata', 'get_structure'];
 
@@ -24,6 +27,9 @@ class TaskRouter {
     this.projectContextResolver = new ProjectContextResolver();
     this.semanticValidator = new SemanticValidator();
     this.memoryLearner = new SemanticMemoryLearner();
+    this.entityNormalizer = new OneCEntityNormalizer();
+    this.filterExtractor = new OneCFilterExtractor();
+    this.relationshipResolver = new OneCRelationshipResolver();
   }
 
   /**
@@ -92,6 +98,11 @@ class TaskRouter {
   /**
    * Full @1с pipeline using OneCIntentContext.
    * Returns a routing result with the context attached for trace/debug.
+   *
+   * Pipeline flow:
+   *   QueryInterpreter → EntityNormalizer → FilterExtractor →
+   *   SemanticPlanner → ProjectContext → SemanticTranslator →
+   *   KnowledgeResolver → SemanticValidator → QueryPlanner
    */
   async _detectOneC(textToAnalyze, messages, result) {
     const projectId = this._resolveProjectId(messages);
@@ -115,11 +126,47 @@ class TaskRouter {
     }
     ctx.setInterpretation(interpretation);
     result.intent = interpretation;
-
     console.log(`[ONEC ROUTE] interpreter_output: ${JSON.stringify(interpretation)}`);
 
+    // Stage 1.5: Entity Normalization — resolve entity to canonical concept
+    let entityNormalization;
+    try {
+      entityNormalization = await this.entityNormalizer.normalize(interpretation.entity, { projectId });
+    } catch (err) {
+      console.log(`[TaskRouter] EntityNormalizer error (non-fatal): ${err.message}`);
+      entityNormalization = { raw: interpretation.entity, canonical: interpretation.entity, concept: null, confidence: 0, source: 'fallback', trace: null };
+    }
+    ctx.setEntityNormalization(entityNormalization);
+    console.log(`[ONEC ROUTE] entity_normalization: canonical="${entityNormalization.canonical}" concept=${entityNormalization.concept} confidence=${entityNormalization.confidence} source=${entityNormalization.source}`);
+
+    // Stage 1.6: Filter Extraction — extract structured filters from raw text
+    let extractedFilters;
+    try {
+      extractedFilters = this.filterExtractor.extract(textToAnalyze);
+    } catch (err) {
+      console.log(`[TaskRouter] FilterExtractor error (non-fatal): ${err.message}`);
+      extractedFilters = { period: null, dateFrom: null, dateTo: null, groupBy: null, raw: [] };
+    }
+    ctx.setExtractedFilters(extractedFilters);
+    console.log(`[ONEC ROUTE] extracted_filters: period=${JSON.stringify(extractedFilters.period)} dateFrom=${extractedFilters.dateFrom} dateTo=${extractedFilters.dateTo}`);
+
+    // Merge interpreter filters with extracted filters (extracted takes precedence)
+    const mergedFilters = {
+      ...(interpretation.filters || {}),
+      ...(extractedFilters.dateFrom ? { date_from: extractedFilters.dateFrom } : {}),
+      ...(extractedFilters.dateTo ? { date_to: extractedFilters.dateTo } : {}),
+      ...(extractedFilters.period ? { period: extractedFilters.period } : {}),
+    };
+    interpretation.filters = mergedFilters;
+
+    // Use canonical entity for downstream pipeline
+    const canonicalEntity = entityNormalization.canonical || interpretation.entity;
+
     // Stage 2: SemanticPlanner
-    const semanticPlan = this.semanticPlanner.analyze(interpretation);
+    const semanticPlan = this.semanticPlanner.analyze({
+      ...interpretation,
+      entity: canonicalEntity,
+    });
     ctx.setSemanticPlan(semanticPlan);
     result.semanticPlan = semanticPlan;
 
@@ -127,29 +174,28 @@ class TaskRouter {
     const plan = this.planner.createPlan(interpretation);
     result.plan = plan;
 
-    // Stage 4: ProjectContextResolver
+    // Stage 4: ProjectContextResolver — search using canonical entity
     let projectContext;
     try {
       projectContext = await this.projectContextResolver.resolve({
         projectId,
-        term: interpretation.entity || textToAnalyze,
+        term: canonicalEntity,
       });
     } catch (pcError) {
       console.log(`[TaskRouter] ProjectContextResolver error (non-fatal): ${pcError.message}`);
       projectContext = { found: false, mappings: [], confidence: 0, source: null, status: 'need_confirmation', suggestion: null };
-      // Audit: add trace entry for silent fallback
       ctx._traceEntry('project_context_error', { error: pcError.message, fallback: 'empty_context' });
     }
     ctx.setProjectContext(projectContext);
     result.projectContext = projectContext;
 
-    // Stage 5: SemanticTranslator
+    // Stage 5: SemanticTranslator — translate using canonical entity
     let translatorResult;
     try {
       translatorResult = await this.semanticTranslator.translate({
-        entity: interpretation.entity,
+        entity: canonicalEntity,
         semanticOperation: semanticPlan.semanticOperation,
-        filters: interpretation.filters || {},
+        filters: mergedFilters,
         intent: interpretation.intent,
       }, { projectId });
     } catch (translatorError) {
@@ -162,7 +208,6 @@ class TaskRouter {
         confidence: 0,
         dimensions: { dimensions: [], resources: [] },
       };
-      // Audit: add trace entry for silent fallback
       ctx._traceEntry('translator_error', { error: translatorError.message, fallback: 'empty_translator' });
     }
     ctx.setTranslatorResult(translatorResult);
@@ -178,6 +223,60 @@ class TaskRouter {
     }
     ctx.setKnowledgeResult(knowledge);
     result.knowledge = knowledge;
+
+    // Stage 6.5: Relationship Resolution — build graph between 1C objects
+    let relationshipGraph;
+    try {
+      // Extract related entities from the query (groupBy fields, dimension hints)
+      const relatedEntities = [];
+      if (extractedFilters.groupBy) relatedEntities.push(extractedFilters.groupBy);
+      if (interpretation.filters && interpretation.filters.dimension) relatedEntities.push(interpretation.filters.dimension);
+
+      // Also check hints for related terms
+      if (semanticPlan.hints && semanticPlan.hints.keywords) {
+        for (const kw of semanticPlan.hints.keywords) {
+          if (kw !== canonicalEntity && kw.length > 1) {
+            relatedEntities.push(kw);
+          }
+        }
+      }
+
+      // Get root object from translator
+      let rootObject = null;
+      if (translatorResult && translatorResult.resolvedEntities && translatorResult.resolvedEntities.length > 0) {
+        const best = translatorResult.resolvedEntities.find(e => e.object && e.object.includes('.'));
+        if (best) rootObject = best.object;
+      }
+
+      relationshipGraph = await this.relationshipResolver.resolve({
+        entity: canonicalEntity,
+        relatedEntities: [...new Set(relatedEntities)],
+        operation: semanticPlan.semanticOperation,
+        rootObject,
+        projectId,
+      });
+    } catch (rgError) {
+      console.log(`[TaskRouter] RelationshipResolver error (non-fatal): ${rgError.message}`);
+      relationshipGraph = {
+        graph: { root: { object: null }, joins: [] },
+        dimensions: [],
+        resources: [],
+        confidence: 0,
+        source: 'error',
+        trace: { error: rgError.message },
+      };
+      ctx._traceEntry('relationship_graph_error', { error: rgError.message, fallback: 'empty_graph' });
+    }
+    ctx.setRelationshipGraph(relationshipGraph);
+    result.relationshipGraph = relationshipGraph;
+
+    // Merge relationship dimensions/resources into semanticPlan hints
+    if (relationshipGraph.dimensions && relationshipGraph.dimensions.length > 0) {
+      semanticPlan.hints.dimensions = relationshipGraph.dimensions;
+    }
+    if (relationshipGraph.resources && relationshipGraph.resources.length > 0) {
+      semanticPlan.hints.metrics = relationshipGraph.resources;
+    }
 
     const translatorEnriched = {
       ...semanticPlan,
@@ -202,49 +301,51 @@ class TaskRouter {
         translatorResult,
         knowledgeResult: knowledge,
         projectId,
-        term: interpretation.entity || textToAnalyze,
+        term: canonicalEntity,
       });
     } catch (valError) {
       console.log(`[TaskRouter] SemanticValidator error (non-fatal): ${valError.message}`);
-      // CRITICAL: Validator error should NOT default to valid: true
-      // Changed to blocked with clear indication that validation failed
       validationResult = { valid: false, confidence: 0, decision: 'blocked', warnings: [`Validation failed: ${valError.message}`], corrections: [], suggestion: null, sourceSummary: {} };
-      // Audit: add trace entry
       ctx._traceEntry('validator_error', { error: valError.message, fallback: 'blocked', severity: 'critical' });
     }
     ctx.setValidationResult(validationResult);
     result.validationResult = validationResult;
 
-    // Stage 7.5: Cold start — if blocked, try MCP discovery
+    // Stage 7.5: Cold start — if blocked AND entity/operation/filters are clear, try MCP discovery
     if (validationResult.decision === 'blocked' && this.memoryLearner) {
-      console.log(`[TaskRouter] Validation blocked — attempting MCP metadata discovery`);
-      try {
-        const discovery = await this.memoryLearner.discoverAndSuggest(
-          interpretation.entity || textToAnalyze,
-          projectId,
-          semanticPlan.semanticOperation,
-          { entity: interpretation.entity, hints: semanticPlan.hints }
-        );
+      const hasClearEntity = canonicalEntity && canonicalEntity.length > 1;
+      const hasClearOperation = semanticPlan.semanticOperation && semanticPlan.semanticOperation !== 'chat';
+      const hasClearFilters = extractedFilters.period || extractedFilters.dateFrom;
 
-        if (discovery.discovered && discovery.suggestedMapping) {
-          // Enrich the suggestion with discovery results
-          validationResult.suggestion = {
-            question: `Не нашёл точное соответствие для "${interpretation.entity || textToAnalyze}".\n\nПредлагаю: ${discovery.suggestedMapping.metadata_object}\n\nПодтвердить?`,
-            options: discovery.candidates.map(c => ({
-              mapping: c.name,
-              source: 'mcp_discovery',
-              confidence: c.score,
-            })),
-            discovery,
-          };
-          validationResult.decision = 'confirmation_required';
-          validationResult.valid = false;
-          ctx.setValidationResult(validationResult); // re-log with updated decision
-          result.validationResult = validationResult;
-          console.log(`[TaskRouter] MCP discovery found: ${discovery.suggestedMapping.metadata_object}`);
+      if (hasClearEntity && hasClearOperation) {
+        console.log(`[TaskRouter] Validation blocked but entity/operation clear — attempting MCP metadata discovery`);
+        try {
+          const discovery = await this.memoryLearner.discoverAndSuggest(
+            canonicalEntity,
+            projectId,
+            semanticPlan.semanticOperation,
+            { entity: canonicalEntity, hints: semanticPlan.hints }
+          );
+
+          if (discovery.discovered && discovery.suggestedMapping) {
+            validationResult.suggestion = {
+              question: `Не нашёл точное соответствие для "${canonicalEntity}".\n\nПредлагаю: ${discovery.suggestedMapping.metadata_object}\n\nПодтвердить?`,
+              options: discovery.candidates.map(c => ({
+                mapping: c.name,
+                source: 'mcp_discovery',
+                confidence: c.score,
+              })),
+              discovery,
+            };
+            validationResult.decision = 'confirmation_required';
+            validationResult.valid = false;
+            ctx.setValidationResult(validationResult);
+            result.validationResult = validationResult;
+            console.log(`[TaskRouter] MCP discovery found: ${discovery.suggestedMapping.metadata_object}`);
+          }
+        } catch (discErr) {
+          console.log(`[TaskRouter] MCP discovery error (non-fatal): ${discErr.message}`);
         }
-      } catch (discErr) {
-        console.log(`[TaskRouter] MCP discovery error (non-fatal): ${discErr.message}`);
       }
     }
 
@@ -258,11 +359,12 @@ class TaskRouter {
     result.domain = '1c';
     result.confidence = 1.0;
     result.programmingType = 'expert_1c';
-    result.intentContext = ctx; // Attach full context for trace/debug
+    result.intentContext = ctx;
 
-    result.task = ctx.toTask(); // Backward-compatible flat object
+    result.task = ctx.toTask();
 
     console.log(`[ONEC ROUTE] selected_pipeline: programmingType=${result.programmingType} executor=${interpretation.executor} confidence=${result.confidence} valid=${validationResult.valid} validation_decision=${validationResult.decision}`);
+    console.log(`[ONEC ROUTE] entity: raw="${interpretation.entity}" → canonical="${canonicalEntity}"`);
     console.log(`[ONEC ROUTE] context_trace:\n${ctx.formatTrace()}`);
 
     return result;

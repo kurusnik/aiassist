@@ -158,3 +158,62 @@ describe('PromptBuilder — [MCP] section', () => {
     assert.ok(result.prompt.includes('справочника Номенклатура'));
   });
 });
+
+describe('PromptBuilder — [QUERY RESULT] section', () => {
+
+  it('query_data with formatted response produces [QUERY RESULT] section', () => {
+    const ctx = new ProgrammingContext();
+    ctx.task = new ProgrammingTask('expert_1c', {
+      title: 'сколько реализаций создано сегодня',
+      language: 'bsl',
+      domain: '1c',
+      originalRequest: 'сколько реализаций создано сегодня'
+    });
+
+    ctx.collectedData.query_data = {
+      available: true,
+      metadata: { count: 5 },
+      response: {
+        success: true,
+        title: 'Количество реализации',
+        summary: 'Найдено 5 реализации',
+        explanation: 'Объект: Документ.РеализацияТоваровУслуг',
+        data: { count: 5 },
+        type: 'count',
+      },
+    };
+
+    const pb = new PromptBuilder();
+    const result = pb.build(ctx);
+
+    assert.ok(result.sections['QUERY RESULT'], '[QUERY RESULT] section must exist');
+    assert.ok(result.prompt.includes('Данные уже получены из 1С'));
+    assert.ok(result.prompt.includes('Найдено 5 реализации'));
+    assert.ok(result.prompt.includes('НЕ пиши код'));
+    assert.ok(result.prompt.includes('Количество реализации'));
+
+    // System section should also reflect query result mode
+    assert.ok(result.sections['SYSTEM'].includes('Данные уже получены из 1С'));
+    assert.ok(result.sections['OUTPUT REQUIREMENTS'].includes('Ответь пользователю результатом запроса'));
+  });
+
+  it('query_data without response does NOT produce [QUERY RESULT]', () => {
+    const ctx = new ProgrammingContext();
+    ctx.task = new ProgrammingTask('expert_1c', {
+      title: 'сколько реализаций создано сегодня',
+      language: 'bsl',
+      domain: '1c',
+      originalRequest: 'сколько реализаций создано сегодня'
+    });
+
+    ctx.collectedData.query_data = {
+      available: true,
+      metadata: { count: 5 },
+    };
+
+    const pb = new PromptBuilder();
+    const result = pb.build(ctx);
+
+    assert.ok(!result.sections['QUERY RESULT'], '[QUERY RESULT] section must NOT exist without response');
+  });
+});

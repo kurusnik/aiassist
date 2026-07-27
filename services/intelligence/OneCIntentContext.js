@@ -26,10 +26,13 @@ const crypto = require('crypto');
 const STAGES = Object.freeze({
   CREATED:            'created',
   INTERPRETATION:     'interpretation',
+  ENTITY_NORMALIZED:  'entity_normalized',
+  FILTERS_EXTRACTED:  'filters_extracted',
   SEMANTIC_PLAN:      'semantic_plan',
   PROJECT_CONTEXT:    'project_context',
   TRANSLATOR:         'translator',
   KNOWLEDGE:          'knowledge',
+  RELATIONSHIP_GRAPH: 'relationship_graph',
   VALIDATION:         'validation',
   QUERY_PLAN:         'query_plan',
   EXECUTION:          'execution',
@@ -47,10 +50,13 @@ class OneCIntentContext {
 
     // Pipeline data — populated by setters
     this.interpretation = null;
+    this.entityNormalization = null;
+    this.extractedFilters = null;
     this.semanticPlan = null;
     this.projectContext = null;
     this.translatorResult = null;
     this.knowledgeResult = null;
+    this.relationshipGraph = null;
     this.validationResult = null;
     this.queryPlan = null;
     this.executionResult = null;
@@ -77,6 +83,32 @@ class OneCIntentContext {
       entity: interp.entity,
       filters: interp.filters,
       executor: interp.executor,
+    });
+    return this;
+  }
+
+  setEntityNormalization(en) {
+    this.entityNormalization = en;
+    this.status = STAGES.ENTITY_NORMALIZED;
+    this._traceEntry(STAGES.ENTITY_NORMALIZED, {
+      raw: en.raw,
+      canonical: en.canonical,
+      concept: en.concept,
+      confidence: en.confidence,
+      source: en.source,
+    });
+    return this;
+  }
+
+  setExtractedFilters(ef) {
+    this.extractedFilters = ef;
+    this.status = STAGES.FILTERS_EXTRACTED;
+    this._traceEntry(STAGES.FILTERS_EXTRACTED, {
+      period: ef.period,
+      dateFrom: ef.dateFrom,
+      dateTo: ef.dateTo,
+      groupBy: ef.groupBy,
+      raw: ef.raw,
     });
     return this;
   }
@@ -127,6 +159,23 @@ class OneCIntentContext {
       selected: kr.selected ? kr.selected.name : null,
       candidateCount: (kr.objectCandidates || []).length,
       strategy: kr.queryStrategy ? kr.queryStrategy.type : null,
+    });
+    return this;
+  }
+
+  setRelationshipGraph(rg) {
+    this.relationshipGraph = rg;
+    this.status = STAGES.RELATIONSHIP_GRAPH;
+    this._traceEntry(STAGES.RELATIONSHIP_GRAPH, {
+      rootObject: rg.graph ? rg.graph.root.object : null,
+      joinCount: rg.graph ? rg.graph.joins.length : 0,
+      joins: rg.graph ? rg.graph.joins.map(j => ({
+        from: j.from, to: j.to, field: j.field, relation: j.relation,
+      })) : [],
+      dimensions: rg.dimensions || [],
+      resources: rg.resources || [],
+      confidence: rg.confidence || 0,
+      source: rg.source || 'none',
     });
     return this;
   }
@@ -208,11 +257,14 @@ class OneCIntentContext {
       originalRequest: this.rawText,
       executor: this.interpretation ? this.interpretation.executor : null,
       intent: this.interpretation,
+      entityNormalization: this.entityNormalization,
+      extractedFilters: this.extractedFilters,
       semanticPlan: this.semanticPlan,
       translatorResult: this.translatorResult,
       knowledge: this.knowledgeResult,
+      relationshipGraph: this.relationshipGraph,
       queryPlan: this.queryPlan,
-      plan: null, // ExecutionPlanner plan — not stored in context
+      plan: null,
       validationResult: this.validationResult,
     };
   }

@@ -40,6 +40,8 @@ const { createWorkflowRouter, WorkflowAPI } = require('./services/workflow/api')
 const PostgresWorkflowStorage = require('./services/workflow/storage/PostgresWorkflowStorage');
 const PostgresEventStore = require('./services/workflow/events/PostgresEventStore');
 const WorkflowControlService = require('./services/workflow/control/WorkflowControlService');
+const WorkflowMetrics = require('./services/workflow/metrics').WorkflowMetrics;
+const metrics = require('./services/workflow/metrics');
 const ApprovalAPI = require('./services/security/approval/api/ApprovalAPI');
 const ApprovalService = require('./services/security/approval/ApprovalService');
 const PostgresApprovalStore = require('./services/security/approval/PostgresApprovalStore');
@@ -2488,6 +2490,68 @@ app.get('/api/semantic/suggestions', requireAuth, async (req, res) => {
   }
 });
 
+// ========== SEMANTIC GRAPH MINING ==========
+// Knowledge Layer → Semantic Graph
+
+const OneCKnowledgeGraphBuilder = require('./services/intelligence/OneCKnowledgeGraphBuilder');
+const graphBuilder = new OneCKnowledgeGraphBuilder();
+
+app.post('/api/semantic/graph/build', requireAuth, async (req, res) => {
+  try {
+    const { projectId, dryRun } = req.body || {};
+    const result = await graphBuilder.build({ projectId: projectId || null, dryRun: !!dryRun });
+    res.json({ status: 'completed', ...result });
+  } catch (err) {
+    console.error('POST /api/semantic/graph/build error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/semantic/graph/status', requireAuth, async (req, res) => {
+  try {
+    const projectId = req.query.projectId ? parseInt(req.query.projectId) : null;
+    const status = await graphBuilder.getStatus(projectId);
+    res.json(status);
+  } catch (err) {
+    console.error('GET /api/semantic/graph/status error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/semantic/graph/suggestions', requireAuth, async (req, res) => {
+  try {
+    const projectId = req.query.projectId ? parseInt(req.query.projectId) : null;
+    const limit = req.query.limit ? parseInt(req.query.limit) : 50;
+    const suggestions = await graphBuilder.getPendingSuggestions(projectId, limit);
+    res.json({ success: true, suggestions, count: suggestions.length });
+  } catch (err) {
+    console.error('GET /api/semantic/graph/suggestions error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/semantic/graph/suggestions/:id/approve', requireAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const projectId = req.body.projectId ? parseInt(req.body.projectId) : null;
+    const ok = await graphBuilder.approveSuggestion(parseInt(id), projectId);
+    res.json({ success: ok });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/semantic/graph/suggestions/:id/reject', requireAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const projectId = req.body.projectId ? parseInt(req.body.projectId) : null;
+    const ok = await graphBuilder.rejectSuggestion(parseInt(id), projectId);
+    res.json({ success: ok });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ========== ONEC DIAGNOSTIC REPORTER ==========
 // Task 1: Diagnostic report per @1с request
 
@@ -2594,16 +2658,16 @@ app.post('/api/semantic/corrections/:id/apply', requireAuth, async (req, res) =>
 // Task 6: Test cases for human validation
 
 const TEST_CASES = [
-  { id: 1, question: '@1с сколько реализаций создано вчера', expected: 'Документ.РеализацияТоваровУслуг', category: 'documents', status: 'unknown' },
-  { id: 2, question: '@1с покажи реализации за июль', expected: 'Документ.РеализацияТоваровУслуг', category: 'documents', status: 'unknown' },
-  { id: 3, question: '@1с последние 10 реализаций', expected: 'Документ.РеализацияТоваровУслуг', category: 'documents', status: 'unknown' },
-  { id: 4, question: '@1с остатки товара', expected: 'РегистрНакопления.ТоварыНаСкладах', category: 'balances', status: 'unknown' },
-  { id: 5, question: '@1с остатки по партиям', expected: 'РегистрНакопления.ТоварыНаСкладах', category: 'balances', status: 'unknown' },
-  { id: 6, question: '@1с остатки на складе', expected: 'РегистрНакопления.ТоварыНаСкладах', category: 'balances', status: 'unknown' },
-  { id: 7, question: '@1с продажи по брендам', expected: 'semantic_mapping', category: 'analytics', status: 'unknown' },
-  { id: 8, question: '@1с продажи по клиентам', expected: 'semantic_mapping', category: 'analytics', status: 'unknown' },
-  { id: 9, question: '@1с топ товаров', expected: 'semantic_mapping', category: 'analytics', status: 'unknown' },
-  { id: 10, question: '@1с как работает распределение остатков', expected: 'onec_coder', category: 'code', status: 'unknown' },
+  { id: 1, question: '@1с сколько реализаций создано сегодня', expected: 'count', object: 'Документ.РеализацияТоваровУслуг', category: 'documents', status: 'unknown' },
+  { id: 2, question: '@1с покажи реализации за неделю', expected: 'document_list', object: 'Документ.РеализацияТоваровУслуг', category: 'documents', status: 'unknown' },
+  { id: 3, question: '@1с последние 10 реализаций', expected: 'document_list', object: 'Документ.РеализацияТоваровУслуг', category: 'documents', status: 'unknown' },
+  { id: 4, question: '@1с остатки товара', expected: 'balance', object: 'РегистрНакопления.ТоварыНаСкладах', category: 'balances', status: 'unknown' },
+  { id: 5, question: '@1с остатки по партиям', expected: 'balance', object: 'РегистрНакопления.ТоварыНаСкладах', category: 'balances', status: 'unknown' },
+  { id: 6, question: '@1с остатки на складе', expected: 'balance', object: 'РегистрНакопления.ТоварыНаСкладах', category: 'balances', status: 'unknown' },
+  { id: 7, question: '@1с продажи по брендам за июль', expected: 'aggregate', object: 'Документ.РеализацияТоваровУслуг', category: 'analytics', status: 'unknown' },
+  { id: 8, question: '@1с продажи по клиентам', expected: 'aggregate', object: 'Документ.РеализацияТоваровУслуг', category: 'analytics', status: 'unknown' },
+  { id: 9, question: '@1с топ клиентов по продажам', expected: 'aggregate', object: 'Документ.РеализацияТоваровУслуг', category: 'analytics', status: 'unknown' },
+  { id: 10, question: '@1с как работает распределение остатков', expected: 'code_explanation', object: null, category: 'code', status: 'unknown' },
 ];
 
 const testResults = new Map();
@@ -2648,6 +2712,26 @@ app.post('/api/onec/test-cases/:id/result', requireAuth, async (req, res) => {
     res.json({ success: true, testCaseId: parseInt(id), result, comment });
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+// ========== BETA STATUS ==========
+// System readiness check for beta testing
+
+const OneCKnowledgeHealthCheck = require('./services/intelligence/OneCKnowledgeHealthCheck');
+const healthCheck = new OneCKnowledgeHealthCheck();
+
+app.get('/api/onec/beta/status', requireAuth, async (req, res) => {
+  try {
+    const { onecConnectionManager } = require('./services/mcp');
+    const client = onecConnectionManager.getClient();
+    if (client) healthCheck.setMcpClient(client);
+
+    const report = await healthCheck.generateReport();
+    res.json(report);
+  } catch (err) {
+    console.error('GET /api/onec/beta/status error:', err);
+    res.status(500).json({ status: 'ERROR', error: err.message });
   }
 });
 
@@ -2777,7 +2861,7 @@ const approvalStore = new PostgresApprovalStore({ pool });
 const approvalService = new ApprovalService({ store: approvalStore });
 const approvalAPI = new ApprovalAPI({ approvalService, auditService });
 const agentControl = new AgentControlService({ auditService });
-const metricsControl = new MetricsControlService({ metrics: null, auditService, agentControlService: agentControl });
+const metricsControl = new MetricsControlService({ metrics, auditService, agentControlService: agentControl });
 const graphView = new ExecutionGraphView({ eventStore, storage: workflowStorage });
 const timelineService = new WorkflowTimelineService({ eventStore, auditService });
 

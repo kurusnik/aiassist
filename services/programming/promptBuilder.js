@@ -6,6 +6,15 @@ class PromptBuilder {
   build(context) {
     const sections = {};
 
+    const hasQueryResult = context.collectedData && context.collectedData.query_data
+      && context.collectedData.query_data.response
+      && context.collectedData.query_data.response.success;
+    console.log(`[BUILD PROMPT DEBUG] hasQueryResult=${!!hasQueryResult} collectedDataKeys=${Object.keys(context.collectedData || {}).join(',')}`);
+    if (hasQueryResult) {
+      const resp = context.collectedData.query_data.response;
+      console.log(`[BUILD PROMPT DEBUG] queryResult title="${resp.title}" summary="${resp.summary}" type="${resp.type}"`);
+    }
+
     const builders = [
       this._buildSystemSection,
       this._buildProjectSection,
@@ -15,6 +24,7 @@ class PromptBuilder {
       this._buildExamplesSection,
       this._buildRagSection,
       this._buildMcpSection,
+      this._buildQueryResultSection,
       this._buildBestPracticesSection,
       this._buildOutputSection
     ];
@@ -73,6 +83,20 @@ class PromptBuilder {
   _buildSystemSection(context) {
     const task = context.task;
     const isBsl = task && (task.language === 'bsl' || task.domain === '1c');
+    const hasQueryResult = context.collectedData && context.collectedData.query_data
+      && context.collectedData.query_data.response
+      && context.collectedData.query_data.response.success;
+
+    if (hasQueryResult) {
+      return {
+        name: 'SYSTEM',
+        content: `[SYSTEM]
+Данные уже получены из 1С.
+Твоя задача — отформатировать результат для пользователя на русском языке.
+НЕ пиши код, НЕ генерируй запросы, НЕ создавай программы.
+Просто представь результат в понятном виде.`
+      };
+    }
 
     if (isBsl) {
       return {
@@ -486,6 +510,44 @@ class PromptBuilder {
     }
   }
 
+  _buildQueryResultSection(context) {
+    const queryData = context.collectedData && context.collectedData.query_data;
+    if (!queryData) return null;
+
+    const response = queryData.response;
+    if (!response || !response.success) return null;
+
+    const lines = ['[QUERY RESULT]'];
+    lines.push('Данные уже получены из 1С. Отформатируй результат для пользователя.');
+    lines.push('');
+
+    if (response.title) {
+      lines.push(`Заголовок: ${response.title}`);
+    }
+    if (response.summary) {
+      lines.push(`Результат: ${response.summary}`);
+    }
+    if (response.explanation) {
+      lines.push(`Пояснение: ${response.explanation}`);
+    }
+    if (response.warnings && response.warnings.length > 0) {
+      lines.push(`Предупреждения: ${response.warnings.join('; ')}`);
+    }
+    if (response.data) {
+      const dataStr = typeof response.data === 'string'
+        ? response.data
+        : JSON.stringify(response.data, null, 2);
+      lines.push(`Данные: ${dataStr}`);
+    }
+
+    lines.push('');
+    lines.push('ИНСТРУКЦИЯ: Ответь пользователю на русском языке, используя данные выше.');
+    lines.push('НЕ пиши код. НЕ генерируй запросы. НЕ создавай программы.');
+    lines.push('Просто сообщи результат.');
+
+    return { name: 'QUERY RESULT', content: lines.join('\n') };
+  }
+
   _buildBestPracticesSection() {
     return {
       name: 'BEST PRACTICES',
@@ -505,6 +567,16 @@ class PromptBuilder {
   _buildOutputSection(context) {
     const task = context.task;
     const isBsl = task && (task.language === 'bsl' || task.domain === '1c');
+    const hasQueryResult = context.collectedData && context.collectedData.query_data
+      && context.collectedData.query_data.response
+      && context.collectedData.query_data.response.success;
+
+    if (hasQueryResult) {
+      return {
+        name: 'OUTPUT REQUIREMENTS',
+        content: '[OUTPUT REQUIREMENTS]\nОтветь пользователю результатом запроса.\nСообщи число/таблицу/остатки на русском языке.\nНЕ пиши код. НЕ генерируй запросы. НЕ создавай программы.\nПросто отформатируй полученный результат.'
+      };
+    }
 
     if (isBsl) {
       return {

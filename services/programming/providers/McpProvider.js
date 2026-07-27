@@ -164,6 +164,7 @@ class McpProvider extends BaseProvider {
 
   async _resolveObjectName(searchText, opts = {}) {
     if (!searchText) return null;
+    console.log(`[MCP FUZZY SEARCH] _resolveObjectName called: searchText="${searchText}" — this should NOT happen when queryPlan.object is available`);
     const intent = opts.intent || 'explain';
     const knowledgeResult = opts.knowledgeResult || null;
     const semanticOperation = opts.semanticOperation || null;
@@ -225,6 +226,11 @@ class McpProvider extends BaseProvider {
   }
 
   async execute(step, context) {
+    console.log(`[MCP Debug] execute START: step=${step.action}`);
+    console.log(`[MCP Debug] context.task=${context && context.task ? 'exists' : 'null'}`);
+    console.log(`[MCP Debug] context.task.queryPlan=${context && context.task && context.task.queryPlan ? JSON.stringify(context.task.queryPlan) : 'null'}`);
+    console.log(`[MCP Debug] context.task.queryPlan.object=${context && context.task && context.task.queryPlan && context.task.queryPlan.object ? context.task.queryPlan.object : 'null'}`);
+
     const client = await this._ensureConnected();
 
     if (!client) {
@@ -265,71 +271,89 @@ class McpProvider extends BaseProvider {
     console.log(`[MCP Decision] task=${taskType} tool=${mcpTool}`);
 
     const args = this._buildArgs(step, context, mcpTool);
+    console.log(`[MCP Debug] args after _buildArgs: table="${args.table || 'none'}" object="${args.object || 'none'}" find="${args.find || 'none'}"`);
 
     const knowledgeResult = this._getKnowledgeResult(context);
     const semanticOperation = this._getSemanticOperation(context);
 
     if (mcpTool === 'get_structure' && args.object && !args.object.includes('.')) {
-      const rawText = this._getRawText(context);
-      const norm = this.normalizer.normalize(rawText);
-      const searchText = norm.searchText || rawText;
-      const resolved = await this._resolveObjectName(searchText, { intent: norm.intent, knowledgeResult, semanticOperation });
-      if (resolved) {
-        args.object = resolved;
-        console.log(`[MCP Decision] task=get_structure tool=get_structure object=${resolved}`);
+      const queryPlanObject = context.task && context.task.queryPlan && context.task.queryPlan.object;
+      console.log(`[MCP Debug] get_structure: args.object="${args.object}" queryPlanObject=${queryPlanObject || 'null'}`);
+      if (queryPlanObject && queryPlanObject.includes('.')) {
+        args.object = queryPlanObject;
+        console.log(`[MCP Decision] task=get_structure tool=get_structure object=${queryPlanObject} (from queryPlan)`);
+      } else {
+        const rawText = this._getRawText(context);
+        const norm = this.normalizer.normalize(rawText);
+        const searchText = norm.searchText || rawText;
+        const resolved = await this._resolveObjectName(searchText, { intent: norm.intent, knowledgeResult, semanticOperation });
+        if (resolved) {
+          args.object = resolved;
+          console.log(`[MCP Decision] task=get_structure tool=get_structure object=${resolved}`);
+        }
       }
     }
 
     if (step.action === 'query_data' && (!args.table || !args.table.includes('.'))) {
-      const rawText = this._getRawText(context);
-      const norm = this.normalizer.normalize(rawText);
-      const searchText = norm.lemmas.length > 0 ? norm.lemmas[0] : (norm.searchText || '');
-      const resolveOpts = { intent: norm.intent, knowledgeResult, semanticOperation };
+      console.log(`[MCP Debug] query_data fallback: args.table="${args.table || 'null'}" (no dot — checking queryPlan)`);
+      // PRIORITY 1: Use resolved object from queryPlan if it's a full dotted name
+      const queryPlanObject = context.task && context.task.queryPlan && context.task.queryPlan.object;
+      if (queryPlanObject && queryPlanObject.includes('.')) {
+        args.table = queryPlanObject;
+        console.log(`[MCP Resolver] PRIORITY: using queryPlan.object="${queryPlanObject}" instead of args.table`);
+      } else {
+        // PRIORITY 2: Fuzzy search via MCP describe (fallback)
+        const rawText = this._getRawText(context);
+        const norm = this.normalizer.normalize(rawText);
+        const searchText = norm.lemmas.length > 0 ? norm.lemmas[0] : (norm.searchText || '');
+        const resolveOpts = { intent: norm.intent, knowledgeResult, semanticOperation };
 
-      if (knowledgeResult && knowledgeResult.trace) {
-        console.log(`[Semantic Knowledge] query_data resolution`);
-        console.log(`  knowledge types: ${JSON.stringify(knowledgeResult.objectTypes)}`);
-        console.log(`  knowledge strategy: ${JSON.stringify(knowledgeResult.queryStrategy)}`);
-        if (knowledgeResult.executorHint === 'onec_coder') {
-          console.log(`[Semantic Knowledge] executorHint=onec_coder — routing to code analysis, skipping MCP query`);
-          return {
-            success: true,
-            provider: this.name,
-            capability: step.action,
-            message: 'Semantic knowledge routed to code analysis',
-            data: { available: false, metadata: {}, semanticKnowledge: knowledgeResult }
-          };
+        if (knowledgeResult && knowledgeResult.trace) {
+          console.log(`[Semantic Knowledge] query_data resolution`);
+          console.log(`  knowledge types: ${JSON.stringify(knowledgeResult.objectTypes)}`);
+          console.log(`  knowledge strategy: ${JSON.stringify(knowledgeResult.queryStrategy)}`);
+          if (knowledgeResult.executorHint === 'onec_coder') {
+            console.log(`[Semantic Knowledge] executorHint=onec_coder — routing to code analysis, skipping MCP query`);
+            return {
+              success: true,
+              provider: this.name,
+              capability: step.action,
+              message: 'Semantic knowledge routed to code analysis',
+              data: { available: false, metadata: {}, semanticKnowledge: knowledgeResult }
+            };
+          }
         }
-      }
 
-      if (searchText) {
-        const resolved = await this._resolveObjectName(searchText, resolveOpts);
-        if (resolved) {
-          args.table = resolved;
-        } else {
-          const rawResolved = await this._resolveObjectName(rawText, resolveOpts);
-          if (rawResolved) {
-            args.table = rawResolved;
+        if (searchText) {
+          const resolved = await this._resolveObjectName(searchText, resolveOpts);
+          if (resolved) {
+            args.table = resolved;
           } else {
-            const allWords = [...new Set([...(norm.lemmas || []), ...(norm.entities || [])])].filter(w => w.length > 2);
-            let bestTable = null;
-            for (let i = 0; i < allWords.length - 1; i++) {
-              const bigram = allWords[i] + ' ' + allWords[i + 1];
-              const resolved = await this._resolveObjectName(bigram, resolveOpts);
-              if (resolved) { bestTable = resolved; break; }
-            }
-            if (!bestTable) {
-              for (const word of allWords) {
-                const resolved = await this._resolveObjectName(word, resolveOpts);
+            const rawResolved = await this._resolveObjectName(rawText, resolveOpts);
+            if (rawResolved) {
+              args.table = rawResolved;
+            } else {
+              const allWords = [...new Set([...(norm.lemmas || []), ...(norm.entities || [])])].filter(w => w.length > 2);
+              let bestTable = null;
+              for (let i = 0; i < allWords.length - 1; i++) {
+                const bigram = allWords[i] + ' ' + allWords[i + 1];
+                const resolved = await this._resolveObjectName(bigram, resolveOpts);
                 if (resolved) { bestTable = resolved; break; }
               }
+              if (!bestTable) {
+                for (const word of allWords) {
+                  const resolved = await this._resolveObjectName(word, resolveOpts);
+                  if (resolved) { bestTable = resolved; break; }
+                }
+              }
+              if (bestTable) args.table = bestTable;
             }
-            if (bestTable) args.table = bestTable;
           }
         }
       }
 
-      args.normalizedQuery = norm;
+      args.normalizedQuery = args.normalizedQuery || this.normalizer.normalize(this._getRawText(context));
+      console.log(`[MCP Debug] query_data FINAL: args.table="${args.table}"`);
     }
 
     if (mcpTool === 'query' && !args.table) {
@@ -361,6 +385,7 @@ class McpProvider extends BaseProvider {
       if (!filters && args.normalizedQuery && args.normalizedQuery.dates && args.normalizedQuery.dates.length > 0) {
         filters = { date: args.normalizedQuery.dates[0] };
       }
+      console.log(`[MCP FINAL REQUEST] tool="query" via=queryExecutor table="${args.table}" filters=${JSON.stringify(filters || {})}`);
       const executorResult = await this.queryExecutor.execute(queryPlan, args.table, filters);
 
       // Task 3: Verify MCP result before building response
@@ -384,23 +409,30 @@ class McpProvider extends BaseProvider {
           status: executorResult.skipped ? 'skipped' : 'completed',
           message: `Query executor: ${queryPlan.query.type}`
         });
+        const responseData = {
+          available: true,
+          metadata: executorResult.data || {},
+          queryExecutor: executorResult,
+          response: formattedResponse,
+        };
+        console.log(`[MCP RESULT DEBUG] query_data success=${executorResult.success} queryType=${queryPlan.query.type}`);
+        console.log(`[MCP RESULT DEBUG] metadata=${JSON.stringify(executorResult.data || {})}`);
+        console.log(`[MCP RESULT DEBUG] response.title="${formattedResponse.title || 'none'}"`);
+        console.log(`[MCP RESULT DEBUG] response.summary="${formattedResponse.summary || 'none'}"`);
+        console.log(`[MCP RESULT DEBUG] response.success=${formattedResponse.success}`);
+        console.log(`[MCP RESULT DEBUG] response.type="${formattedResponse.type || 'none'}"`);
         return {
           success: true,
           provider: this.name,
           capability: step.action,
           message: `Semantic query executed: ${queryPlan.query.type}`,
-          data: {
-            available: true,
-            metadata: executorResult.data || {},
-            queryExecutor: executorResult,
-            response: formattedResponse,
-          },
+          data: responseData,
         };
       }
     }
 
     try {
-      console.log(`[MCP Decision] calling tool=${mcpTool} with args=${JSON.stringify(args)}`);
+      console.log(`[MCP FINAL REQUEST] tool="${mcpTool}" args=${JSON.stringify({ table: args.table, object: args.object, params: args.params, find: args.find, limit: args.limit })}`);
       const response = await onecToolClient._callTool(mcpTool, args);
 
       if (!response.success) {
@@ -466,6 +498,15 @@ class McpProvider extends BaseProvider {
   }
 
   _buildArgs(step, context, mcpTool) {
+    const qp = context && context.task && context.task.queryPlan;
+    const qpObj = qp && qp.object;
+
+    console.log(`[MCP Debug] _buildArgs: step=${step.action} mcpTool=${mcpTool}`);
+    console.log(`[MCP Debug] context.task.queryPlan = ${JSON.stringify(qp)}`);
+    console.log(`[MCP Debug] context.queryPlan = ${context && context.queryPlan ? JSON.stringify(context.queryPlan) : 'undefined'}`);
+    console.log(`[MCP Debug] context.executionPlan = ${context && context.executionPlan ? 'exists' : 'undefined'}`);
+    console.log(`[MCP Debug] context.executionPlan.queryPlan = ${context && context.executionPlan && context.executionPlan.queryPlan ? JSON.stringify(context.executionPlan.queryPlan) : 'undefined'}`);
+
     if (step.action === 'search_metadata' && mcpTool === 'describe') {
       const rawText = this._getRawText(context);
       const norm = this.normalizer.normalize(rawText);
@@ -480,6 +521,12 @@ class McpProvider extends BaseProvider {
       const rawText = this._getRawText(context);
       const norm = this.normalizer.normalize(rawText);
       const searchText = norm.lemmas.length > 0 ? norm.lemmas[0] : (norm.searchText || rawText);
+
+      if (qpObj && qpObj.includes('.')) {
+        console.log(`[MCP BuildArgs] get_object_structure PRIORITY: using queryPlan.object="${qpObj}"`);
+        return { object: qpObj };
+      }
+
       return { object: searchText };
     }
     if (step.action === 'query_data') {
@@ -488,6 +535,13 @@ class McpProvider extends BaseProvider {
       const searchText = norm.lemmas.length > 0 ? norm.lemmas[0] : (norm.searchText || rawText);
       console.log(`[MCP BuildArgs] query_data raw="${rawText}" lemmas=${JSON.stringify(norm.lemmas)} searchText="${searchText}" intent=${norm.intent}`);
       console.log(`[MCP Trace Normalizer] ${JSON.stringify(norm)}`);
+
+      if (qpObj && qpObj.includes('.')) {
+        console.log(`[MCP BuildArgs] PRIORITY: using queryPlan.object="${qpObj}" over searchText="${searchText}"`);
+        return { table: qpObj, limit: 20, rawQuery: rawText, normalizedQuery: norm };
+      }
+
+      console.log(`[MCP BuildArgs] queryPlan.object absent or no dot — falling back to searchText="${searchText}"`);
       return { table: searchText, limit: 20, rawQuery: rawText, normalizedQuery: norm };
     }
     return {};
