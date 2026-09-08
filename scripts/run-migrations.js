@@ -18,9 +18,7 @@ async function runMigrations() {
       '005_add_rag_embeddings.sql',
       '006_embedding_dimension_384.sql',
       '007_model_management.sql',
-      '009_knowledge_schema.sql',
-      '010_diagnostics_traces.sql',
-      '011_hybrid_retrieval_fts.sql'
+      '009_knowledge_schema.sql'
     ];
     
     let executedCount = 0;
