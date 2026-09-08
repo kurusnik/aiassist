@@ -221,7 +221,25 @@
     }
     function escapeHtml(text) { const div = document.createElement('div'); div.textContent = text; return div.innerHTML; }
     document.getElementById('search-query').addEventListener('keypress', (e) => { if (e.key === 'Enter') searchKnowledge(); });
-    checkAuth().then(() => { loadProjects(); loadStats(); });
+    checkAuth().then((user) => {
+      loadProjects();
+      loadStats();
+      if (user && !user.isAdmin) {
+        // Закрытая схема: не-админ не может писать в общую базу — убираем опцию «Общая база»
+        // и скрываем вход в админку.
+        const projSelect = document.getElementById('rag-project');
+        if (projSelect.options[0] && projSelect.options[0].value === '') {
+          projSelect.remove(0);
+        }
+        const personalOpt = document.createElement('option');
+        personalOpt.value = '';
+        personalOpt.textContent = 'Личный документ (без проекта)';
+        projSelect.insertBefore(personalOpt, projSelect.firstChild);
+
+        const adminBtn = document.querySelector('button[onclick*="admin.html"]');
+        if (adminBtn) adminBtn.style.display = 'none';
+      }
+    });
   </script>
 </body>
 </html>

@@ -10,9 +10,18 @@ const { chunkText, recursiveChunkText, createChunkMetadata, cleanTextForIndexing
 // Конфигурация
 const UPLOAD_DIR = path.join(__dirname, '../../uploads');
 
+// Закрытая схема: whitelist категорий для ОБЩЕЙ базы знаний (public_embeddings).
+// В общую базу может писать только администратор (this is enforced in index.js routes).
+const PUBLIC_CATEGORIES = [
+  'general', 'faq', 'documentation', 'guides', 'guide',
+  'code', 'academy', 'policy', 'document'
+];
+
 /**
  * Индексирование текста с разбивкой на чанки
  * @param {Object} options - Опции индексирования
+ * @param {boolean} options.isPublic - Писать в общую базу (public_embeddings).
+ *        ДЕТЕРМИНИРУЕТСЯ ТОЛЬКО В РОУТЕ по is_admin. Вызов из других мест не передаёт флаг.
  * @returns {Promise<Object>} Результат индексации
  */
 async function indexText({
@@ -20,8 +29,20 @@ async function indexText({
   userId,
   projectId = null,
   fileName = 'unknown',
-  metadata = {}
+  metadata = {},
+  isPublic = false
 }) {
+  const category = metadata.category ? String(metadata.category).trim() : 'general';
+
+  // Защита качества: в общую базу — только категории из whitelist
+  if (isPublic && !PUBLIC_CATEGORIES.includes(category)) {
+    return {
+      success: false,
+      error: `Неизвестная категория "${category}". Разрешены: ${PUBLIC_CATEGORIES.join(', ')}`,
+      chunksCount: 0
+    };
+  }
+
   const cleanedText = cleanTextForIndexing(text);
   const chunks = recursiveChunkText(cleanedText);
 
@@ -43,7 +64,7 @@ async function indexText({
     const chunkMetadata = createChunkMetadata({
       fileName,
       originalName: fileName,
-      category: metadata.category || 'document',
+      category,
       tags: metadata.tags || [],
       fileSize: text.length,
       mimeType: 'text/plain',
@@ -54,29 +75,19 @@ async function indexText({
 
     // Преобразование массива embedding в формат pgvector: '[val1,val2,...]'
     const embeddingVector = '[' + embeddings[i].join(',') + ']';
-    
-    // Определяем, куда сохранять: если projectId пустой И есть категория, то в общую базу
-    if (!projectId && metadata.category) {
+
+    if (isPublic) {
+      // Общая база знаний (только админ; флаг ставит роут)
       const result = await pool.query(
         `INSERT INTO public_embeddings 
          (category, title, embedding, content, metadata)
          VALUES ($1, $2, $3, $4, $5)
          RETURNING id`,
-        [metadata.category, fileName, embeddingVector, chunks[i], JSON.stringify(chunkMetadata)]
+        [category, fileName, embeddingVector, chunks[i], JSON.stringify(chunkMetadata)]
       );
       insertedIds.push(result.rows[0].id);
     } else {
-    // Определяем, куда сохранять: если projectId пустой И есть категория, то в общую базу
-    if (!projectId && metadata.category) {
-      const result = await pool.query(
-        `INSERT INTO public_embeddings 
-         (category, title, embedding, content, metadata)
-         VALUES ($1, $2, $3, $4, $5)
-         RETURNING id`,
-        [metadata.category, fileName, embeddingVector, chunks[i], JSON.stringify(chunkMetadata)]
-      );
-      insertedIds.push(result.rows[0].id);
-    } else {
+      // Личное хранилище пользователя
       const result = await pool.query(
         `INSERT INTO document_embeddings 
          (user_id, project_id, chunk_index, embedding, content, metadata)
@@ -85,7 +96,6 @@ async function indexText({
         [userId, projectId, i, embeddingVector, chunks[i], JSON.stringify(chunkMetadata)]
       );
       insertedIds.push(result.rows[0].id);
-    }
     }
   }
 
@@ -107,7 +117,8 @@ async function indexFile({
   filePath,
   userId,
   projectId = null,
-  metadata = {}
+  metadata = {},
+  isPublic = false
 }) {
   try {
     if (!fs.existsSync(filePath)) {
@@ -187,7 +198,8 @@ async function indexFile({
         fileSize,
         mimeType,
         originalPath: filePath
-      }
+      },
+      isPublic
     });
 
     return result;
@@ -205,50 +217,65 @@ async function indexFile({
  * Удаление документа из индекса
  * @param {number} documentId - ID документа
  * @param {number} userId - ID владельца (для проверки прав)
+ * @param {boolean} isAdmin - Флаг администратора (может удалять из общей базы)
  * @returns {Promise<Object>} Результат удаления
  */
-async function deleteDocument(documentId, userId) {
+async function deleteDocument(documentId, userId, isAdmin = false) {
   try {
-    // Проверка прав
+    // Проверка прав на личный документ
     const checkResult = await pool.query(
       'SELECT user_id FROM document_embeddings WHERE id = $1 LIMIT 1',
       [documentId]
     );
 
-    if (checkResult.rows.length === 0) {
-      return {
-        success: false,
-        error: 'Document not found'
-      };
-    }
+    if (checkResult.rows.length > 0) {
+      const doc = checkResult.rows[0];
 
-    const doc = checkResult.rows[0];
-    
-    // Проверка: владелец или админ
-    if (doc.user_id !== userId) {
-      const userResult = await pool.query(
-        'SELECT is_admin FROM users WHERE id = $1',
-        [userId]
-      );
-      
-      if (!userResult.rows[0]?.is_admin) {
+      // Проверка: владелец или админ
+      if (doc.user_id !== userId && !isAdmin) {
         return {
           success: false,
           error: 'Access denied'
         };
       }
+
+      // Удаление всех чанков личного документа
+      const deleteResult = await pool.query(
+        'DELETE FROM document_embeddings WHERE document_id = $1 OR id = $1',
+        [documentId]
+      );
+
+      return {
+        success: true,
+        deletedCount: deleteResult.rowCount,
+        message: 'Document removed from index'
+      };
     }
 
-    // Удаление всех чанков документа
-    const deleteResult = await pool.query(
-      'DELETE FROM document_embeddings WHERE document_id = $1 OR id = $1',
-      [documentId]
-    );
+    // Общая база знаний: удалить может только админ
+    if (isAdmin) {
+      const pubCheck = await pool.query(
+        'SELECT id FROM public_embeddings WHERE id = $1',
+        [documentId]
+      );
+
+      if (pubCheck.rows.length > 0) {
+        const deleteResult = await pool.query(
+          'DELETE FROM public_embeddings WHERE id = $1',
+          [documentId]
+        );
+        return {
+          success: true,
+          deletedCount: deleteResult.rowCount,
+          scope: 'public',
+          message: 'Public document removed from index'
+        };
+      }
+    }
 
     return {
-      success: true,
-      deletedCount: deleteResult.rowCount,
-      message: 'Document removed from index'
+      success: false,
+      error: 'Document not found'
     };
   } catch (error) {
     console.error('[RAG INGESTION] Delete error:', error.message);

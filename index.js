@@ -2159,9 +2159,24 @@ app.post('/api/rag/index', requireAuth, async (req, res) => {
   try {
     const { projectId, content, fileName, metadata } = req.body;
     const userId = req.session.userId;
+    const isAdmin = !!req.session.isAdmin;
 
     if (!content) {
       return res.status(400).json({ error: 'content обязателен' });
+    }
+
+    const category = (metadata && metadata.category)
+      ? String(metadata.category).trim()
+      : null;
+
+    // Закрытая схема: без привязки к проекту с указанной категорией = запись в ОБЩУЮ базу.
+    // Такое может делать только администратор.
+    const wantsPublic = !projectId && !!category;
+    if (wantsPublic && !isAdmin) {
+      return res.status(403).json({
+        error: 'forbidden',
+        message: 'Писать в общую базу знаний может только администратор'
+      });
     }
 
     const result = await indexText({
@@ -2169,7 +2184,8 @@ app.post('/api/rag/index', requireAuth, async (req, res) => {
       userId,
       projectId: projectId || null,
       fileName: fileName || 'unknown',
-      metadata: metadata || {}
+      metadata: metadata || {},
+      isPublic: wantsPublic
     });
 
     if (result.success) {
@@ -2192,16 +2208,38 @@ app.post('/api/rag/index-file', requireAuth, upload.single('file'), async (req, 
 
     const projectId = req.body.projectId ? parseInt(req.body.projectId) : null;
     const userId = req.session.userId;
+    const isAdmin = !!req.session.isAdmin;
+    const category = req.body.category ? String(req.body.category).trim() : null;
+
+    // Закрытая схема: без привязки к проекту с указанной категорией = запись в ОБЩУЮ базу.
+    const wantsPublic = !projectId && !!category;
+    if (wantsPublic && !isAdmin) {
+      fs.unlinkSync(req.file.path);
+      return res.status(403).json({
+        error: 'forbidden',
+        message: 'Писать в общую базу знаний может только администратор'
+      });
+    }
+
+    const metadata = {
+      originalName: req.file.originalname,
+      mimeType: req.file.mimetype,
+      size: req.file.size
+    };
+    if (category) metadata.category = category;
+    if (req.body.tags) {
+      metadata.tags = String(req.body.tags)
+        .split(',')
+        .map(t => t.trim())
+        .filter(Boolean);
+    }
 
     const result = await indexFile({
       filePath: req.file.path,
       userId,
       projectId,
-      metadata: {
-        originalName: req.file.originalname,
-        mimeType: req.file.mimetype,
-        size: req.file.size
-      }
+      metadata,
+      isPublic: wantsPublic
     });
 
     // Очистка временного файла
@@ -2229,7 +2267,7 @@ app.delete('/api/rag/document/:id', requireAuth, async (req, res) => {
     const documentId = parseInt(req.params.id);
     const userId = req.session.userId;
 
-    const result = await deleteDocument(documentId, userId);
+    const result = await deleteDocument(documentId, userId, !!req.session.isAdmin);
 
     if (result.success) {
       res.json(result);
