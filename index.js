@@ -2051,6 +2051,43 @@ app.get('/api/rag/stats', requireAuth, async (req, res) => {
   }
 });
 
+// Статус RAG + эмбеддера (для бейджа в шапке интерфейса)
+app.get('/api/rag/status', requireAuth, async (req, res) => {
+  try {
+    const pubResult = await pool.query(
+      'SELECT COUNT(*)::int AS c FROM public_embeddings'
+    );
+
+    let embedOk = false;
+    let embedLatency = null;
+    let embedError = null;
+    try {
+      const start = Date.now();
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 3000);
+      const resp = await fetch('http://llama-embed:8081/health', { signal: controller.signal });
+      clearTimeout(timer);
+      embedOk = resp.ok;
+      embedLatency = Date.now() - start;
+    } catch (err) {
+      embedError = err.message;
+    }
+
+    res.json({
+      success: true,
+      publicDocs: pubResult.rows[0].c,
+      embedding: {
+        ok: embedOk,
+        latency: embedLatency,
+        error: embedError
+      }
+    });
+  } catch (error) {
+    console.error('[RAG] Status error:', error);
+    res.status(500).json({ error: 'internal_error', details: error.message });
+  }
+});
+
 // ========== OCR ENDPOINT ==========
 
 // Распознавание текста с изображений с автоматической отправкой в AI

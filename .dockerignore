@@ -8,5 +8,8 @@ npm-debug.log
 models/
 *.gguf
 
+# Локальный кэш модели эмбеддингов (монтируется volume'ом)
+.hf-cache/
+
 uploads/
 logs/

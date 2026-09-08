@@ -37,8 +37,10 @@
         </button>
         <span class="text-small flex items-center gap-1" style="color:var(--text-tertiary);">👤 <span id="username">...</span></span>
         <button class="btn btn-sm" id="creditsBtn" title="Баланс">💰 <span id="balance-short">--</span></button>
+        <button class="btn btn-sm" id="ragStatusBtn" title="База знаний и эмбеддер">📚 <span id="rag-status">...загрузка</span></button>
         <button class="btn btn-sm" id="adminBtn" style="display:none;">Админ-панель</button>
         <button class="btn btn-sm" id="programmingBtn" onclick="window.location.href='/programming.html'">Programming</button>
+        <button class="btn btn-sm" id="knowledgeBtn" onclick="window.location.href='/rag.html'">📚 База знаний</button>
         <button class="btn btn-ghost btn-sm" id="logoutBtn">Выход</button>
       </div>
     </header>
@@ -959,6 +961,35 @@
       });
     }
 
+    // Кнопка-бейдж статуса базы знаний → переход в базу знаний
+    const ragStatusBtn = document.getElementById('ragStatusBtn');
+    if (ragStatusBtn) {
+      ragStatusBtn.addEventListener('click', () => {
+        window.location.href = '/rag.html';
+      });
+    }
+
+    // Статус RAG (доки в общей базе) и эмбеддера — для бейджа в шапке
+    async function loadRagStatus() {
+      const el = document.getElementById('rag-status');
+      if (!el) return;
+      try {
+        const resp = await fetch('/api/rag/status');
+        const data = await resp.json();
+        if (data.success) {
+          const embOk = data.embedding && data.embedding.ok;
+          el.textContent = (data.publicDocs ?? 0) + ' · E' + (embOk ? '✓' : '✗');
+          ragStatusBtn.title = embOk
+            ? `База знаний: ${data.publicDocs} док(ов) · эмбеддер работает`
+            : `База знаний: ${data.publicDocs} док(ов) · эмбеддер НЕДОСТУПЕН`;
+        } else {
+          el.textContent = '—';
+        }
+      } catch (err) {
+        el.textContent = '—';
+      }
+    }
+
     // Обработчик кнопки выхода
     const logoutBtn = document.getElementById('logoutBtn');
     if (logoutBtn) {
@@ -1024,6 +1055,12 @@
       } catch (e) {
         console.error(e);
         alert('Не удалось загрузить проекты');
+      }
+
+      try {
+        await loadRagStatus();
+      } catch (e) {
+        console.error('RAG status load failed:', e);
       }
     })();
   </script>
