@@ -2291,7 +2291,7 @@ app.get('/api/rag/search', requireAuth, async (req, res) => {
 
     const searchFn = useHybrid === 'true' ? rag.search.hybridSearch : rag.search.vectorSearch;
     const numLimit = limit ? parseInt(limit) : 5;
-    const numThreshold = threshold ? parseFloat(threshold) : 0.7;
+    const numThreshold = threshold ? parseFloat(threshold) : 0.4;
     
     const [results, publicResults] = await Promise.all([
       searchFn(q, {
