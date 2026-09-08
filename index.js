@@ -2290,19 +2290,37 @@ app.get('/api/rag/search', requireAuth, async (req, res) => {
     }
 
     const searchFn = useHybrid === 'true' ? rag.search.hybridSearch : rag.search.vectorSearch;
+    const numLimit = limit ? parseInt(limit) : 5;
+    const numThreshold = threshold ? parseFloat(threshold) : 0.7;
     
-    const results = await searchFn(q, {
-      projectId: projectId ? parseInt(projectId) : null,
-      userId: req.session.userId,
-      limit: limit ? parseInt(limit) : 5,
-      threshold: threshold ? parseFloat(threshold) : 0.7
-    });
+    const [results, publicResults] = await Promise.all([
+      searchFn(q, {
+        projectId: projectId ? parseInt(projectId) : null,
+        userId: req.session.userId,
+        limit: numLimit,
+        threshold: numThreshold
+      }),
+      // Общая база знаний: видна всем залогиненным (read-only)
+      rag.search.searchPublicKnowledge(q, {
+        limit: numLimit,
+        threshold: numThreshold
+      })
+    ]);
+
+    // Объединение: личные/проектные + общая база, сортировка по релевантности
+    const merged = [
+      ...results,
+      ...publicResults.map(row => ({
+        ...row,
+        source: { public: true, publicCategory: row.category }
+      }))
+    ].sort((a, b) => b.similarity - a.similarity).slice(0, numLimit);
 
     res.json({
       success: true,
       query: q,
-      results,
-      count: results.length
+      results: merged,
+      count: merged.length
     });
   } catch (error) {
     console.error('[RAG] Search error:', error);
