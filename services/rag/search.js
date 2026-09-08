@@ -5,7 +5,9 @@ const pool = require('../../db');
 const { generateEmbedding } = require('./embedding');
 
 // Конфигурация
-const SIMILARITY_THRESHOLD = parseFloat(process.env.RAG_SIMILARITY_THRESHOLD) || 0.7;
+// Порог 0.4 выбран под локальную e5-multilingual (косинусная близость релевантного
+// рус/англ матча ~0.45-0.55; дефолт 0.7 из старой документации не находил ничего).
+const SIMILARITY_THRESHOLD = parseFloat(process.env.RAG_SIMILARITY_THRESHOLD) || 0.4;
 const MAX_RESULTS = parseInt(process.env.RAG_MAX_RESULTS) || 10;
 
 /**
