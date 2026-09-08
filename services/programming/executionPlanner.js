@@ -8,22 +8,13 @@ const STEP_PROVIDERS = {
   query_data:             'mcp',
   collect_project_files:  'filesystem',
   collect_examples:       'filesystem',
-  collect_file_content:   'filesystem',
   collect_rag:            'rag',
   build_prompt:           'internal',
   call_llm:               'openrouter',
   review_result:          'internal'
 };
 
-const METADATA_REQUIRED_TYPES = ['find_object', 'analyze_metadata', 'get_structure', 'data_query']; // expert_1c excluded: metadata failure should not crash pipeline
-
-const METADATA_ACTIONS = ['collect_metadata', 'search_metadata', 'get_object_structure', 'describe_metadata', 'query_data'];
-
-function isStepRequired({ taskType, action, isMetadataAction, metadataRequired }) {
-  if (isMetadataAction) return metadataRequired;
-  if (action === 'call_llm' && taskType === 'expert_1c') return false;
-  return action !== 'collect_rag';
-}
+const METADATA_REQUIRED_TYPES = ['find_object', 'analyze_metadata', 'get_structure'];
 
 const PLAN_TEMPLATES = {
   create_processor: {
@@ -66,14 +57,6 @@ const PLAN_TEMPLATES = {
     actions: ['query_data', 'build_prompt', 'call_llm', 'review_result'],
     complexity: 'low'
   },
-  expert_1c: {
-    actions: ['query_data', 'build_prompt', 'call_llm', 'review_result'],
-    complexity: 'low'
-  },
-  analyze_file: {
-    actions: ['collect_file_content', 'collect_rag', 'build_prompt', 'call_llm', 'review_result'],
-    complexity: 'low'
-  },
   unknown: {
     actions: ['build_prompt', 'call_llm', 'review_result'],
     complexity: 'low'
@@ -92,24 +75,19 @@ class ExecutionPlanner {
 
     const template = PLAN_TEMPLATES[task.type] || PLAN_TEMPLATES.unknown;
     const metadataRequired = METADATA_REQUIRED_TYPES.includes(task.type);
-
-    function isStepRequired({ taskType, action, isMetadataAction, metadataRequired }) {
-      if (isMetadataAction) return metadataRequired;
-      if (action === 'call_llm' && taskType === 'expert_1c') return false;
-      return action !== 'collect_rag';
-    }
+    const metadataActions = ['collect_metadata', 'search_metadata', 'get_object_structure', 'describe_metadata', 'query_data'];
 
     const steps = template.actions.map((action, index) => {
       const providerName = STEP_PROVIDERS[action];
       const provider = this.providerManager ? this.providerManager.get(providerName) : null;
-      const isMetadataAction = METADATA_ACTIONS.includes(action);
+      const isMetadataAction = metadataActions.includes(action);
 
       return {
         order: index + 1,
         action,
         provider: provider ? provider.name : providerName,
         providerDescription: provider ? provider.description : null,
-        required: isStepRequired({ taskType: task.type, action, isMetadataAction, metadataRequired })
+        required: isMetadataAction ? metadataRequired : (action !== 'collect_rag')
       };
     });
 

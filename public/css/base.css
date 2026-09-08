@@ -251,11 +251,10 @@ pre {
 
 .app-content {
   grid-row: 2;
-  overflow-y: auto;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   background: var(--bg-elevated);
-  -webkit-overflow-scrolling: touch;
   transition: background var(--transition-theme);
 }
 

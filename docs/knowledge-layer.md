@@ -1,18 +1,14 @@
-# Knowledge Layer v2.0 — Knowledge Intelligence
+# Knowledge Layer v1.0
 
 ## Назначение
 
-Knowledge Layer — интеллектуальный слой знаний о конфигурации 1С. Превращает метаданные 1С из простого источника данных в структурированный, оценённый и связанный контекст для LLM.
+Knowledge Layer — слой хранения и предоставления метаданных конфигурации 1С для LLM.
 
 Проблема: LLM не имеет контекста о структуре конфигурации 1С (документы, справочники, регистры, их реквизиты). Без этого контекста модель не может сформировать корректный запрос к данным 1С или объяснить структуру метаданных.
 
-Решение: при каждом пользовательском запросе выполняется:
-1. **Поиск** — ILIKE-поиск по метаданным конфигурации 1С
-2. **Scoring** — многофакторная оценка релевантности каждого объекта
-3. **Relations** — разрешение связей между объектами (ссылки, регистры, перечисления)
-4. **Enrichment** — структурированное форматирование контекста
+Решение: при каждом пользовательском запросе выполняется поиск по метаданным конфигурации 1С, и найденные объекты с их реквизитами добавляются в системный промпт перед отправкой в LLM.
 
-Knowledge Layer — read-only слой. Он не изменяет данные 1С, не обращается к LLM, не участвует в маршрутизации запросов.
+Knowledge Layer — read-only слой. Он не изменяет данные 1С, не обращается к LLM, не участвует в маршрутизации запросов. Его единственная задача — предоставить контекст о конфигурации 1С для Prompt Assembly.
 
 Место в архитектуре:
 
@@ -29,22 +25,16 @@ Knowledge Importer ── CLI (npm run knowledge:import)
 PostgreSQL (knowledge schema)
 │
 ▼
-Knowledge Service ── Retrieval (ILIKE + batch)
+Knowledge Service ── читает knowledge.*
 │
 ▼
-Knowledge Scorer ── Scoring (5 факторов, 0..1)
+Context Builder ─── build() + render()
 │
 ▼
-Relation Resolver ── Relations (object, register, enum, stored)
+Prompt Injection ── index.js (системный промпт)
 │
 ▼
-Context Builder ─── Structured Context + Metadata
-│
-▼
-Knowledge Provider ── Candidate[] с score + relations
-│
-▼
-Context Intelligence ── Quality Gate → Dedup → Prioritization → Budget → Prompt
+LLM
 ```
 
 ## Компоненты
@@ -56,11 +46,13 @@ Context Intelligence ── Quality Gate → Dedup → Prioritization → Budget
 Четыре таблицы в схеме `knowledge`:
 
 | Таблица | Назначение | Ключевые поля |
-|---------|-----------|---------------|
+|---|---|---|
 | `configurations` | Конфигурация 1С (имя, версия, платформа) | `id UUID PK`, `name`, `version`, `platform`, `created_at` |
 | `objects` | Объекты метаданных (документы, справочники и т.д.) | `id UUID PK`, `configuration_id FK`, `type`, `name`, `synonym`, `full_name`, `comment` |
 | `fields` | Реквизиты объектов | `id UUID PK`, `object_id FK`, `name`, `synonym`, `datatype`, `required`, `length`, `precision`, `reference_type` |
-| `relations` | Связи между объектами | `id UUID PK`, `from_object_id FK`, `from_field`, `to_object_id FK`, `relation_type` |
+| `relations` | Связи между объектами (зарезервировано) | `id UUID PK`, `from_object_id FK`, `from_field`, `to_object_id FK`, `relation_type` |
+
+Миграция идемпотентна — повторный запуск не вызывает ошибок.
 
 ### Importer
 
@@ -69,192 +61,350 @@ Context Intelligence ── Quality Gate → Dedup → Prioritization → Budget
 Импортёр метаданных из 1С в PostgreSQL.
 
 - **Источник данных:** 1С через MCP-протокол (RSV Data), вызовы `describe({ type })` и `getStructure({ object })`.
-- **Процесс в 3 фазы:**
-  1. **Загрузка объектов** — получение списка объектов каждой категории (Документы, Справочники, РегистрыСведений, РегистрыНакопления, Перечисления)
-  2. **Загрузка полей** — для каждого объекта получение структуры с реквизитами
-  3. **Построение связей** — сканирование всех полей с `reference_type`, поиск целевого объекта в `knowledge.objects`, вставка в `knowledge.relations`
-- **Режим Full Refresh:** перед импортом все таблицы `knowledge.*` очищаются.
+- **Процесс:** получение списка объектов каждой категории (Документы, Справочники, РегистрыСведений, РегистрыНакопления, Перечисления), затем для каждого объекта — получение структуры с реквизитами.
+- **Режим Full Refresh:** перед импортом все таблицы `knowledge.*` очищаются. Инкрементальный импорт не реализован (MVP).
 - **Запуск:** `npm run knowledge:import` (`scripts/knowledge-import.js`).
 
-Типы создаваемых связей:
+Статистика после импорта выводится в консоль:
 
-| Тип связи | Пример | Confidence |
-|-----------|--------|------------|
-| `references_object` | Документ.РасходнаяНакладная → Справочник.Номенклатура | 0.9 |
-| `references_enum` | Поле.ВидОплаты → Перечисление.ВидыОплаты | 0.8 |
-| `related_to_register` | Документ → РегистрНакопления.ОстаткиТоваров | 0.85 |
+```
+Configuration:    1
+Objects imported: 3580
+Fields imported:  55433
+Skipped:          0
+Elapsed time:     279.00s
+```
+
+Если категория недоступна через MCP — выводится предупреждение, импорт остальных категорий продолжается.
 
 ### Knowledge Service
 
 **Файл:** `services/knowledge/service.js`
 
-Read-only сервис для запросов к knowledge schema. Прямые SQL-запросы через `pg.Pool`.
+Read-only сервис для запросов к knowledge schema. Не использует ORM — прямые SQL-запросы через `pg.Pool`.
 
 Публичные методы:
 
 #### `health()`
-Возвращает общее количество объектов, полей, связей и дату последнего импорта.
+
+Возвращает общее количество объектов, полей и дату последнего импорта.
+
+```js
+const health = await knowledge.health();
+// { objects: 3580, fields: 55433, importedAt: "2026-07-23T16:50:10.627Z" }
+```
 
 #### `getObject(identifier)`
-Принимает `full_name` (содержит `.`) или `name`. Возвращает объект со всеми реквизитами.
+
+Принимает `full_name` (содержит `.`) или `name`. Возвращает объект со всеми реквизитами. Если не найден — `null`.
+
+```js
+const obj = await knowledge.getObject('Справочник.Организации');
+// { id, type, name, synonym, full_name, comment, fields: [...] }
+```
 
 #### `findObjects(query)`
-Поиск по `name`, `synonym`, `full_name` через `ILIKE`. Возвращает массив объектов.
+
+Поиск по `name`, `synonym`, `full_name` через `ILIKE`. Возвращает массив объектов (без реквизитов).
+
+```js
+const results = await knowledge.findObjects('контрагент');
+// [{ id, type, name, synonym, full_name, comment }, ...]
+```
 
 #### `getFields(objectId)`
+
 Возвращает реквизиты объекта по его ID.
 
-#### `getFieldsBatch(objectIds[])`
-**Batch-версия:** принимает массив ID, возвращает `Map<objectId, fields[]>`. Один SQL-запрос вместо N.
-
-### Knowledge Scorer
-
-**Файл:** `services/knowledge/scoring/KnowledgeScorer.js`
-
-Многофакторный scorer для оценки релевантности объекта знаний.
-
-| Фактор | Описание | Влияние |
-|--------|----------|---------|
-| Name match | Прямое совпадение с name/synonym/full_name | 0.9 max |
-| Comment match | Совпадение с comment/description | 0.3 max |
-| Field match | Совпадение с именами/синонимами/типами полей | 0.4 max |
-| Object type match | Совпадение с типами сущностей из QueryContext | 0.15 max |
-| Intent boost | Бонус по типу намерения (explain_concept, find_field, execute_action) | 0.15 max |
-
-Итоговый score зажимается в [0, 1].
-
-### Relation Resolver
-
-**Файл:** `services/knowledge/relations/RelationResolver.js`
-
-Разрешение связей между объектами знаний.
-
-Методы:
-- `resolve(objectId)` — связи для одного объекта
-- `resolveMany(objectIds[])` — **batch-версия**, возвращает `Map<objectId, relations[]>`
-- `resolveByFullName(fullName)` — поиск по полному имени
-- `resolveByFullNames(fullNames[])` — batch-версия
-
-Типы связей:
-
-| Тип | Источник | Confidence |
-|-----|----------|------------|
-| `references_object` | Field.reference_type → Справочник./Документ. | 0.9 |
-| `references_enum` | Field.reference_type → Перечисление. | 0.8 |
-| `related_to_register` | Field.reference_type → Регистр или name/synonym ILIKE | 0.6–0.85 |
-| `stored_relation` | knowledge.relations (outgoing) | 0.9 |
-| `stored_relation_inverse` | knowledge.relations (incoming) | 0.8 |
+```js
+const fields = await knowledge.getFields('uuid-...');
+// [{ id, name, synonym, datatype, required, length, precision, reference_type }, ...]
+```
 
 ### Context Builder
 
 **Файл:** `services/knowledge/contextBuilder.js`
 
-Преобразует пользовательский запрос в структурированный контекст.
+Преобразует пользовательский запрос в структурированный контекст для LLM.
 
-`build(userQuery, queryContext)`:
-1. Вызывает `knowledge.findObjects(userQuery)` — поиск
-2. Вызывает `knowledge.getFieldsBatch(matchIds)` — batch загрузка полей (1 запрос)
-3. Вызывает `relationResolver.resolveByFullNames(fullNames)` — batch разрешение связей (1+N → 3 запроса)
-4. Вызывает `scorer.score(object, queryContext)` — оценка релевантности
-5. Форматирует в структурированный текст
+#### `build(userQuery)`
 
-Возвращает: `{ found, objects: [{ id, type, name, full_name, synonym, comment, score, structuredText, meta }] }`
+- Вызывает `knowledge.findObjects(userQuery)`.
+- Для каждого найденного объекта вызывает `knowledge.getObject(full_name)` для получения полной структуры с реквизитами.
+- Возвращает `{ found, objects }`.
 
-Структура `meta` (единый источник метаданных):
+```js
+const ctx = await build('расходная накладная');
+// { found: true, objects: [{ type, name, full_name, synonym, comment, fields }] }
+```
+
+#### `render(context)`
+
+Форматирует контекст в текст для вставки в промпт.
+
+- Выводит до 10 реквизитов на объект.
+- Если реквизитов больше — добавляет строку `... (+N реквизитов)`.
+- Не выводит блок `Реквизиты:`, если реквизитов нет.
+- Комментарий выводится только если не null и не пустая строка.
+
+```
+Найдены объекты конфигурации:
+
+Документ.РасходнаяНакладная
+  Синоним: Расходная накладная
+  Комментарий: Основной документ отгрузки
+  Реквизиты:
+    - Дата — Дата
+    - Контрагент (Покупатель) — Справочник -> Справочник.Контрагенты
+    - Номенклатура — Справочник -> Справочник.Номенклатура
+    ...
+  ... (+232 реквизитов)
+```
+
+### Injection
+
+**Файл:** `index.js` (строки 1511–1532)
+
+Knowledge Context добавляется в системный промпт после RAG-контекста, перед сборкой массива messages.
+
+Логика:
+
+1. Вызов `contextBuilder.build(userMessageTrimmed)`.
+2. Если `found === false` — промпт не изменяется.
+3. Если найдено больше 3 объектов — используются только первые 3.
+4. Вызов `contextBuilder.render(limited)`.
+5. Если размер превышает 4000 символов — обрезка по границе строки с добавлением `...\nКонтекст сокращён для соблюдения лимита.`.
+6. Результат добавляется к `finalSystemPrompt` через разделитель `---`.
+7. Логирование:
 
 ```json
+{"enabled":true,"objectsFound":3,"objectsInjected":3,"charactersBefore":1652,"charactersAfter":1652,"truncated":false}
+```
+
+## Knowledge Diagnostics (Sprint 1 — Knowledge Platform v2)
+
+### Назначение
+
+Diagnostics — модуль наблюдаемости и трассировки Knowledge Layer. Позволяет по любому запросу определить:
+- какие документы были найдены (RAG + Knowledge);
+- какие документы были использованы в финальном контексте;
+- что именно получила LLM (финальный Prompt);
+- сколько времени занял каждый этап;
+- где возникла проблема, если ответ оказался неудовлетворительным.
+
+### Архитектура
+
+```
+services/knowledge/diagnostics/
+├── index.js              — DiagnosticsService (facade, singleton)
+├── traceStore.js          — In-memory circular buffer (max 500 traces)
+├── tracer.js              — PipelineTracer (capture timing + data)
+└── models/
+    ├── TraceContext.js    — Легковесный контейнер Trace ID
+    ├── PipelineStep.js    — Унифицированная модель этапа pipeline
+    └── PipelineTrace.js   — Контейнер трейса со шагами
+```
+
+Принципы:
+- **Модульность**: Diagnostics — самостоятельный сервис, не зависит от Retrieval Pipeline.
+- **Разделение**: Диагностический код не смешивается с кодом пайплайна. Данные собираются через wrapper/interceptor на уровне оркестрации (index.js).
+- **Zero-overhead в production**: По умолчанию диагностика выключена. Включение не требует перезапуска (runtime toggle).
+- **Персистентность**: Трейсы хранятся в памяти (circular buffer, 500 записей) и опционально в таблице `diagnostics_traces`.
+
+### Режимы работы
+
+| Режим | Активация | Поведение |
+|-------|-----------|-----------|
+| Production (default) | `KNOWLEDGE_DEBUG_MODE=false` | Диагностика выключена. Ноль накладных расходов. |
+| Debug | `KNOWLEDGE_DEBUG_MODE=true` | Сбор трейсов всех запросов. |
+| Per-request | `?debug=true` в запросе | Трейс только для конкретного запроса. |
+
+Переключение через админ-панель: Knowledge Diagnostics → toggle.
+
+### Pipeline Step Model (Sprint 1.1)
+
+Каждый этап pipeline хранится в единой внутренней модели `PipelineStep`:
+
+```js
 {
-  "objectType": "Документ",
-  "fields": [
-    { "name": "Контрагент", "synonym": "Покупатель", "datatype": "Справочник", "required": true, "reference_type": "Справочник.Контрагенты" }
-  ],
-  "relations": [
-    { "type": "references_object", "target": "Справочник.Контрагенты", "field": "Контрагент", "confidence": 0.9 }
-  ],
-  "synonym": "Расходная накладная",
-  "comment": "Основной документ отгрузки"
+  id: "traceId:rag",
+  traceId: "uuid",
+  type: "rag",
+  startedAt: "ISO 8601",
+  finishedAt: "ISO 8601",
+  duration: 123,
+  status: "success",     // pending | running | success | error | skipped
+  metadata: { ... }       // специфичные для этапа данные
 }
 ```
 
-## Candidate Metadata
+Эта модель не привязана к текущему RAG/Knowledge pipeline. Она подходит для любых будущих pipeline:
 
-Knowledge Provider создаёт Candidate с метаданными:
+```
+User Query → Intent Analysis → Hybrid Search → Reranker
+  → Knowledge Graph → Context Builder → Prompt Builder → LLM
+  → Post Processing → MCP → Programming Agent → Academy
+```
+
+Добавление нового этапа не требует изменения Diagnostics:
+
+```js
+diagnosticsService.startPipelineStep(trace, 'hybrid_search');
+const results = await hybridSearch(query);
+diagnosticsService.finishPipelineStep(trace, 'hybrid_search', {
+  documentsFound: results.length,
+  duration: elapsed
+});
+```
+
+### Trace ID (Sprint 1.1)
+
+Каждый пользовательский запрос получает уникальный Trace ID в самом начале обработки. Trace ID создаётся через `TraceContext` — легковесный контейнер, доступный даже когда диагностика выключена. Когда диагностика включена, из `TraceContext` создаётся `PipelineTrace`.
+
+Trace ID используется для сквозной трассировки и может передаваться в:
+- Programming Agent
+- MCP
+- Academy
+- Workflow Engine
+- AIOS Core
+
+### Pipeline Trace
+
+Для каждого запроса собирается информация о всех этапах обработки:
+
+```
+User Query → Query Preprocessing → Retrieval (RAG + Knowledge) 
+  → Context Builder → Prompt Builder → LLM Request → LLM Response
+```
+
+Структура трейса:
 
 ```json
 {
-  "source": "knowledge",
-  "type": "1c",
-  "methods": ["mcp"],
-  "metadata": {
-    "objectType": "Документ",
-    "fields": [...],
-    "relations": [...],
-    "synonym": "...",
-    "comment": "..."
-  }
+  "id": "uuid",
+  "timestamp": "ISO 8601",
+  "userQuery": "текст запроса",
+  "stages": {
+    "rag": {
+      "success": true,
+      "duration": 123,
+      "documentsFound": 5,
+      "documentsUsed": 3,
+      "documents": [
+        { "source": "...", "name": "...", "similarity": 0.85, "size": 1234, "preview": "...", "used": true }
+      ]
+    },
+    "knowledge": {
+      "success": true,
+      "duration": 45,
+      "objectsFound": 3,
+      "objectsUsed": 3
+    },
+    "context_builder": {
+      "success": true,
+      "duration": 10,
+      "promptLength": 5000
+    },
+    "llm_request": {
+      "success": true,
+      "duration": 3200,
+      "tokensUsed": 850
+    }
+  },
+  "metrics": {
+    "totalDuration": 3378,
+    "retrievalDuration": 168,
+    "contextBuildDuration": 10,
+    "llmDuration": 3200,
+    "documentsFound": 8,
+    "documentsUsed": 6,
+    "contextSize": 5000
+  },
+  "llmPrompt": "полный текст промпта",
+  "llmResponse": "ответ модели"
 }
 ```
 
-## Pipeline Integration
-
-```
-User Query
-  │
-  ▼
-Query Intelligence (QueryContext)
-  │
-  ▼
-SearchOrchestrator.getCandidates(queryContext)
-  │
-  ├── HybridRetrievalProvider.getCandidates()
-  │     └── HybridRetrievalService.search()
-  │
-  └── KnowledgeProvider.getCandidates()
-        └── contextBuilder.build(query, queryContext)
-              ├── knowledge.findObjects(query)           ← 1 query
-              ├── knowledge.getFieldsBatch(ids)           ← 1 query (было N)
-              ├── relationResolver.resolveByFullNames()   ← 3 queries (было N×3)
-              ├── scorer.score(object, queryContext)
-              └── _buildStructuredText()
-  │
-  ▼
-ContextIntelligenceService.process(candidates)
-  ├── Validation (CandidateValidator)
-  ├── Quality Gate
-  ├── Dedup
-  ├── Source Coordination
-  ├── Relevance Prioritization
-  ├── Token Budgeting
-  └── Structured Context
-```
-
-## Diagnostics Metrics
+### Метрики
 
 | Метрика | Описание |
 |---------|----------|
-| `knowledgeObjectsFound` | Количество найденных объектов знаний |
-| `knowledgeObjectsScored` | Количество оценённых объектов |
-| `fieldsLoaded` | Количество загруженных полей |
-| `relationsFound` | Количество найденных связей |
-| `fieldLoadingDuration` | Время загрузки полей (мс) |
-| `relationResolutionDuration` | Время разрешения связей (мс) |
-| `scoreDistribution` | Распределение scores по диапазонам |
+| `retrievalDuration` | Время поиска документов (RAG + Knowledge) |
+| `contextBuildDuration` | Время сборки контекста |
+| `documentsFound` | Количество найденных документов |
+| `documentsUsed` | Количество использованных в контексте |
+| `contextSize` | Размер финального промпта (символов) |
+| `llmDuration` | Время ответа модели |
 
-## Batch Optimization
+### API Endpoints (admin-only)
 
-### Было (N объектов = N×4 запросов):
-```
-getFields(1) → 1 query
-relationResolver.resolve(1) → 3 queries
-                  ...
-getFields(N) → 1 query
-relationResolver.resolve(N) → 3 queries
-Итого: 4N запросов
+| Метод | Endpoint | Описание |
+|-------|----------|----------|
+| GET | `/api/admin/knowledge/diagnostics/status` | Статус и статистика |
+| POST | `/api/admin/knowledge/diagnostics/toggle` | Включить/выключить |
+| GET | `/api/admin/knowledge/diagnostics/traces` | Список трейсов |
+| GET | `/api/admin/knowledge/diagnostics/traces/:id` | Детали трейса |
+| DELETE | `/api/admin/knowledge/diagnostics/traces` | Очистить трейсы |
+
+### Переменные окружения
+
+| Переменная | Назначение |
+|---|---|
+| `KNOWLEDGE_DEBUG_MODE` | Включение диагностики по умолчанию (true/false) |
+
+### Миграция
+
+```sql
+-- 010_diagnostics_traces.sql
+CREATE TABLE IF NOT EXISTS diagnostics_traces (
+  id UUID PRIMARY KEY,
+  user_query TEXT NOT NULL,
+  stages JSONB DEFAULT '{}',
+  metrics JSONB DEFAULT '{}',
+  llm_prompt TEXT,
+  llm_response TEXT,
+  duration INTEGER,
+  error JSONB,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
 ```
 
-### Стало (N объектов = 4 запроса):
+## Переменные окружения
+
+| Переменная | Назначение |
+|---|---|
+| `ONEC_MCP_ENABLED` | Включение 1C MCP (true/false) |
+| `ONEC_MCP_URL` | URL MCP-сервера 1С |
+| `ONEC_MCP_LOGIN` | Логин для Basic Auth |
+| `ONEC_MCP_PASSWORD` | Пароль для Basic Auth |
+| `PGHOST`, `PGPORT`, `PGUSER`, `PGPASSWORD`, `PGDATABASE` | Подключение к PostgreSQL |
+
+## Запуск
+
+```bash
+# Миграция схемы
+npm run migrate:run
+
+# Импорт метаданных
+npm run knowledge:import
+
+# Запуск сервера (контекст добавляется автоматически)
+npm start
 ```
-getFieldsBatch(ids) → 1 query
-relationResolver.resolveByFullNames(names) → 3 queries
-Итого: 4 запроса
+
+## Context Intelligence Integration (Sprint 3)
+
+Knowledge Layer теперь интегрирован в единый Context Intelligence pipeline:
+
 ```
+Hybrid Retrieval → Context Intelligence → Prompt Builder
+                        ↑
+              Knowledge Layer (1C)
+```
+
+Knowledge объекты больше не добавляются напрямую в `finalSystemPrompt`. Вместо этого они проходят через `sourceCoordination` (разрешение конфликтов с RAG документами), `tokenBudgeting` (резерв 2000 символов для Knowledge) и `structuredContext` (форматирование в секцию `## Объекты конфигурации 1С`).
+
+**Изменения:**
+- `contextBuilder.build()` вызывается, но передаётся в ContextIntelligenceService, не в Prompt напрямую
+- `contextBuilder.render()` больше не используется — форматирование выполняется StructuredContext с учётом token budget
+- Все новые PipelineStep (`quality_gate`, `dedup`, `source_coordination`, `token_budgeting`, `relevance_prioritization`, `structured_context`) видны в Diagnostics

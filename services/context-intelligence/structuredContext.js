@@ -1,28 +1,21 @@
-function buildStructuredContext(candidates, excluded) {
-  const primary = [];
-  const supporting = [];
-  const knowledge = [];
-
-  for (const c of candidates) {
-    if (c.meta.source === 'knowledge') {
-      knowledge.push(c);
-    } else if (c.score >= 0.3) {
-      primary.push(c);
-    } else {
-      supporting.push(c);
-    }
-  }
+function buildStructuredContext(included, knowledgeIncluded, excluded) {
+  const primaryDocs = included.filter(d =>
+    d.combinedScore >= 0.3 || (d.provenance && d.provenance.includes('vector') && d.provenance.includes('fts'))
+  );
+  const supportingDocs = included.filter(d =>
+    d.combinedScore < 0.3 && !(d.provenance && d.provenance.includes('vector') && d.provenance.includes('fts'))
+  );
 
   return {
-    primary,
-    supporting,
-    knowledge,
+    primary: primaryDocs,
+    supporting: supportingDocs,
+    knowledge: knowledgeIncluded,
     excluded,
     stats: {
-      primaryCount: primary.length,
-      supportingCount: supporting.length,
-      knowledgeCount: knowledge.length,
-      totalCandidates: candidates.length,
+      primaryCount: primaryDocs.length,
+      supportingCount: supportingDocs.length,
+      knowledgeCount: knowledgeIncluded.length,
+      totalDocs: included.length,
       totalExcluded: excluded.length
     }
   };

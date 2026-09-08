@@ -3,10 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5">
-  <title>Админ-панель — AIOS</title>
+  <title>Админ-панель</title>
   <link rel="icon" type="image/svg+xml" href="/icons/favicon.svg" />
   <link rel="apple-touch-icon" href="/icons/favicon.svg" />
-  <meta name="application-name" content="AIOS" />
   <meta name="theme-color" content="#4ea1ff" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -35,7 +34,6 @@
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
       </button>
       <a href="/index.html" class="btn btn-sm" style="text-decoration:none;">💬 Чат</a>
-      <a href="/console.html" class="btn btn-sm" style="text-decoration:none;">AIOS Console</a>
       <button class="btn btn-danger btn-sm" onclick="logout()">Выйти</button>
     </div>
   </header>
@@ -678,7 +676,7 @@
       const assignMap = {};
       currentAssignments.forEach(a => { assignMap[a.role] = a.model_id; });
       if (!roles || roles.length === 0) { tbody.innerHTML = '<tr><td colspan="2">Нет ролей</td></tr>'; return; }
-      const roleLabels = { chat: 'Chat', programming: 'Programming', reviewer: 'Reviewer', academy: 'Academy', summarizer: 'Summarizer', vision: 'Vision', query_interpreter: 'Query Interpreter' };
+      const roleLabels = { chat: 'Chat', programming: 'Programming', reviewer: 'Reviewer', academy: 'Academy', summarizer: 'Summarizer', vision: 'Vision' };
       tbody.innerHTML = roles.map(role => `
         <tr>
           <td><strong>${roleLabels[role] || role}</strong></td>
@@ -693,7 +691,7 @@
     }
     
     async function saveAssignments() {
-      const roles = ['chat', 'programming', 'reviewer', 'academy', 'summarizer', 'vision', 'query_interpreter'];
+      const roles = ['chat', 'programming', 'reviewer', 'academy', 'summarizer', 'vision'];
       const msgDiv = document.getElementById('assignments-message');
       msgDiv.innerHTML = '<div class="msg-box msg-box-info flex items-center gap-2"><div class="spinner"></div>Сохранение...</div>';
       try {

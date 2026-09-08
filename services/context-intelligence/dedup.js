@@ -1,9 +1,9 @@
 const { config } = require('./config');
 
-function deduplicate(candidates) {
+function deduplicate(documents) {
   if (!config.dedup.enabled) {
     return {
-      documents: candidates,
+      documents,
       removed: [],
       log: []
     };
@@ -14,58 +14,59 @@ function deduplicate(candidates) {
   const removed = [];
   const log = [];
 
-  for (const c of candidates) {
-    const existing = seen.get(c.id);
+  for (const doc of documents) {
+    const existing = seen.get(doc.id);
     if (existing) {
-      const keep = c.score >= existing.score ? c : existing;
-      const discard = c.score >= existing.score ? existing : c;
-      seen.set(c.id, keep);
+      const keep = doc.combinedScore >= existing.combinedScore ? doc : existing;
+      const discard = doc.combinedScore >= existing.combinedScore ? existing : doc;
+      seen.set(doc.id, keep);
       removed.push(discard);
       log.push({
-        id: c.id,
+        id: doc.id,
         action: 'dedup_by_id',
-        keptScore: keep.score,
-        removedScore: discard.score
+        keptScore: keep.combinedScore,
+        removedScore: discard.combinedScore,
+        provenance: keep.provenance
       });
       continue;
     }
 
-    const similar = _findSimilar(c, deduped);
+    const similar = _findSimilar(doc, deduped);
     if (similar) {
-      const keep = c.score >= similar.score ? c : similar;
-      const discard = c.score >= similar.score ? similar : c;
+      const keep = doc.combinedScore >= similar.combinedScore ? doc : similar;
+      const discard = doc.combinedScore >= similar.combinedScore ? similar : doc;
       const idx = deduped.indexOf(similar);
       if (idx >= 0) {
-        if (keep === c) {
-          deduped[idx] = c;
+        if (keep === doc) {
+          deduped[idx] = doc;
         }
       } else {
         deduped.push(keep);
       }
       removed.push(discard);
       log.push({
-        id: c.id,
+        id: doc.id,
         action: 'dedup_by_similarity',
-        keptScore: keep.score,
-        removedScore: discard.score,
+        keptScore: keep.combinedScore,
+        removedScore: discard.combinedScore,
         similarToId: similar.id
       });
       continue;
     }
 
-    seen.set(c.id, c);
-    deduped.push(c);
+    seen.set(doc.id, doc);
+    deduped.push(doc);
   }
 
   return { documents: deduped, removed, log };
 }
 
-function _findSimilar(candidate, candidates) {
-  if (!candidate.content || candidate.content.length < 20) return null;
-  const words = new Set(candidate.content.toLowerCase().split(/\s+/).filter(w => w.length > 3));
+function _findSimilar(doc, documents) {
+  if (!doc.content || doc.content.length < 20) return null;
+  const words = new Set(doc.content.toLowerCase().split(/\s+/).filter(w => w.length > 3));
   if (words.size === 0) return null;
 
-  for (const existing of candidates) {
+  for (const existing of documents) {
     if (!existing.content || existing.content.length < 20) continue;
     const existingWords = new Set(existing.content.toLowerCase().split(/\s+/).filter(w => w.length > 3));
     if (existingWords.size === 0) continue;

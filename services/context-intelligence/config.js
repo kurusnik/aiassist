@@ -21,18 +21,16 @@ const config = {
       docSize: 0.1
     },
     sourceTypeBoost: {
-      retrieval: 1.0,
-      knowledge: 0.5,
-      mcp: 0.5,
-      academy: 0.4,
-      memory: 0.3
+      both: 1.0,
+      vector: 0.8,
+      fts: 0.6,
+      knowledge: 0.5
     },
     docTypeBoost: {
       documentation: 1.0,
       code: 0.8,
       faq: 0.9,
       guide: 0.9,
-      object: 0.7,
       general: 0.6
     }
   }

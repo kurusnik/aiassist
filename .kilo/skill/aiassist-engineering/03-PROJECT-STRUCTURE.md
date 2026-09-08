@@ -13,20 +13,7 @@ aiassist/
 │   └── auth.js                      # requireAuth, requireAdmin middleware
 │
 ├── services/
-│   ├── agents/                       # Agent Runtime (Sprint 5 — Programming Agent Foundation)
-│   │   ├── index.js                  #   Экспорт: AgentRuntime, AgentContext, AgentResult, ExecutionPipeline
-│   │   ├── AgentRuntime.js           #   Generic runtime: validation → safety → execution → validation
-│   │   ├── AgentContext.js           #   Unified context: traceId, queryContext, planningContext, knowledgeContext
-│   │   ├── AgentResult.js            #   Unified result: success, output, artifacts, errors, metrics
-│   │   ├── ExecutionPipeline.js      #   Orchestrator: ExecutionPlan → AgentRuntime pipeline
-│   │   └── lifecycle/
-│   │       ├── AgentLifecycle.js     #   State machine (7 states)
-│   │       └── AgentDiagnostics.js   #   Diagnostics integration for agent pipeline steps
-│   │
-│   ├── security/                     # Safety Boundary (Sprint 5 — Stub)
-│   │   ├── index.js                  #   Экспорт: SafetyChecker
-│   │   └── SafetyChecker.js          #   check(action) → { allowed, requiresConfirmation, reason }
-│   │   ├── llm/                         # LLM сервис
+│   ├── llm/                         # LLM сервис
 │   │   ├── index.js                 #   LLMService facade (chat, stream)
 │   │   ├── ProviderFactory.js       #   Выбор активного провайдера из БД
 │   │   ├── register.js              #   Реестр провайдеров
@@ -43,18 +30,6 @@ aiassist/
 │   │   ├── normalize.js             #   Нормализация score
 │   │   └── rank.js                  #   Ранжирование с объяснением
 │   │
-│   ├── query-intelligence/          # Query Intelligence (Sprint 3.5 — Foundation)
-│   │   ├── index.js                 #   QueryIntelligenceService (facade)
-│   │   ├── config.js                #   Конфигурация (enabled, domain, language)
-│   │   ├── normalizer.js             #   Базовая нормализация текста (Sprint 3.5.2)
-│   │   ├── models/
-│   │   │   ├── QueryContext.js      #   Единый объект передачи запроса
-│   │   │   ├── Intent.js            #   Модель намерения пользователя
-│   │   │   ├── Entity.js            #   Модель сущности из запроса
-│   │   │   └── QueryPlan.js         #   План выполнения для агентов
-│   │   └── interfaces/
-│   │       └── QueryInterpreter.js  #   Интерфейс интерпретации
-│   │
 │   ├── context-intelligence/        # Context Intelligence (Sprint 3)
 │   │   ├── index.js                 #   ContextIntelligenceService (facade)
 │   │   ├── config.js                #   Конфигурация (threshold, веса, budget)
@@ -63,12 +38,7 @@ aiassist/
 │   │   ├── sourceCoordination.js    #   Координация RAG + Knowledge 1C
 │   │   ├── tokenBudgeting.js        #   Бюджетирование контекста
 │   │   ├── relevancePrioritization.js#   Многофакторный приоритет
-│   │   ├── structuredContext.js     #   Структурированный вывод контекста
-│   │   └── models/
-│   │       └── Candidate.js         #   Единая модель источника для CI (Sprint 3.5.1)
-│   │   └── validators/
-│   │       └── CandidateValidator.js #   Валидация Candidate перед обработкой (Sprint 3.5.3)
-│   │
+│   │   └── structuredContext.js     #   Структурированный вывод контекста
 │   │
 │   ├── models/
 │   │   └── ModelManager.js          # Управление моделями (sync, getModel, assign)
@@ -76,16 +46,8 @@ aiassist/
 │   ├── router/
 │   │   └── TaskRouter.js            # Маршрутизация chat vs programming
 │   │
-│   ├── planning/                     # Planning Boundary (Sprint 4.3 — ADR-029)
-│   │   ├── index.js                   #   PlanningService (facade)
-│   │   ├── PlanningContext.js         #   Контейнер-мост QueryPlan ↔ ExecutionPlan
-│   │   ├── PlanningBridge.js          #   buildAgentContext: QueryContext → AgentContext (Sprint 5)
-│   │   └── translators/
-│   │       └── QueryPlanTranslator.js #   QueryPlan → ExecutionPlan + PlanningContext
-│   │
-│   ├── programming/                   # Programming Agent
+│   ├── programming/                 # Programming Agent
 │   │   ├── index.js                 #   ProgrammingService (facade)
-│   │   ├── ProgrammingAgentAdapter.js#   Agent Runtime adapter: AgentContext → AgentResult (Sprint 5)
 │   │   ├── taskAnalyzer.js          #   Классификация задач (keywords + scoring)
 │   │   ├── executionPlanner.js      #   Построение плана шагов
 │   │   ├── executionPipeline.js     #   Оркестратор выполнения
@@ -124,13 +86,6 @@ aiassist/
 │   │   ├── search.js                #   Векторный поиск
 │   │   └── ingestion.js             #   Индексирование документов
 │   │
-│   ├── search/                      # Search Provider (Sprint 3.5.2 — active pipeline)
-│   │   ├── index.js                  #   SearchOrchestrator (сбор кандидатов от всех провайдеров)
-│   │   └── providers/
-│   │       ├── BaseSearchProvider.js        #   Базовый класс SearchProvider
-│   │       ├── HybridRetrievalProvider.js   #   Адаптер HybridRetrieval → SearchProvider
-│   │       └── KnowledgeProvider.js         #   Адаптер Knowledge → SearchProvider
-│   │
 │   ├── diagnostics/                 # Системная трассировка (Pipeline Diagnostics)
 │   │   ├── index.js                 #   DiagnosticsService (facade, singleton)
 │   │   ├── traceStore.js            #   In-memory circular buffer (500 traces)
@@ -142,12 +97,8 @@ aiassist/
 │   │
 │   ├── knowledge/                   # Knowledge Layer (1C)
 │   │   ├── importer.js              #   Импорт метаданных из 1C через MCP
-│   │   ├── service.js               #   Read-only query API (Retrieval)
-│   │   ├── contextBuilder.js        #   Поиск + scoring + relations + структурированный контекст (Sprint 4)
-│   │   ├── scoring/                 #   Knowledge Intelligence Scoring (Sprint 4)
-│   │   │   └── KnowledgeScorer.js   #     Многофакторный scorer (name, synonym, field, type, intent)
-│   │   └── relations/               #   Knowledge Relations (Sprint 4)
-│   │       └── RelationResolver.js  #     Разрешение связей объектов (fields, registers, stored)
+│   │   ├── service.js               #   Read-only query API
+│   │   └── contextBuilder.js        #   Поиск + форматирование для LLM
 │   │
 │   ├── passwordManager.js           # Управление паролями (валидация, bcrypt, лимиты)
 │   └── ocr.js                       # OCR сервис (Tesseract.js)
